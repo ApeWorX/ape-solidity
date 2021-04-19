@@ -1,4 +1,4 @@
-# <PROJECT_NAME>
+# Ape Solidity
 
 TODO: Description
 
@@ -13,7 +13,7 @@ TODO: Description
 You can install the latest release via [`pip`](https://pypi.org/project/pip/):
 
 ```bash
-pip install <PYPI_NAME>
+pip install ape-solidity
 ```
 
 ### via `setuptools`
@@ -21,8 +21,8 @@ pip install <PYPI_NAME>
 You can clone the repository and use [`setuptools`](https://github.com/pypa/setuptools) for the most up-to-date version:
 
 ```bash
-git clone https://github.com/ApeWorX/<PYPI_NAME>.git
-cd <PYPI_NAME>
+git clone https://github.com/ApeWorX/ape-solidity.git
+cd ape-solidity
 python3 setup.py install
 ```
 

@@ -51,27 +51,27 @@ with open("./README.md") as readme:
 
 
 setup(
-    name="<PYPI_NAME>",
+    name="ape-solidity",
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
-    description="""<PYPI_NAME>: <SHORT_DESCRIPTION>""",
+    description="Plugin for Ape Ethereum Framework for compiling Solidity contracts",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="ApeWorX Ltd.",
     author_email="admin@apeworx.io",
-    url="https://github.com/ApeWorX/<REPO_NAME>",
+    url="https://github.com/ApeWorX/ape-solidity",
     include_package_data=True,
     install_requires=[
         "importlib-metadata ; python_version<'3.8'",
     ],  # NOTE: Add 3rd party libraries here
     python_requires=">=3.6,<4",
     extras_require=extras_require,
-    py_modules=["<MODULE_NAME>"],
+    py_modules=["ape_solidity"],
     license="Apache-2.0",
     zip_safe=False,
     keywords="ethereum",
     packages=find_packages(exclude=["tests", "tests.*"]),
-    package_data={"<MODULE_NAME>": ["py.typed"]},
+    package_data={"ape_solidity": ["py.typed"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
