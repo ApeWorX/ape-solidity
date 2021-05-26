@@ -48,34 +48,13 @@ class SolidityCompiler(CompilerAPI):
         return versions
 
     @cached_property
-    def package_version(self) -> Optional[Version]:
-        try:
-            import vyper  # type: ignore
-
-            return Version(vyper.__version__)
-
-        except ImportError:
-            return None
-
-    @cached_property
     def available_versions(self) -> List[Version]:
         # NOTE: Package version should already be included in available versions
         return solcx.get_installable_solc_versions()
 
     @property
     def installed_versions(self) -> List[Version]:
-        # doing this so it prefers package version - try debugging here
-        package_version = self.package_version
-        package_version = [package_version] if package_version else []
-        # currently package version is [] this should be ok
-        return package_version + solcx.get_installed_solc_versions()
-
-    @cached_property
-    def vyper_json(self):
-        from vyper.cli import vyper_json  # type: ignore
-
-        # step through this function to debug
-        return vyper_json
+        return solcx.get_installed_solc_versions()
 
     def compile(self, contract_filepaths: List[Path]) -> List[ContractType]:
         # todo: move this to solcx
@@ -88,7 +67,7 @@ class SolidityCompiler(CompilerAPI):
                 if version_to_install:
                     solcx.install_solc(version_to_install, show_progress=True)
                 else:
-                    raise  # ("No available version to install")
+                    raise("No available version to install")
         
         result = solcx.compile_files(contract_filepaths)
         contract_types = []
