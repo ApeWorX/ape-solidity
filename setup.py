@@ -62,7 +62,7 @@ setup(
     url="https://github.com/ApeWorX/ape-solidity",
     include_package_data=True,
     install_requires=[
-        "importlib-metadata ; python_version<'3.8'",
+        "importlib-metadata ; python_version<'3.8' ; py-solc-x",
     ],  # NOTE: Add 3rd party libraries here
     python_requires=">=3.6,<4",
     extras_require=extras_require,
