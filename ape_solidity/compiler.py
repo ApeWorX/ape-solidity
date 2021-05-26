@@ -67,8 +67,8 @@ class SolidityCompiler(CompilerAPI):
                 if version_to_install:
                     solcx.install_solc(version_to_install, show_progress=True)
                 else:
-                    raise("No available version to install")
-        
+                    raise ("No available version to install")
+
         result = solcx.compile_files(contract_filepaths)
         contract_types = []
         for path, result in solcx.compile_files(contract_filepaths).items():
