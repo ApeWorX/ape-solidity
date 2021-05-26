@@ -33,7 +33,7 @@ def get_pragma_spec(source: str) -> Optional[NpmSpec]:
 class SolidityCompiler(CompilerAPI):
     @property
     def name(self) -> str:
-        return "vyper"
+        return "solidity"
 
     def get_versions(self, all_paths: List[Path]) -> Set[str]:
         versions = set()
