@@ -72,8 +72,6 @@ class SolidityCompiler(CompilerAPI):
         result = solcx.compile_files(contract_filepaths)
         contract_types = []
         for path, result in solcx.compile_files(contract_filepaths).items():
-            if path == "version":
-                continue
             contract_types.append(
                 ContractType(
                     # NOTE: Vyper doesn't have internal contract type declarations, so use filename
