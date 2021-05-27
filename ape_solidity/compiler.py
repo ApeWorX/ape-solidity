@@ -16,7 +16,7 @@ def get_pragma_spec(source: str) -> Optional[NpmSpec]:
         source: Solidity source code
     Returns: NpmSpec object or None, if no valid pragma is found
     """
-    pragma_match = next(re.finditer(r"(?:\n|^)\s*#\s*@version\s*([^\n]*)", source), None)
+    pragma_match = next(re.finditer(r"(?:\n|^)\s*pragma\s*version\s*([^\n]*)", source), None)
     if pragma_match is None:
         return None  # Try compiling with latest
 
