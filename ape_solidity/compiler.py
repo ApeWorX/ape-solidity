@@ -16,7 +16,7 @@ def get_pragma_spec(source: str) -> Optional[NpmSpec]:
         source: Solidity source code
     Returns: NpmSpec object or None, if no valid pragma is found
     """
-    pragma_match = next(re.finditer(r"(?:\n|^)\s*pragma\s*version\s*([^\n]*)", source), None)
+    pragma_match = next(re.finditer(r"(?:\n|^)\s*pragma\s*solidity\s*([^;\n]*)", source), None)
     if pragma_match is None:
         return None  # Try compiling with latest
 
@@ -69,16 +69,15 @@ class SolidityCompiler(CompilerAPI):
                 else:
                     raise ("No available version to install")
 
-        result = solcx.compile_files(contract_filepaths)
         contract_types = []
-        for path, result in solcx.compile_files(contract_filepaths).items():
+        for path, result in solcx.compile_files(contract_filepaths, output_values=["abi","asm","ast","bin","bin-runtime","compact-format","devdoc","hashes","interface","metadata","opcodes","srcmap","srcmap-runtime","storage-layout","userdoc"], solc_version=pragma_spec.select(self.installed_versions)).items():
             contract_types.append(
                 ContractType(
                     # NOTE: Vyper doesn't have internal contract type declarations, so use filename
                     contractName=Path(path).stem,
                     sourceId=path,
-                    deploymentBytecode=Bytecode(result["bytecode"]),  # type: ignore
-                    runtimeBytecode=Bytecode(result["bytecode_runtime"]),  # type: ignore
+                    deploymentBytecode=Bytecode(result["bin"]),  # type: ignore
+                    runtimeBytecode=Bytecode(result["bin-runtime"]),  # type: ignore
                     abi=result["abi"],
                     userdoc=result["userdoc"],
                     devdoc=result["devdoc"],
