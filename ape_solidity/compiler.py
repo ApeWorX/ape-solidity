@@ -70,7 +70,27 @@ class SolidityCompiler(CompilerAPI):
                     raise ("No available version to install")
 
         contract_types = []
-        for path, result in solcx.compile_files(contract_filepaths, output_values=["abi","asm","ast","bin","bin-runtime","compact-format","devdoc","hashes","interface","metadata","opcodes","srcmap","srcmap-runtime","storage-layout","userdoc"], solc_version=pragma_spec.select(self.installed_versions)).items():
+        for path, result in solcx.compile_files(
+            contract_filepaths,
+            output_values=[
+                "abi",
+                "asm",
+                "ast",
+                "bin",
+                "bin-runtime",
+                "compact-format",
+                "devdoc",
+                "hashes",
+                "interface",
+                "metadata",
+                "opcodes",
+                "srcmap",
+                "srcmap-runtime",
+                "storage-layout",
+                "userdoc",
+            ],
+            solc_version=pragma_spec.select(self.installed_versions),
+        ).items():
             contract_types.append(
                 ContractType(
                     # NOTE: Vyper doesn't have internal contract type declarations, so use filename
