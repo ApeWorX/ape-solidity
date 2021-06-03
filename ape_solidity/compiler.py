@@ -76,8 +76,8 @@ class SolidityCompiler(CompilerAPI):
                     # NOTE: Vyper doesn't have internal contract type declarations, so use filename
                     contractName=Path(path).stem,
                     sourceId=path,
-                    deploymentBytecode=Bytecode(result["bin"]),  # type: ignore
-                    runtimeBytecode=Bytecode(result["bin-runtime"]),  # type: ignore
+                    deploymentBytecode=Bytecode(bytecode=result["bin"]),  # type: ignore
+                    runtimeBytecode=Bytecode(bytecode=result["bin-runtime"]),  # type: ignore
                     abi=result["abi"],
                     userdoc=result["userdoc"],
                     devdoc=result["devdoc"],
