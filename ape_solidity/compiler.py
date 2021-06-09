@@ -58,40 +58,45 @@ class SolidityCompiler(CompilerAPI):
 
     def compile(self, contract_filepaths: List[Path]) -> List[ContractType]:
         # todo: move this to solcx
+        contract_types = []
         for path in contract_filepaths:
             source = path.read_text()
             pragma_spec = get_pragma_spec(source)
             # check if we need to install specified compiler version
-            if pragma_spec and pragma_spec is not pragma_spec.select(self.installed_versions):
-                version_to_install = pragma_spec.select(self.available_versions)
-                if version_to_install:
-                    solcx.install_solc(version_to_install, show_progress=True)
+            if pragma_spec:
+                if pragma_spec is not pragma_spec.select(self.installed_versions):
+                    solc_version = pragma_spec.select(self.available_versions)
+                    if solc_version:
+                        solcx.install_solc(solc_version, show_progress=True)
+                    else:
+                        raise Exception("No available version to install")
                 else:
-                    raise  # ("No available version to install")
+                    solc_version = pragma_spec.select(self.installed_versions)
+            else:
+                solc_version = max(self.installed_versions)
 
-        contract_types = []
-        for path, result in solcx.compile_files(
-            contract_filepaths,
-            output_values=[
-                "abi",
-                "bin",
-                "bin-runtime",
-                "devdoc",
-                "userdoc",
-            ],
-            # solc_version=pragma_spec.select(self.installed_versions),
-        ).items():
-            contract_types.append(
-                ContractType(
-                    # NOTE: Vyper doesn't have internal contract type declarations, so use filename
-                    contractName=Path(path).stem,
-                    sourceId=path,
-                    deploymentBytecode=Bytecode(bytecode=result["bin"]),  # type: ignore
-                    runtimeBytecode=Bytecode(bytecode=result["bin-runtime"]),  # type: ignore
-                    abi=result["abi"],
-                    userdoc=result["userdoc"],
-                    devdoc=result["devdoc"],
+            for path, result in solcx.compile_source(
+                source,
+                output_values=[
+                    "abi",
+                    "bin",
+                    "bin-runtime",
+                    "devdoc",
+                    "userdoc",
+                ],
+                solc_version=solc_version,
+            ).items():
+                contract_types.append(
+                    ContractType(
+                        # NOTE: Vyper doesn't have internal contract type declarations, use filename
+                        contractName=Path(path).stem,
+                        sourceId=path,
+                        deploymentBytecode=Bytecode(bytecode=result["bin"]),  # type: ignore
+                        runtimeBytecode=Bytecode(bytecode=result["bin-runtime"]),  # type: ignore
+                        abi=result["abi"],
+                        userdoc=result["userdoc"],
+                        devdoc=result["devdoc"],
+                    )
                 )
-            )
 
         return contract_types
