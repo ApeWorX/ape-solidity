@@ -67,29 +67,19 @@ class SolidityCompiler(CompilerAPI):
                 if version_to_install:
                     solcx.install_solc(version_to_install, show_progress=True)
                 else:
-                    raise ("No available version to install")
+                    raise  # ("No available version to install")
 
         contract_types = []
         for path, result in solcx.compile_files(
             contract_filepaths,
             output_values=[
                 "abi",
-                "asm",
-                "ast",
                 "bin",
                 "bin-runtime",
-                "compact-format",
                 "devdoc",
-                "hashes",
-                "interface",
-                "metadata",
-                "opcodes",
-                "srcmap",
-                "srcmap-runtime",
-                "storage-layout",
                 "userdoc",
             ],
-            solc_version=pragma_spec.select(self.installed_versions),
+            # solc_version=pragma_spec.select(self.installed_versions),
         ).items():
             contract_types.append(
                 ContractType(
