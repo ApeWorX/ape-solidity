@@ -67,7 +67,7 @@ class SolidityCompiler(CompilerAPI):
                 if pragma_spec is not pragma_spec.select(self.installed_versions):
                     solc_version = pragma_spec.select(self.available_versions)
                     if solc_version:
-                        solcx.install_solc(solc_version, show_progress=True)
+                        solcx.install_solc(solc_version, show_progress=False)
                     else:
                         raise Exception("No available version to install")
                 else:
