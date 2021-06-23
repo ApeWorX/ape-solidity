@@ -74,8 +74,7 @@ class SolidityCompiler(CompilerAPI):
                     solc_version = pragma_spec.select(self.installed_versions)
             else:
                 solc_version = max(self.installed_versions)
-
-            for path, result in solcx.compile_source(
+            for result in solcx.compile_source(
                 source,
                 output_values=[
                     "abi",
@@ -85,12 +84,12 @@ class SolidityCompiler(CompilerAPI):
                     "userdoc",
                 ],
                 solc_version=solc_version,
-            ).items():
+            ).values():
                 contract_types.append(
                     ContractType(
                         # NOTE: Vyper doesn't have internal contract type declarations, use filename
                         contractName=Path(path).stem,
-                        sourceId=path,
+                        sourceId=str(path),
                         deploymentBytecode=Bytecode(bytecode=result["bin"]),  # type: ignore
                         runtimeBytecode=Bytecode(bytecode=result["bin-runtime"]),  # type: ignore
                         abi=result["abi"],
