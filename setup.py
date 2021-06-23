@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from setuptools import (  # type: ignore
-    setup,
-    find_packages,
-)
+from setuptools import find_packages, setup  # type: ignore
 
 extras_require = {
     "test": [  # `test` GitHub Action jobs uses this
@@ -63,6 +60,8 @@ setup(
     include_package_data=True,
     install_requires=[
         "importlib-metadata ; python_version<'3.8'",
+        "py-solc-x>=1.1.0,<1.2.0",
+        "eth-ape>=0.1.0a12",
     ],  # NOTE: Add 3rd party libraries here
     python_requires=">=3.6,<4",
     extras_require=extras_require,
