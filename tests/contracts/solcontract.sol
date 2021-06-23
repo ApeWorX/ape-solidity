@@ -2,10 +2,8 @@
 
 pragma solidity ^0.8.4;
 
-function foo() pure returns(bool) {
-    return true;
+contract solcontract {
+    function foo() pure public returns(bool) {
+        return true;
+    }
 }
-
-
-
-
