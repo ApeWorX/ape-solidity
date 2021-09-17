@@ -100,6 +100,5 @@ class SolidityCompiler(CompilerAPI):
                     devdoc=contract_type["devdoc"],
                 )
             )
-        
 
         return contract_types
