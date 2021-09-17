@@ -59,7 +59,9 @@ class SolidityCompiler(CompilerAPI):
     def compile(self, contract_filepaths: List[Path]) -> List[ContractType]:
         # todo: move this to solcx
         contract_types = []
+        files = []
         for path in contract_filepaths:
+            files.append(path)
             source = path.read_text()
             pragma_spec = get_pragma_spec(source)
             # check if we need to install specified compiler version
@@ -74,28 +76,29 @@ class SolidityCompiler(CompilerAPI):
                     solc_version = pragma_spec.select(self.installed_versions)
             else:
                 solc_version = max(self.installed_versions)
-            for result in solcx.compile_source(
-                source,
-                output_values=[
-                    "abi",
-                    "bin",
-                    "bin-runtime",
-                    "devdoc",
-                    "userdoc",
-                ],
-                solc_version=solc_version,
-            ).values():
-                contract_types.append(
-                    ContractType(
-                        # NOTE: Vyper doesn't have internal contract type declarations, use filename
-                        contractName=Path(path).stem,
-                        sourceId=str(path),
-                        deploymentBytecode=Bytecode(bytecode=result["bin"]),  # type: ignore
-                        runtimeBytecode=Bytecode(bytecode=result["bin-runtime"]),  # type: ignore
-                        abi=result["abi"],
-                        userdoc=result["userdoc"],
-                        devdoc=result["devdoc"],
-                    )
+        output = solcx.compile_files(
+            files,
+            output_values=[
+                "abi",
+                "bin",
+                "bin-runtime",
+                "devdoc",
+                "userdoc",
+            ],
+            solc_version=solc_version,
+        )
+        for contract_name, contract_type in output.items():
+            contract_name = contract_name.split(":")[-1]
+            contract_types.append(
+                ContractType(
+                    contractName=contract_name,
+                    sourceId=str(path),
+                    deploymentBytecode=Bytecode(bytecode=contract_type["bin"]),  # type: ignore
+                    runtimeBytecode=Bytecode(bytecode=contract_type["bin-runtime"]),  # type: ignore
+                    abi=contract_type["abi"],
+                    userdoc=contract_type["userdoc"],
+                    devdoc=contract_type["devdoc"],
                 )
+            )
 
         return contract_types

@@ -61,9 +61,9 @@ setup(
     install_requires=[
         "importlib-metadata ; python_version<'3.8'",
         "py-solc-x>=1.1.0,<1.2.0",
-        "eth-ape>=0.1.0a12",
+        "eth-ape>=0.1.0a15",
     ],  # NOTE: Add 3rd party libraries here
-    python_requires=">=3.6,<4",
+    python_requires=">=3.7,<4",
     extras_require=extras_require,
     py_modules=["ape_solidity"],
     license="Apache-2.0",
