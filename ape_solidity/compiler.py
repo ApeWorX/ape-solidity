@@ -4,7 +4,7 @@ from typing import List, Optional, Set
 
 import solcx  # type: ignore
 from ape.api.compiler import CompilerAPI
-from ape.types import Bytecode, ContractType
+from ape.types import ABI, Bytecode, ContractType
 from ape.utils import cached_property
 from semantic_version import NpmSpec, Version  # type: ignore
 
@@ -95,7 +95,7 @@ class SolidityCompiler(CompilerAPI):
                     sourceId=str(path),
                     deploymentBytecode=Bytecode(bytecode=contract_type["bin"]),  # type: ignore
                     runtimeBytecode=Bytecode(bytecode=contract_type["bin-runtime"]),  # type: ignore
-                    abi=contract_type["abi"],
+                    abi=[ABI.from_dict(abi) for abi in contract_type["abi"]],
                     userdoc=contract_type["userdoc"],
                     devdoc=contract_type["devdoc"],
                 )
