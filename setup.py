@@ -61,7 +61,7 @@ setup(
     install_requires=[
         "importlib-metadata ; python_version<'3.8'",
         "py-solc-x>=1.1.0,<1.2.0",
-        "eth-ape>=0.1.0a15",
+        "eth-ape>=0.1.0a23",
     ],  # NOTE: Add 3rd party libraries here
     python_requires=">=3.7,<4",
     extras_require=extras_require,
