@@ -10,10 +10,10 @@ extras_require = {
         "hypothesis>=6.2.0,<7.0",  # Strategy-based fuzzer
     ],
     "lint": [
-        "black>=20.8b1,<21.0",  # auto-formatter and linter
-        "mypy>=0.800,<1.0",  # Static type analyzer
+        "black>=21.10b0,<22.0",  # auto-formatter and linter
+        "mypy>=0.910,<1.0",  # Static type analyzer
         "flake8>=3.8.3,<4.0",  # Style linter
-        "isort>=5.7.0,<6.0",  # Import sorting linter
+        "isort>=5.9.3,<6.0",  # Import sorting linter
     ],
     "doc": [
         "Sphinx>=3.4.3,<4",  # Documentation generator
@@ -61,7 +61,7 @@ setup(
     install_requires=[
         "importlib-metadata ; python_version<'3.8'",
         "py-solc-x>=1.1.0,<1.2.0",
-        "eth-ape>=0.1.0a26",
+        "eth-ape>=0.1.0a29",
     ],  # NOTE: Add 3rd party libraries here
     python_requires=">=3.7,<4",
     extras_require=extras_require,
