@@ -1,6 +1,6 @@
 # Ape Solidity
 
-TODO: Description
+Compile Solidity contracts.
 
 ## Dependencies
 
@@ -28,7 +28,15 @@ python3 setup.py install
 
 ## Quick Usage
 
-TODO: Describe library overview in code
+In your project, make sure you have a `contracts/` directory containing Solidity files (`.sol`).
+
+Then, while this plugin is installed, compile your contracts:
+
+```bash
+ape compile
+```
+
+The byte-code and ABI for your contracts should now exist in a `__local__.json` file in a `.build/` directory.
 
 ## Development
 

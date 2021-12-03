@@ -14,23 +14,8 @@ write_to = "ape_solidity/version.py"
 
 [tool.black]
 line-length = 100
-target-version = ['py36', 'py37', 'py38']
+target-version = ['py37', 'py38', 'py39']
 include = '\.pyi?$'
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | build
-  | dist
-  | env
-  | venv
-)/
-'''
 
 [tool.pytest.ini_options]
 addopts = """
