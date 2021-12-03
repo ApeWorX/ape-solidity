@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List, Optional, Set
 
 import solcx  # type: ignore
+from ape.api import ConfigItem, ConfigDict
 from ape.api.compiler import CompilerAPI
 from ape.types import ABI, Bytecode, ContractType
 from ape.utils import cached_property
@@ -60,6 +61,7 @@ class SolidityCompiler(CompilerAPI):
         # todo: move this to solcx
         contract_types = []
         files = []
+        solc_version = None
         for path in contract_filepaths:
             files.append(path)
             source = path.read_text()
@@ -88,11 +90,13 @@ class SolidityCompiler(CompilerAPI):
             solc_version=solc_version,
         )
         for contract_name, contract_type in output.items():
-            contract_name = contract_name.split(":")[-1]
+            contract_id_parts = contract_name.split(":")
+            contract_path = contract_id_parts[0]
+            contract_name = contract_id_parts[-1]
             contract_types.append(
                 ContractType(
                     contractName=contract_name,
-                    sourceId=str(path),
+                    sourceId=contract_path,
                     deploymentBytecode=Bytecode(bytecode=contract_type["bin"]),  # type: ignore
                     runtimeBytecode=Bytecode(bytecode=contract_type["bin-runtime"]),  # type: ignore
                     abi=[ABI.from_dict(abi) for abi in contract_type["abi"]],
