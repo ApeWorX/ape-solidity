@@ -1,5 +1,5 @@
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 import pytest  # type: ignore
 from ape import Project
