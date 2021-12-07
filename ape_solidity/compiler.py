@@ -1,9 +1,11 @@
 import re
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 import solcx  # type: ignore
+from ape.api import ConfigItem
 from ape.api.compiler import CompilerAPI
+from ape.exceptions import CompilerError, ConfigError
 from ape.types import ABI, Bytecode, ContractType
 from ape.utils import cached_property
 from semantic_version import NpmSpec, Version  # type: ignore
@@ -30,7 +32,32 @@ def get_pragma_spec(source: str) -> Optional[NpmSpec]:
         return None
 
 
+class SolidityConfig(ConfigItem):
+    import_remapping: List[str] = []
+
+
+def _try_add_packages_path_prefix(path: Path) -> Path:
+    packages_path = Path.home() / ".ape" / "packages"
+    if not path.exists() and packages_path not in path.parents:
+        # Check if user is referencing a '.ape/packages' dependency.
+        test_path = packages_path / path
+        if test_path.exists():
+            return test_path
+
+    return path
+
+
+class IncorrectMappingFormatError(ConfigError):
+    def __init__(self):
+        super().__init__(
+            "Incorrectly formatted 'solidity.remapping' config property. "
+            "Expected '@value_1=value2'."
+        )
+
+
 class SolidityCompiler(CompilerAPI):
+    config: SolidityConfig
+
     @property
     def name(self) -> str:
         return "solidity"
@@ -56,10 +83,35 @@ class SolidityCompiler(CompilerAPI):
     def installed_versions(self) -> List[Version]:
         return solcx.get_installed_solc_versions()
 
+    @property
+    def import_remapping(self) -> Dict[str, str]:
+        """
+        Specify the import remapping either from a ``=`` separated str or a dictionary.
+        """
+        items = self.config.import_remapping
+        import_map = {}
+
+        if not items:
+            return import_map
+
+        if not isinstance(items, (list, tuple)) or not isinstance(items[0], str):
+            raise IncorrectMappingFormatError()
+
+        for item in items:
+            item_parts = item.split("=")
+            if len(item_parts) != 2:
+                raise IncorrectMappingFormatError()
+
+            mapped_path = _try_add_packages_path_prefix(Path(item_parts[1]))
+            import_map[item_parts[0]] = str(mapped_path)
+
+        return import_map
+
     def compile(self, contract_filepaths: List[Path]) -> List[ContractType]:
         # todo: move this to solcx
         contract_types = []
         files = []
+        solc_version = None
         for path in contract_filepaths:
             files.append(path)
             source = path.read_text()
@@ -71,11 +123,12 @@ class SolidityCompiler(CompilerAPI):
                     if solc_version:
                         solcx.install_solc(solc_version, show_progress=False)
                     else:
-                        raise Exception("No available version to install")
+                        raise CompilerError(f"Solidity version '{solc_version}' is not available.")
                 else:
                     solc_version = pragma_spec.select(self.installed_versions)
             else:
                 solc_version = max(self.installed_versions)
+
         output = solcx.compile_files(
             files,
             output_values=[
@@ -86,6 +139,7 @@ class SolidityCompiler(CompilerAPI):
                 "userdoc",
             ],
             solc_version=solc_version,
+            import_remappings=self.import_remapping,
         )
         for contract_name, contract_type in output.items():
             contract_name = contract_name.split(":")[-1]
