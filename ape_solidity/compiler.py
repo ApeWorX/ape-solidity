@@ -86,7 +86,7 @@ class SolidityCompiler(CompilerAPI):
     @property
     def import_remapping(self) -> Dict[str, str]:
         """
-        Specify the import remapping either from a ``=`` separated str or a dictionary.
+        Specify the import remapping either from a ``=`` separated str.
         """
         items = self.config.import_remapping
         import_map = {}
