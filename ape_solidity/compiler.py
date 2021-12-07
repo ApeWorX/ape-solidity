@@ -88,7 +88,8 @@ class SolidityCompiler(CompilerAPI):
     @property
     def import_remapping(self) -> Dict[str, str]:
         """
-        Specify the import remapping either from a ``=`` separated str.
+        Specify the remapping using a ``=`` separated str
+        e.g. ``'@import_name=path/to/dependency'``.
         """
         items = self.config.import_remapping
         import_map = {}
