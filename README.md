@@ -38,6 +38,34 @@ ape compile
 
 The byte-code and ABI for your contracts should now exist in a `__local__.json` file in a `.build/` directory.
 
+### Dependency Mapping
+
+To configure import remapping, use your project's `ape-config.yaml` file:
+
+```yaml
+solidity:
+  import_remapping:
+    - "@openzeppelin=path/to/open_zeppelin/contracts"
+```
+
+If you are using the `dependencies:` key in your `ape-config.yaml`, `ape` can automatically
+search those dependencies for the path.
+
+```yaml
+dependencies:
+  open_zeppelin: OpenZeppelin/openzeppelin-contracts@4.4.0
+
+solidity:
+  import_remapping:
+    - "@openzeppelin=open_zeppelin/contracts"
+```
+
+Once you have your dependencies configured, you can import packages using your import keys:
+
+```solidity
+import "@openzeppelin/token/ERC721/ERC721.sol";
+```
+
 ## Development
 
 This project is in early development and should be considered an alpha.
