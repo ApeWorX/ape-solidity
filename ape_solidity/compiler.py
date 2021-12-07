@@ -92,7 +92,7 @@ class SolidityCompiler(CompilerAPI):
         e.g. ``'@import_name=path/to/dependency'``.
         """
         items = self.config.import_remapping
-        import_map = {}
+        import_map: Dict[str, str] = {}
 
         if not items:
             return import_map
