@@ -3,8 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 import solcx  # type: ignore
-from ape.api import ConfigItem
-from ape.api.compiler import CompilerAPI
+from ape.api import CompilerAPI, ConfigItem
 from ape.exceptions import CompilerError, ConfigError
 from ape.types import ABI, Bytecode, ContractType
 from ape.utils import cached_property
