@@ -33,6 +33,8 @@ def get_pragma_spec(source: str) -> Optional[NpmSpec]:
 
 
 class SolidityConfig(ConfigItem):
+    # Configure re-mappings using a `=` separated-str,
+    # e.g. '@import_name=path/to/dependency'
     import_remapping: List[str] = []
 
 
