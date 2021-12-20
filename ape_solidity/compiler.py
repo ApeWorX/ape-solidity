@@ -96,6 +96,7 @@ class SolidityCompiler(CompilerAPI):
         if not items:
             return import_map
 
+        # If we get here, the project has dependencies.
         if not isinstance(items, (list, tuple)) or not isinstance(items[0], str):
             raise IncorrectMappingFormatError()
 
