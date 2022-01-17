@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -153,9 +154,9 @@ class SolidityCompiler(CompilerAPI):
                     sourceId=contract_path,
                     deploymentBytecode=Bytecode(bytecode=contract_type["bin"]),  # type: ignore
                     runtimeBytecode=Bytecode(bytecode=contract_type["bin-runtime"]),  # type: ignore
-                    abi=[ABI.from_dict(abi) for abi in contract_type["abi"]],
-                    userdoc=contract_type["userdoc"],
-                    devdoc=contract_type["devdoc"],
+                    abi=[ABI(**abi) for abi in contract_type["abi"]],
+                    userdoc=json.loads(contract_type["userdoc"]),
+                    devdoc=json.loads(contract_type["devdoc"]),
                 )
             )
 
