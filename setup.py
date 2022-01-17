@@ -61,7 +61,7 @@ setup(
     install_requires=[
         "importlib-metadata ; python_version<'3.8'",
         "py-solc-x>=1.1.0,<1.2.0",
-        "eth-ape>=0.1.0a31",
+        "eth-ape>=0.1.0b2",
     ],  # NOTE: Add 3rd party libraries here
     python_requires=">=3.7,<4",
     extras_require=extras_require,
@@ -72,7 +72,7 @@ setup(
     packages=find_packages(exclude=["tests", "tests.*"]),
     package_data={"ape_solidity": ["py.typed"]},
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Natural Language :: English",
