@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Union
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, ConfigItem
@@ -144,10 +144,15 @@ class SolidityCompiler(CompilerAPI):
             solc_version=solc_version,
             import_remappings=self.import_remapping,
         )
+
+        def load_dict(data: Union[str, dict]) -> Dict:
+            return data if isinstance(data, dict) else json.loads(data)
+
         for contract_name, contract_type in output.items():
             contract_id_parts = contract_name.split(":")
             contract_path = contract_id_parts[0]
             contract_name = contract_id_parts[-1]
+
             contract_types.append(
                 ContractType(
                     contractName=contract_name,
@@ -155,8 +160,8 @@ class SolidityCompiler(CompilerAPI):
                     deploymentBytecode=Bytecode(bytecode=contract_type["bin"]),  # type: ignore
                     runtimeBytecode=Bytecode(bytecode=contract_type["bin-runtime"]),  # type: ignore
                     abi=[ABI(**abi) for abi in contract_type["abi"]],
-                    userdoc=json.loads(contract_type["userdoc"]),
-                    devdoc=json.loads(contract_type["devdoc"]),
+                    userdoc=load_dict(contract_type["userdoc"]),
+                    devdoc=load_dict(contract_type["devdoc"]),
                 )
             )
 
