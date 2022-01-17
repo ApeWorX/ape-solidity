@@ -132,8 +132,10 @@ class SolidityCompiler(CompilerAPI):
             else:
                 solc_version = max(self.installed_versions)
 
+        base_path = Path("contracts").parent if Path("contracts").exists() else None
         output = solcx.compile_files(
             files,
+            base_path=base_path,
             output_values=[
                 "abi",
                 "bin",

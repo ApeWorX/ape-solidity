@@ -7,8 +7,8 @@ from ape import Project
 
 @pytest.fixture
 def project():
+    project = Project(Path(__file__).parent)
     try:
-        project = Project(Path(__file__).parent)
         shutil.rmtree(project._cache_folder)
         yield project
     finally:
