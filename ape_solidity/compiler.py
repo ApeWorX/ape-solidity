@@ -118,9 +118,6 @@ class SolidityCompiler(CompilerAPI):
         files = []
         solc_version = None
 
-        if base_path:
-            contract_filepaths = [base_path / p for p in contract_filepaths]
-
         for path in contract_filepaths:
             files.append(path)
             source = path.read_text()
