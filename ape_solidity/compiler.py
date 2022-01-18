@@ -152,7 +152,7 @@ class SolidityCompiler(CompilerAPI):
 
         for contract_name, contract_type in output.items():
             contract_id_parts = contract_name.split(":")
-            contract_path = contract_id_parts[0]
+            contract_path = Path(contract_id_parts[0]).name
             contract_name = contract_id_parts[-1]
 
             contract_types.append(
