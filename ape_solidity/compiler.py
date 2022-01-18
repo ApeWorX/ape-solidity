@@ -36,6 +36,7 @@ class SolidityConfig(ConfigItem):
     # Configure re-mappings using a `=` separated-str,
     # e.g. '@import_name=path/to/dependency'
     import_remapping: List[str] = []
+    base_path: Path = Path("contracts")
 
 
 def _try_add_packages_path_prefix(path: Path) -> Path:
@@ -110,14 +111,20 @@ class SolidityCompiler(CompilerAPI):
 
         return import_map
 
+    @property
+    def base_path(self) -> Optional[Path]:
+        return self.config.base_path if self.config.base_path.exists() else None
+
     def compile(self, contract_filepaths: List[Path]) -> List[ContractType]:
         # todo: move this to solcx
         contract_types = []
         files = []
         solc_version = None
+
         for path in contract_filepaths:
-            files.append(path)
-            source = path.read_text()
+            path_to_compile = self.base_path / path
+            files.append(path_to_compile)
+            source = path_to_compile.read_text()
             pragma_spec = get_pragma_spec(source)
             # check if we need to install specified compiler version
             if pragma_spec:
@@ -132,10 +139,9 @@ class SolidityCompiler(CompilerAPI):
             else:
                 solc_version = max(self.installed_versions)
 
-        base_path = Path("contracts") if Path("contracts").exists() else None
         output = solcx.compile_files(
             files,
-            base_path=base_path,
+            base_path=self.base_path,
             output_values=[
                 "abi",
                 "bin",
