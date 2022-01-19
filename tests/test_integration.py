@@ -7,4 +7,4 @@ def test_integration(project):
     for contract in TEST_CONTRACTS:
         assert contract in project.contracts
         contract = project.contracts[contract]
-        assert f"contracts/{contract.contractName}.sol" in contract.sourceId
+        assert contract.source_id == f"{contract.name}.sol"

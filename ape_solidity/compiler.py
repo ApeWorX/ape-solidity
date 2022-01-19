@@ -1,12 +1,13 @@
+import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Union
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, ConfigItem
 from ape.exceptions import CompilerError, ConfigError
 from ape.types import ABI, Bytecode, ContractType
-from ape.utils import cached_property
+from ape.utils import cached_property, get_relative_path
 from semantic_version import NpmSpec, Version  # type: ignore
 
 
@@ -109,11 +110,14 @@ class SolidityCompiler(CompilerAPI):
 
         return import_map
 
-    def compile(self, contract_filepaths: List[Path]) -> List[ContractType]:
+    def compile(
+        self, contract_filepaths: List[Path], base_path: Optional[Path] = None
+    ) -> List[ContractType]:
         # todo: move this to solcx
         contract_types = []
         files = []
         solc_version = None
+
         for path in contract_filepaths:
             files.append(path)
             source = path.read_text()
@@ -133,6 +137,7 @@ class SolidityCompiler(CompilerAPI):
 
         output = solcx.compile_files(
             files,
+            base_path=base_path,
             output_values=[
                 "abi",
                 "bin",
@@ -143,19 +148,29 @@ class SolidityCompiler(CompilerAPI):
             solc_version=solc_version,
             import_remappings=self.import_remapping,
         )
+
+        def load_dict(data: Union[str, dict]) -> Dict:
+            return data if isinstance(data, dict) else json.loads(data)
+
         for contract_name, contract_type in output.items():
             contract_id_parts = contract_name.split(":")
-            contract_path = contract_id_parts[0]
+            contract_path = Path(contract_id_parts[0])
             contract_name = contract_id_parts[-1]
+            source_id = (
+                str(get_relative_path(contract_path, base_path))
+                if base_path and contract_path.is_absolute()
+                else str(contract_path)
+            )
+
             contract_types.append(
                 ContractType(
                     contractName=contract_name,
-                    sourceId=contract_path,
+                    sourceId=source_id,
                     deploymentBytecode=Bytecode(bytecode=contract_type["bin"]),  # type: ignore
                     runtimeBytecode=Bytecode(bytecode=contract_type["bin-runtime"]),  # type: ignore
-                    abi=[ABI.from_dict(abi) for abi in contract_type["abi"]],
-                    userdoc=contract_type["userdoc"],
-                    devdoc=contract_type["devdoc"],
+                    abi=[ABI(**abi) for abi in contract_type["abi"]],
+                    userdoc=load_dict(contract_type["userdoc"]),
+                    devdoc=load_dict(contract_type["devdoc"]),
                 )
             )
 
