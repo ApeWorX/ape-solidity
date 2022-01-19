@@ -7,7 +7,9 @@ from ape import Project
 
 @pytest.fixture
 def project():
-    project = Project(Path(__file__).parent)
+    base_project_dir = Path(__file__).parent
+    project = Project(base_project_dir)
+    project.config.PROJECT_FOLDER = base_project_dir
     try:
         shutil.rmtree(project._cache_folder)
         yield project
