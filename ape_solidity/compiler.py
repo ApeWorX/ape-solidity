@@ -8,6 +8,7 @@ from ape.api import CompilerAPI, ConfigItem
 from ape.exceptions import CompilerError, ConfigError
 from ape.types import ContractType
 from ape.utils import cached_property, get_relative_path
+from ethpm_types.abi import ConstructorABI, EventABI, FallbackABI, MethodABI
 from semantic_version import NpmSpec, Version  # type: ignore
 
 
@@ -161,6 +162,18 @@ class SolidityCompiler(CompilerAPI):
                 if base_path and contract_path.is_absolute()
                 else str(contract_path)
             )
+            parsed_abis = []
+            for abi in contract_type["abi"]:
+                if abi["type"] == "event":
+                    parsed_abis.append(EventABI.parse_obj(abi))
+                elif abi["type"] == "fallback":
+                    parsed_abis.append(FallbackABI.parse_obj(abi))
+                elif abi["type"] == "method":
+                    parsed_abis.append(MethodABI.parse_obj(abi))
+                elif abi["type"] == "constructor":
+                    parsed_abis.append(ConstructorABI.parse_obj(abi))
+
+            contract_type["abi"] = parsed_abis
             contract_type["deploymentBytecode"] = {"bytecode": contract_type["bin"]}
             contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
             contract_type["userdoc"] = load_dict(contract_type["userdoc"])
