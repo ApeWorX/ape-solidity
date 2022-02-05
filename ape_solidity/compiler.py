@@ -10,9 +10,9 @@ from ape.exceptions import CompilerError, ConfigError
 from ape.types import ContractType
 from ape.utils import cached_property, get_relative_path
 from ethpm_types import PackageManifest
-from ethpm_types.abi import EventABI, MethodABI, FallbackABI, ConstructorABI
 from packaging import version
 from packaging.version import Version as _Version
+from ethpm_types.abi import ConstructorABI, EventABI, FallbackABI, MethodABI
 from semantic_version import NpmSpec, Version  # type: ignore
 
 
@@ -218,7 +218,6 @@ class SolidityCompiler(CompilerAPI):
                 if base_path and contract_path.is_absolute()
                 else str(contract_path)
             )
-
             parsed_abis = []
             for abi in contract_type["abi"]:
                 if abi["type"] == "event":
