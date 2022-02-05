@@ -163,6 +163,8 @@ class SolidityCompiler(CompilerAPI):
             )
             contract_type["deploymentBytecode"] = {"bytecode": contract_type["bin"]}
             contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
+            contract_type["userdoc"] = load_dict(contract_type["userdoc"])
+            contract_type["devdoc"] = load_dict(contract_type["devdoc"])
 
             contract_types.append(ContractType.parse_obj(contract_type))
 
