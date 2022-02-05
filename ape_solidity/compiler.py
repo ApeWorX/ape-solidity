@@ -224,7 +224,7 @@ class SolidityCompiler(CompilerAPI):
                     parsed_abis.append(EventABI.parse_obj(abi))
                 elif abi["type"] == "fallback":
                     parsed_abis.append(FallbackABI.parse_obj(abi))
-                elif abi["type"] == "method":
+                elif abi["type"] == "function":
                     parsed_abis.append(MethodABI.parse_obj(abi))
                 elif abi["type"] == "constructor":
                     parsed_abis.append(ConstructorABI.parse_obj(abi))
