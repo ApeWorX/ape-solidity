@@ -64,7 +64,7 @@ setup(
         "eth-ape>=0.1.0b5",
         "ethpm-types>=0.1.0b6",
         "packaging>=20.9,<21",
-        "ethpm-types>=0.1.0b6"
+        "ethpm-types>=0.1.0b6",
     ],  # NOTE: Add 3rd party libraries here
     python_requires=">=3.7,<4",
     extras_require=extras_require,
