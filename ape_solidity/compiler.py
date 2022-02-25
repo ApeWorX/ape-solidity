@@ -55,7 +55,7 @@ class SolidityCompiler(CompilerAPI):
     def name(self) -> str:
         return "solidity"
 
-    @property
+    @cached_property
     def config(self) -> SolidityConfig:
         return self.config_manager.get_config(self.name)
 
