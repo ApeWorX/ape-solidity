@@ -198,6 +198,7 @@ class SolidityCompiler(CompilerAPI):
             ],
             "solc_version": solc_version,
             "import_remappings": import_remappings,
+            "optimize": True
         }
 
         if cli_base_path:
