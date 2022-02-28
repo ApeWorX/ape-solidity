@@ -40,6 +40,7 @@ class SolidityConfig(PluginConfig):
     # Configure re-mappings using a `=` separated-str,
     # e.g. '@import_name=path/to/dependency'
     import_remapping: List[str] = []
+    optimize: bool = True
 
 
 class IncorrectMappingFormatError(ConfigError):
@@ -200,6 +201,7 @@ class SolidityCompiler(CompilerAPI):
             ],
             "solc_version": solc_version,
             "import_remappings": import_remappings,
+            "optimize": self.config.optimize,
         }
 
         if cli_base_path:
