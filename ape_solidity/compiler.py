@@ -2,7 +2,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Union
+from typing import cast, Dict, List, Optional, Set, Union
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
@@ -58,7 +58,7 @@ class SolidityCompiler(CompilerAPI):
 
     @cached_property
     def config(self) -> SolidityConfig:
-        return self.config_manager.get_config(self.name)
+        return cast(SolidityConfig, self.config_manager.get_config(self.name))
 
     def get_versions(self, all_paths: List[Path]) -> Set[str]:
         versions = set()
