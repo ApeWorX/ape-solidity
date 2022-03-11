@@ -2,10 +2,10 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Union
+from typing import Dict, List, Optional, Set, Union, cast
 
 import solcx  # type: ignore
-from ape.api import CompilerAPI, ConfigItem
+from ape.api import CompilerAPI, PluginConfig
 from ape.exceptions import CompilerError, ConfigError
 from ape.types import ContractType
 from ape.utils import cached_property, get_relative_path
@@ -36,7 +36,7 @@ def get_pragma_spec(source: str) -> Optional[NpmSpec]:
         return None
 
 
-class SolidityConfig(ConfigItem):
+class SolidityConfig(PluginConfig):
     # Configure re-mappings using a `=` separated-str,
     # e.g. '@import_name=path/to/dependency'
     import_remapping: List[str] = []
@@ -52,11 +52,13 @@ class IncorrectMappingFormatError(ConfigError):
 
 
 class SolidityCompiler(CompilerAPI):
-    config: SolidityConfig
-
     @property
     def name(self) -> str:
         return "solidity"
+
+    @cached_property
+    def config(self) -> SolidityConfig:
+        return cast(SolidityConfig, self.config_manager.get_config(self.name))
 
     def get_versions(self, all_paths: List[Path]) -> Set[str]:
         versions = set()
