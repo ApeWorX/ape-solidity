@@ -53,11 +53,13 @@ search those dependencies for the path.
 
 ```yaml
 dependencies:
-  open_zeppelin: OpenZeppelin/openzeppelin-contracts@4.4.0
+  - name: OpenZeppelin
+    github: OpenZeppelin/openzeppelin-contracts
+    version: 4.4.2
 
 solidity:
   import_remapping:
-    - "@openzeppelin=open_zeppelin/contracts"
+    - "@openzeppelin=OpenZeppelin/4.4.2"
 ```
 
 Once you have your dependencies configured, you can import packages using your import keys:
