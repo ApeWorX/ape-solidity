@@ -2,7 +2,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import cast, Dict, List, Optional, Set, Union
+from typing import Dict, List, Optional, Set, Union, cast
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
