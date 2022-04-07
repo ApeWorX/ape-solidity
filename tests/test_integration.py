@@ -1,6 +1,8 @@
 from pathlib import Path
 
-TEST_CONTRACTS = [str(p.stem) for p in (Path(__file__).parent / "contracts").iterdir()]
+TEST_CONTRACTS = [
+    str(p.stem) for p in (Path(__file__).parent / "contracts").iterdir() if ".cache" not in str(p)
+]
 
 
 def test_integration(project):

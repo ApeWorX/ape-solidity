@@ -1,1 +1,8 @@
-contracts_folder: contracts
+dependencies:
+  - name: __test_dependency__
+    local: ./dependency
+
+solidity:
+  import_remapping:
+    - "@remapping=__test_dependency__"
+    - "@remapping_2=__test_dependency__"
