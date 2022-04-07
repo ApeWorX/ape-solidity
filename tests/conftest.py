@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 
 import pytest  # type: ignore
-from ape import Project
+from ape import Project, compilers
 
 
 @pytest.fixture
@@ -17,3 +17,8 @@ def project():
         yield project
     finally:
         shutil.rmtree(project._project._cache_folder)
+
+
+@pytest.fixture
+def compiler():
+    return compilers["solidity"]
