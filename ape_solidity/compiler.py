@@ -128,8 +128,8 @@ class SolidityCompiler(CompilerAPI):
                         f"where 'version_id' is one of '{options_str}'."
                     )
 
-            contracts_cache = contracts_cache / suffix
-            if not contracts_cache.exists() or not list(contracts_cache.iterdir()):
+            sub_contracts_cache = contracts_cache / suffix
+            if not sub_contracts_cache.exists() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"
                 if not cached_manifest_file.exists():
                     # Dependency should have gotten installed prior to this.
@@ -138,10 +138,10 @@ class SolidityCompiler(CompilerAPI):
                 manifest_dict = json.loads(cached_manifest_file.read_text())
                 manifest = PackageManifest(**manifest_dict)
 
-                contracts_cache.mkdir(parents=True)
+                sub_contracts_cache.mkdir(parents=True)
                 sources = manifest.sources or {}
                 for source_name, source in sources.items():
-                    cached_source = contracts_cache / source_name
+                    cached_source = sub_contracts_cache / source_name
 
                     # NOTE: Cached source may included sub-directories.
                     cached_source.parent.mkdir(parents=True, exist_ok=True)
@@ -150,10 +150,12 @@ class SolidityCompiler(CompilerAPI):
                         cached_source.touch()
                         cached_source.write_text(source.content)
 
-            contracts_cache = (
-                get_relative_path(contracts_cache, base_path) if base_path else contracts_cache
+            sub_contracts_cache = (
+                get_relative_path(sub_contracts_cache, base_path)
+                if base_path
+                else sub_contracts_cache
             )
-            import_map[item_parts[0]] = str(contracts_cache)
+            import_map[item_parts[0]] = str(sub_contracts_cache)
 
         return import_map
 
