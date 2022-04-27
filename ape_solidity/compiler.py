@@ -89,7 +89,7 @@ class SolidityCompiler(CompilerAPI):
         items = self.config.import_remapping
         import_map: Dict[str, str] = {}
         contracts_cache = base_path / ".cache" if base_path else Path(".cache")
-        packages_cache = Path.home() / ".ape" / "packages"
+        packages_cache = self.config_manager.packages_folder
 
         if not items:
             return import_map
