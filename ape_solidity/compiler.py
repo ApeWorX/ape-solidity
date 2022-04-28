@@ -235,7 +235,7 @@ class SolidityCompiler(CompilerAPI):
             def load_dict(data: Union[str, dict]) -> Dict:
                 return data if isinstance(data, dict) else json.loads(data)
 
-            input_contract_names = [f.name for f in files]
+            input_contract_names = [f.stem for f in files]
             for contract_name, contract_type in output.items():
                 contract_id_parts = contract_name.split(":")
                 contract_name = contract_id_parts[-1]
