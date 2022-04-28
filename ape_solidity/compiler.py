@@ -164,8 +164,8 @@ class SolidityCompiler(CompilerAPI):
     ) -> List[ContractType]:
         # TODO: move this to solcx
         contract_types: List[ContractType] = []
-        files_by_solc_version: Dict[str, Set[Path]] = {}
-        solc_version_by_file_name: Dict[str, str] = {}
+        files_by_solc_version: Dict[Version, Set[Path]] = {}
+        solc_version_by_file_name: Dict[Version, Path] = {}
 
         for path in contract_filepaths:
             source = path.read_text()
@@ -189,7 +189,7 @@ class SolidityCompiler(CompilerAPI):
             if solc_version not in files_by_solc_version:
                 files_by_solc_version[solc_version] = set()
 
-            version_meeting_same_file = solc_version_by_file_name.get(path.name)
+            version_meeting_same_file = solc_version_by_file_name.get(path)
             if version_meeting_same_file:
                 if solc_version > version_meeting_same_file:
                     # Compile file using lateset version it can.
@@ -202,7 +202,7 @@ class SolidityCompiler(CompilerAPI):
                 # else: do nothing
             else:
                 files_by_solc_version[solc_version].add(path)
-                solc_version_by_file_name[path.name] = solc_version
+                solc_version_by_file_name[path] = solc_version
 
         if not base_path:
             base_path = self.config_manager.contracts_folder
