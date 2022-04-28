@@ -239,7 +239,7 @@ class SolidityCompiler(CompilerAPI):
                 contract_id_parts = contract_name.split(":")
                 contract_name = contract_id_parts[-1]
 
-                if contract_name in [c.name for c in contract_types]:
+                if contract_name not in [f.name for f in files]:
                     # Contract was compiled already in a later compiler version.
                     continue
 
