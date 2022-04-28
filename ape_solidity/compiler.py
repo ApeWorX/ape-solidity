@@ -165,12 +165,14 @@ class SolidityCompiler(CompilerAPI):
         # TODO: move this to solcx
         contract_types = []
         files_by_solc_version: Dict[str, Set[Path]] = {}
+        solc_version_by_file_name: Dict[str, str] = {}
 
         for path in contract_filepaths:
             source = path.read_text()
             pragma_spec = get_pragma_spec(source)
-            # check if we need to install specified compiler version
+
             if pragma_spec:
+                # Check if we need to install specified compiler version
                 if pragma_spec is not pragma_spec.select(self.installed_versions):
                     solc_version = pragma_spec.select(self.available_versions)
                     if solc_version:
@@ -187,7 +189,20 @@ class SolidityCompiler(CompilerAPI):
             if solc_version not in files_by_solc_version:
                 files_by_solc_version[solc_version] = set()
 
-            files_by_solc_version[solc_version].add(path)
+            version_meeting_same_file = solc_version_by_file_name.get(path.name)
+            if version_meeting_same_file:
+                if solc_version > version_meeting_same_file:
+                    # Compile file using lateset version it can.
+                    files_by_solc_version[version_meeting_same_file].remove(path)
+
+                    if len(files_by_solc_version[version_meeting_same_file]) == 0:
+                        del files_by_solc_version[version_meeting_same_file]
+
+                    files_by_solc_version[solc_version].add(path)
+                # else: do nothing
+            else:
+                files_by_solc_version[solc_version].add(path)
+                solc_version_by_file_name[path.name] = solc_version
 
         if not base_path:
             base_path = self.config_manager.contracts_folder
@@ -202,7 +217,6 @@ class SolidityCompiler(CompilerAPI):
             ],
             "optimize": self.config.optimize,
         }
-
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = base_path if solc_version >= Version("0.6.9") else None
             import_remappings = self.get_import_remapping(base_path=cli_base_path)
