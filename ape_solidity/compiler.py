@@ -176,7 +176,9 @@ class SolidityCompiler(CompilerAPI):
                     if solc_version:
                         solcx.install_solc(solc_version, show_progress=False)
                     else:
-                        raise CompilerError(f"Solidity version '{solc_version}' is not available.")
+                        raise CompilerError(
+                            f"Solidity version specification '{pragma_spec}' could not be met."
+                        )
                 else:
                     solc_version = pragma_spec.select(self.installed_versions)
             else:
