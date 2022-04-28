@@ -164,11 +164,9 @@ class SolidityCompiler(CompilerAPI):
     ) -> List[ContractType]:
         # TODO: move this to solcx
         contract_types = []
-        files = []
-        solc_version = None
+        files_by_solc_version: Dict[str, Set[Path]] = {}
 
         for path in contract_filepaths:
-            files.append(path)
             source = path.read_text()
             pragma_spec = get_pragma_spec(source)
             # check if we need to install specified compiler version
@@ -184,16 +182,15 @@ class SolidityCompiler(CompilerAPI):
             else:
                 solc_version = max(self.installed_versions)
 
+            if solc_version not in files_by_solc_version:
+                files_by_solc_version[solc_version] = set()
+
+            files_by_solc_version[solc_version].add(path)
+
         if not base_path:
-            # Does support base_path
-            from ape import config
+            base_path = self.config_manager.contracts_folder
 
-            base_path = config.contracts_folder
-
-        cli_base_path = base_path if solc_version >= Version("0.6.9") else None
-        import_remappings = self.get_import_remapping(base_path=cli_base_path)
-
-        kwargs = {
+        base_kwargs = {
             "output_values": [
                 "abi",
                 "bin",
@@ -201,41 +198,40 @@ class SolidityCompiler(CompilerAPI):
                 "devdoc",
                 "userdoc",
             ],
-            "solc_version": solc_version,
-            "import_remappings": import_remappings,
             "optimize": self.config.optimize,
         }
 
-        if cli_base_path:
-            kwargs["base_path"] = cli_base_path
+        for solc_version, files in files_by_solc_version.items():
+            cli_base_path = base_path if solc_version >= Version("0.6.9") else None
+            import_remappings = self.get_import_remapping(base_path=cli_base_path)
 
-        output = solcx.compile_files(files, **kwargs)
+            kwargs = {
+                **base_kwargs,
+                "solc_version": solc_version,
+                "import_remappings": import_remappings,
+            }
 
-        def load_dict(data: Union[str, dict]) -> Dict:
-            return data if isinstance(data, dict) else json.loads(data)
+            if cli_base_path:
+                kwargs["base_path"] = cli_base_path
 
-        for contract_name, contract_type in output.items():
-            contract_id_parts = contract_name.split(":")
-            contract_path = Path(contract_id_parts[0])
-            contract_type["contractName"] = contract_id_parts[-1]
-            contract_type["sourceId"] = (
-                str(get_relative_path(base_path / contract_path, base_path))
-                if base_path and contract_path.is_absolute()
-                else str(contract_path)
-            )
-            contract_type["deploymentBytecode"] = {"bytecode": contract_type["bin"]}
-            contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
-            contract_type["userdoc"] = load_dict(contract_type["userdoc"])
-            contract_type["devdoc"] = load_dict(contract_type["devdoc"])
+            output = solcx.compile_files(files, **kwargs)
 
-            contract_types.append(ContractType.parse_obj(contract_type))
+            def load_dict(data: Union[str, dict]) -> Dict:
+                return data if isinstance(data, dict) else json.loads(data)
 
-        # Fix source IDs for when compiler did not account for base_path,
-        # such as solidity<0.6.9.
-        for contract_type in contract_types:
-            if contract_type.source_id:
-                source_id_path = Path(contract_type.source_id)
-                if source_id_path.is_absolute():
-                    contract_type.source_id = str(get_relative_path(source_id_path, base_path))
+            for contract_name, contract_type in output.items():
+                contract_id_parts = contract_name.split(":")
+                contract_path = Path(contract_id_parts[0])
+                contract_type["contractName"] = contract_id_parts[-1]
+                contract_type["sourceId"] = (
+                    str(get_relative_path(base_path / contract_path, base_path))
+                    if base_path and contract_path.is_absolute()
+                    else str(contract_path)
+                )
+                contract_type["deploymentBytecode"] = {"bytecode": contract_type["bin"]}
+                contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
+                contract_type["userdoc"] = load_dict(contract_type["userdoc"])
+                contract_type["devdoc"] = load_dict(contract_type["devdoc"])
+                contract_types.append(ContractType.parse_obj(contract_type))
 
         return contract_types
