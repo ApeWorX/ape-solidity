@@ -235,11 +235,12 @@ class SolidityCompiler(CompilerAPI):
             def load_dict(data: Union[str, dict]) -> Dict:
                 return data if isinstance(data, dict) else json.loads(data)
 
+            input_contract_names = [f.name for f in files]
             for contract_name, contract_type in output.items():
                 contract_id_parts = contract_name.split(":")
                 contract_name = contract_id_parts[-1]
 
-                if contract_name not in [f.name for f in files]:
+                if contract_name not in input_contract_names:
                     # Contract was compiled already in a later compiler version.
                     continue
 
