@@ -241,7 +241,8 @@ class SolidityCompiler(CompilerAPI):
                 contract_name = contract_id_parts[-1]
 
                 if contract_name not in input_contract_names:
-                    # Contract was compiled already in a later compiler version.
+                    # Contract was either not specified or was compiled
+                    # previously from a later-solidity version.
                     continue
 
                 contract_path = Path(contract_id_parts[0])
