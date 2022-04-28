@@ -163,7 +163,7 @@ class SolidityCompiler(CompilerAPI):
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
         # TODO: move this to solcx
-        contract_types = []
+        contract_types: List[ContractType] = []
         files_by_solc_version: Dict[str, Set[Path]] = {}
         solc_version_by_file_name: Dict[str, str] = {}
 
@@ -237,8 +237,14 @@ class SolidityCompiler(CompilerAPI):
 
             for contract_name, contract_type in output.items():
                 contract_id_parts = contract_name.split(":")
+                contract_name = contract_id_parts[-1]
+
+                if contract_name in [c.name for c in contract_types]:
+                    # Contract was compiled already in a later compiler version.
+                    continue
+
                 contract_path = Path(contract_id_parts[0])
-                contract_type["contractName"] = contract_id_parts[-1]
+                contract_type["contractName"] = contract_name
                 contract_type["sourceId"] = (
                     str(get_relative_path(base_path / contract_path, base_path))
                     if base_path and contract_path.is_absolute()
@@ -248,6 +254,7 @@ class SolidityCompiler(CompilerAPI):
                 contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
                 contract_type["userdoc"] = load_dict(contract_type["userdoc"])
                 contract_type["devdoc"] = load_dict(contract_type["devdoc"])
+
                 contract_types.append(ContractType.parse_obj(contract_type))
 
         return contract_types
