@@ -2,7 +2,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Union, cast
+from typing import Dict, List, Optional, Set, Tuple, Union, cast
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
@@ -232,20 +232,30 @@ class SolidityCompiler(CompilerAPI):
 
             output = solcx.compile_files(files, **kwargs)
 
+            def parse_contract_name(value: str) -> Tuple[Path, str]:
+                parts = value.split(":")
+                return Path(parts[0]), parts[1]
+
+            # Filter source files that the user did not ask for, such as
+            # imported relative files that are not part of the input.
+            input_contract_names: List[str] = []
+            for contract_id in output.keys():
+                path, name = parse_contract_name(contract_id)
+                for input_file_path in files:
+                    if str(path) in str(input_file_path):
+                        input_contract_names.append(name)
+
             def load_dict(data: Union[str, dict]) -> Dict:
                 return data if isinstance(data, dict) else json.loads(data)
 
-            input_contract_names = [f.stem for f in files]
             for contract_name, contract_type in output.items():
-                contract_id_parts = contract_name.split(":")
-                contract_name = contract_id_parts[-1]
+                contract_path, contract_name = parse_contract_name(contract_name)
 
                 if contract_name not in input_contract_names:
                     # Contract was either not specified or was compiled
                     # previously from a later-solidity version.
                     continue
 
-                contract_path = Path(contract_id_parts[0])
                 contract_type["contractName"] = contract_name
                 contract_type["sourceId"] = (
                     str(get_relative_path(base_path / contract_path, base_path))
