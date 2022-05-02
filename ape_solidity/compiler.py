@@ -256,7 +256,6 @@ class SolidityCompiler(CompilerAPI):
                     # previously from a later-solidity version.
                     continue
 
-                contract_path = Path(contract_path)
                 contract_type["contractName"] = contract_name
                 contract_type["sourceId"] = (
                     str(get_relative_path(base_path / contract_path, base_path))
