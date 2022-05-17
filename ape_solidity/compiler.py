@@ -270,3 +270,36 @@ class SolidityCompiler(CompilerAPI):
                 contract_types.append(ContractType.parse_obj(contract_type))
 
         return contract_types
+
+    def fetch_imports(
+        self, contract_filepaths: List[Path], base_path: Optional[Path]
+    ) -> Dict[str, List[str]]:
+        def import_str_to_paths(path: str, contract_filenames) -> List[str]:
+            path = path.replace("import", "").replace('"', "").replace(";", "").strip()
+            filename = path.split("/")[-1]
+
+            if filename in contract_filenames:
+                return contract_filenames[filename]
+
+            if base_path:
+                path = str(get_relative_path(Path(path), base_path))
+
+            return [path]
+
+        contract_filenames: Dict[str, List[str]] = self._get_filename_dict_from_paths(
+            paths=contract_filepaths, base_path=base_path
+        )
+        imports_dict: Dict[str, List[str]] = {}
+
+        for filepath in contract_filepaths:
+            import_list = []
+            for ln in filepath.read_text().splitlines():
+                if ln.startswith("import"):
+                    import_list.extend(
+                        import_str_to_paths(path=ln, contract_filenames=contract_filenames)
+                    )
+            if base_path:
+                filepath = get_relative_path(filepath, base_path)
+            imports_dict[str(filepath)] = import_list
+
+        return imports_dict
