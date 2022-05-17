@@ -271,7 +271,7 @@ class SolidityCompiler(CompilerAPI):
 
         return contract_types
 
-    def fetch_imports(
+    def get_imports(
         self, contract_filepaths: List[Path], base_path: Optional[Path]
     ) -> Dict[str, List[str]]:
         def import_str_to_paths(path: str, contract_filenames) -> List[str]:
