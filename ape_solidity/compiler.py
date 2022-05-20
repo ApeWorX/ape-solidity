@@ -52,6 +52,8 @@ class IncorrectMappingFormatError(ConfigError):
 
 
 class SolidityCompiler(CompilerAPI):
+    import_map: Dict[str, str] = {}
+
     @property
     def name(self) -> str:
         return "solidity"
@@ -157,6 +159,7 @@ class SolidityCompiler(CompilerAPI):
             )
             import_map[item_parts[0]] = str(sub_contracts_cache)
 
+        self.import_map = import_map
         return import_map
 
     def compile(
@@ -274,32 +277,50 @@ class SolidityCompiler(CompilerAPI):
     def get_imports(
         self, contract_filepaths: List[Path], base_path: Optional[Path]
     ) -> Dict[str, List[str]]:
-        def import_str_to_paths(path: str, contract_filenames) -> List[str]:
-            path = path.replace("import", "").replace('"', "").replace(";", "").strip()
-            filename = path.split("/")[-1]
+        def import_str_to_source_id(self, import_str: str, source_path: Path) -> str:
+            quote = '"' if '"' in import_str else "'"
 
-            if filename in contract_filenames:
-                return contract_filenames[filename]
+            import_str = import_str[import_str.index(quote) + 1 :]  # noqa:E203
+            import_str = import_str[: import_str.index(quote)]
 
-            if base_path:
-                path = str(get_relative_path(Path(path), base_path))
+            path = (source_path.parent / Path(import_str)).resolve()
 
-            return [path]
+            if base_path:  # mypy
+                source_id = str(get_relative_path(path, base_path))
+            else:
+                source_id = str(path)
 
-        contract_filenames: Dict[str, List[str]] = self._get_filename_dict_from_paths(
-            paths=contract_filepaths, base_path=base_path
-        )
+            # Fix remappings
+            for key in self.import_map.keys():
+                if key not in source_id:
+                    break
+                parts = Path(source_id).parts
+
+                # NOTE: a remapping key could be a partial match
+                if key not in parts:
+                    continue
+
+                new_path = Path()
+                for part in parts:
+                    if part != key:
+                        new_path = new_path.joinpath(part)
+
+                source_id = str(Path(self.import_map[key]).joinpath(new_path))
+
+            return source_id
+
         imports_dict: Dict[str, List[str]] = {}
 
         for filepath in contract_filepaths:
-            import_list = []
+            import_set = set()
             for ln in filepath.read_text().splitlines():
                 if ln.startswith("import"):
-                    import_list.extend(
-                        import_str_to_paths(path=ln, contract_filenames=contract_filenames)
+                    import_set.add(
+                        import_str_to_source_id(self, import_str=ln, source_path=filepath)
                     )
+
             if base_path:
                 filepath = get_relative_path(filepath, base_path)
-            imports_dict[str(filepath)] = import_list
+            imports_dict[str(filepath)] = list(import_set)
 
         return imports_dict
