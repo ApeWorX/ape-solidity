@@ -52,7 +52,8 @@ class IncorrectMappingFormatError(ConfigError):
 
 
 class SolidityCompiler(CompilerAPI):
-    import_map: Dict[str, str] = {}
+    _import_remapping_hash: Optional[int] = None
+    _cached_import_map: Dict[str, str] = {}
 
     @property
     def name(self) -> str:
@@ -88,16 +89,22 @@ class SolidityCompiler(CompilerAPI):
         Specify the remapping using a ``=`` separated str
         e.g. ``'@import_name=path/to/dependency'``.
         """
-        items = self.config.import_remapping
+        check_items = self.config.import_remapping
+
+        if not isinstance(check_items, (list, tuple)) or not isinstance(check_items[0], str):
+            raise IncorrectMappingFormatError()
+
+        # Convert to tuple for hashing, check if there's been a change
+        items = tuple(check_items)
+        if self._import_remapping_hash == hash(items):
+            return self._cached_import_map
+
         import_map: Dict[str, str] = {}
         contracts_cache = base_path / ".cache" if base_path else Path(".cache")
         packages_cache = self.config_manager.packages_folder
 
         if not items:
             return import_map
-
-        if not isinstance(items, (list, tuple)) or not isinstance(items[0], str):
-            raise IncorrectMappingFormatError()
 
         for item in items:
             item_parts = item.split("=")
@@ -159,7 +166,9 @@ class SolidityCompiler(CompilerAPI):
             )
             import_map[item_parts[0]] = str(sub_contracts_cache)
 
-        self.import_map = import_map
+        # Update cache and hash
+        self._cached_import_map = import_map
+        self._import_remapping_hash = hash(items)
         return import_map
 
     def compile(
@@ -290,8 +299,8 @@ class SolidityCompiler(CompilerAPI):
             else:
                 source_id = str(path)
 
-            # Fix remappings
-            for key in self.import_map.keys():
+            # Convert remappings back to source
+            for key, value in self.get_import_remapping(base_path).items():
                 if key not in source_id:
                     break
                 parts = Path(source_id).parts
@@ -305,7 +314,7 @@ class SolidityCompiler(CompilerAPI):
                     if part != key:
                         new_path = new_path.joinpath(part)
 
-                source_id = str(Path(self.import_map[key]).joinpath(new_path))
+                source_id = str(Path(value).joinpath(new_path))
 
             return source_id
 
