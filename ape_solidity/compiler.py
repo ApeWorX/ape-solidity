@@ -89,7 +89,11 @@ class SolidityCompiler(CompilerAPI):
         Specify the remapping using a ``=`` separated str
         e.g. ``'@import_name=path/to/dependency'``.
         """
+        import_map: Dict[str, str] = {}
         check_items = self.config.import_remapping
+
+        if not check_items:
+            return import_map
 
         if not isinstance(check_items, (list, tuple)) or not isinstance(check_items[0], str):
             raise IncorrectMappingFormatError()
@@ -99,12 +103,8 @@ class SolidityCompiler(CompilerAPI):
         if self._import_remapping_hash == hash(items):
             return self._cached_import_map
 
-        import_map: Dict[str, str] = {}
         contracts_cache = base_path / ".cache" if base_path else Path(".cache")
         packages_cache = self.config_manager.packages_folder
-
-        if not items:
-            return import_map
 
         for item in items:
             item_parts = item.split("=")
