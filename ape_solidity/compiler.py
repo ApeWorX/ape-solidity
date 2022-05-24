@@ -52,7 +52,8 @@ class IncorrectMappingFormatError(ConfigError):
 
 
 class SolidityCompiler(CompilerAPI):
-    _import_remapping_hash: Optional[int] = None
+    import_remapping_hash: Optional[int] = None
+    _cached_project_path: Optional[Path] = None
     _cached_import_map: Dict[str, str] = {}
 
     @property
@@ -100,7 +101,14 @@ class SolidityCompiler(CompilerAPI):
 
         # Convert to tuple for hashing, check if there's been a change
         items_tuple = tuple(items)
-        if self._import_remapping_hash == hash(items_tuple):
+        if all(
+            (
+                self._cached_project_path,
+                self.import_remapping_hash,
+                self._cached_project_path == self.project_manager.path,
+                self.import_remapping_hash == hash(items_tuple),
+            )
+        ):
             return self._cached_import_map
 
         contracts_cache = base_path / ".cache" if base_path else Path(".cache")
@@ -167,8 +175,9 @@ class SolidityCompiler(CompilerAPI):
             import_map[item_parts[0]] = str(sub_contracts_cache)
 
         # Update cache and hash
+        self._cached_project_path = self.project_manager.path
         self._cached_import_map = import_map
-        self._import_remapping_hash = hash(items_tuple)
+        self.import_remapping_hash = hash(items_tuple)
         return import_map
 
     def compile(
