@@ -52,7 +52,7 @@ class IncorrectMappingFormatError(ConfigError):
 
 
 class SolidityCompiler(CompilerAPI):
-    import_remapping_hash: Optional[int] = None
+    _import_remapping_hash: Optional[int] = None
     _cached_project_path: Optional[Path] = None
     _cached_import_map: Dict[str, str] = {}
 
@@ -104,9 +104,9 @@ class SolidityCompiler(CompilerAPI):
         if all(
             (
                 self._cached_project_path,
-                self.import_remapping_hash,
+                self._import_remapping_hash,
                 self._cached_project_path == self.project_manager.path,
-                self.import_remapping_hash == hash(items_tuple),
+                self._import_remapping_hash == hash(items_tuple),
             )
         ):
             return self._cached_import_map
@@ -177,7 +177,7 @@ class SolidityCompiler(CompilerAPI):
         # Update cache and hash
         self._cached_project_path = self.project_manager.path
         self._cached_import_map = import_map
-        self.import_remapping_hash = hash(items_tuple)
+        self._import_remapping_hash = hash(items_tuple)
         return import_map
 
     def compile(
