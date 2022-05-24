@@ -90,17 +90,17 @@ class SolidityCompiler(CompilerAPI):
         e.g. ``'@import_name=path/to/dependency'``.
         """
         import_map: Dict[str, str] = {}
-        check_items = self.config.import_remapping
+        items = self.config.import_remapping
 
-        if not check_items:
+        if not items:
             return import_map
 
-        if not isinstance(check_items, (list, tuple)) or not isinstance(check_items[0], str):
+        if not isinstance(items, (list, tuple)) or not isinstance(items[0], str):
             raise IncorrectMappingFormatError()
 
         # Convert to tuple for hashing, check if there's been a change
-        items = tuple(check_items)
-        if self._import_remapping_hash == hash(items):
+        items_tuple = tuple(items)
+        if self._import_remapping_hash == hash(items_tuple):
             return self._cached_import_map
 
         contracts_cache = base_path / ".cache" if base_path else Path(".cache")
@@ -168,7 +168,7 @@ class SolidityCompiler(CompilerAPI):
 
         # Update cache and hash
         self._cached_import_map = import_map
-        self._import_remapping_hash = hash(items)
+        self._import_remapping_hash = hash(items_tuple)
         return import_map
 
     def compile(
