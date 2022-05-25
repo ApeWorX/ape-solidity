@@ -161,11 +161,7 @@ class SolidityCompiler(CompilerAPI):
             if not sub_contracts_cache.exists() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"
                 if not cached_manifest_file.exists():
-                    # Attempt to load dependencies.
-                    _ = self.project_manager.dependencies
-
-                    if not cached_manifest_file.exists():
-                        raise CompilerError(f"Unable to find dependency '{suffix}'.")
+                    raise CompilerError(f"Unable to find dependency '{suffix}'.")
 
                 manifest_dict = json.loads(cached_manifest_file.read_text())
                 manifest = PackageManifest(**manifest_dict)
