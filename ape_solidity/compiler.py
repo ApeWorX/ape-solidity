@@ -52,11 +52,15 @@ class IncorrectMappingFormatError(ConfigError):
 
 
 class SolidityCompiler(CompilerAPI):
+    _import_remapping_hash: Optional[int] = None
+    _cached_project_path: Optional[Path] = None
+    _cached_import_map: Dict[str, str] = {}
+
     @property
     def name(self) -> str:
         return "solidity"
 
-    @cached_property
+    @property
     def config(self) -> SolidityConfig:
         return cast(SolidityConfig, self.config_manager.get_config(self.name))
 
@@ -86,16 +90,39 @@ class SolidityCompiler(CompilerAPI):
         Specify the remapping using a ``=`` separated str
         e.g. ``'@import_name=path/to/dependency'``.
         """
-        items = self.config.import_remapping
         import_map: Dict[str, str] = {}
-        contracts_cache = base_path / ".cache" if base_path else Path(".cache")
-        packages_cache = self.config_manager.packages_folder
+        items = self.config.import_remapping
 
         if not items:
             return import_map
 
         if not isinstance(items, (list, tuple)) or not isinstance(items[0], str):
             raise IncorrectMappingFormatError()
+
+        contracts_cache = (
+            base_path / ".cache"
+            if base_path
+            else self.project_manager.contracts_folder / Path(".cache")
+        )
+
+        # Convert to tuple for hashing, check if there's been a change
+        items_tuple = tuple(items)
+        if all(
+            (
+                self._cached_project_path,
+                self._import_remapping_hash,
+                self._cached_project_path == self.project_manager.path,
+                self._import_remapping_hash == hash(items_tuple),
+                contracts_cache.exists(),
+            )
+        ):
+            return self._cached_import_map
+
+        packages_cache = self.config_manager.packages_folder
+
+        # Download dependencies for first time.
+        # This only happens if calling this method before compiling in ape core.
+        _ = self.project_manager.dependencies
 
         for item in items:
             item_parts = item.split("=")
@@ -110,6 +137,7 @@ class SolidityCompiler(CompilerAPI):
                 suffix = suffix.parent / f"v{suffix.name}"
 
             data_folder_cache = packages_cache / suffix
+
             if len(suffix.parents) == 1 and data_folder_cache.exists():
                 # The user did not specify a version_id suffix in their mapping.
                 # We try to smartly figure one out, else error.
@@ -128,12 +156,16 @@ class SolidityCompiler(CompilerAPI):
                         f"where 'version_id' is one of '{options_str}'."
                     )
 
+            # Re-build a downloaded dependency manifest into the .cache directory for imports.
             sub_contracts_cache = contracts_cache / suffix
             if not sub_contracts_cache.exists() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"
                 if not cached_manifest_file.exists():
-                    # Dependency should have gotten installed prior to this.
-                    raise CompilerError(f"Missing dependency '{suffix}'.")
+                    # Attempt to load dependencies.
+                    _ = self.project_manager.dependencies
+
+                    if not cached_manifest_file.exists():
+                        raise CompilerError(f"Unable to find dependency '{suffix}'.")
 
                 manifest_dict = json.loads(cached_manifest_file.read_text())
                 manifest = PackageManifest(**manifest_dict)
@@ -157,12 +189,15 @@ class SolidityCompiler(CompilerAPI):
             )
             import_map[item_parts[0]] = str(sub_contracts_cache)
 
+        # Update cache and hash
+        self._cached_project_path = self.project_manager.path
+        self._cached_import_map = import_map
+        self._import_remapping_hash = hash(items_tuple)
         return import_map
 
     def compile(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
-        # TODO: move this to solcx
         contract_types: List[ContractType] = []
         files_by_solc_version: Dict[Version, Set[Path]] = {}
         solc_version_by_file_name: Dict[Version, Path] = {}
@@ -270,3 +305,54 @@ class SolidityCompiler(CompilerAPI):
                 contract_types.append(ContractType.parse_obj(contract_type))
 
         return contract_types
+
+    def get_imports(
+        self, contract_filepaths: List[Path], base_path: Optional[Path]
+    ) -> Dict[str, List[str]]:
+        def import_str_to_source_id(self, import_str: str, source_path: Path) -> str:
+            quote = '"' if '"' in import_str else "'"
+
+            import_str = import_str[import_str.index(quote) + 1 :]  # noqa:E203
+            import_str = import_str[: import_str.index(quote)]
+
+            path = (source_path.parent / Path(import_str)).resolve()
+
+            if base_path:  # mypy
+                source_id = str(get_relative_path(path, base_path))
+            else:
+                source_id = str(path)
+
+            # Convert remappings back to source
+            for key, value in self.get_import_remapping(base_path).items():
+                if key not in source_id:
+                    break
+                parts = Path(source_id).parts
+
+                # NOTE: a remapping key could be a partial match
+                if key not in parts:
+                    continue
+
+                new_path = Path()
+                for part in parts:
+                    if part != key:
+                        new_path = new_path.joinpath(part)
+
+                source_id = str(Path(value).joinpath(new_path))
+
+            return source_id
+
+        imports_dict: Dict[str, List[str]] = {}
+
+        for filepath in contract_filepaths:
+            import_set = set()
+            for ln in filepath.read_text().splitlines():
+                if ln.startswith("import"):
+                    import_set.add(
+                        import_str_to_source_id(self, import_str=ln, source_path=filepath)
+                    )
+
+            if base_path:
+                filepath = get_relative_path(filepath, base_path)
+            imports_dict[str(filepath)] = list(import_set)
+
+        return imports_dict
