@@ -156,12 +156,16 @@ class SolidityCompiler(CompilerAPI):
                         f"where 'version_id' is one of '{options_str}'."
                     )
 
+            # Re-build a downloaded dependency manifest into the .cache directory for imports.
             sub_contracts_cache = contracts_cache / suffix
             if not sub_contracts_cache.exists() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"
                 if not cached_manifest_file.exists():
-                    # Dependency should have gotten installed prior to this.
-                    raise CompilerError(f"Missing dependency '{suffix}'.")
+                    # Attempt to load dependencies.
+                    _ = self.project_manager.dependencies
+
+                    if not cached_manifest_file.exists():
+                        raise CompilerError(f"Unable to find dependency '{suffix}'.")
 
                 manifest_dict = json.loads(cached_manifest_file.read_text())
                 manifest = PackageManifest(**manifest_dict)
