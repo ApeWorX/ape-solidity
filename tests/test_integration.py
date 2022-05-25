@@ -42,9 +42,9 @@ def test_get_import_remapping(compiler, project, config):
     import_remapping = compiler.get_import_remapping()
     assert import_remapping
 
-    with config.using_project(project.path / "project"):
+    with config.using_project(project.path / "project") as proj:
         # Trigger downloading dependencies in new project
-        dependencies = project.dependencies
+        dependencies = proj.dependencies
         assert dependencies
         # Should be different now that we have changed projects.
         second_import_remapping = compiler.get_import_remapping()
