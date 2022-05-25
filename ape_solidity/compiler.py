@@ -60,7 +60,7 @@ class SolidityCompiler(CompilerAPI):
     def name(self) -> str:
         return "solidity"
 
-    @cached_property
+    @property
     def config(self) -> SolidityConfig:
         return cast(SolidityConfig, self.config_manager.get_config(self.name))
 

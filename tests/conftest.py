@@ -1,15 +1,15 @@
 import shutil
 from pathlib import Path
 
+import ape
 import pytest  # type: ignore
-from ape import Project
 
 
 @pytest.fixture
 def project():
     base_project_dir = Path(__file__).parent
 
-    project = Project(base_project_dir)
+    project = ape.Project(base_project_dir)
     project.config_manager.PROJECT_FOLDER = base_project_dir
     project.config_manager.contracts_folder = base_project_dir / "contracts"
     try:
@@ -17,3 +17,13 @@ def project():
         yield project
     finally:
         shutil.rmtree(project._project._cache_folder)
+
+
+@pytest.fixture
+def compiler():
+    return ape.compilers.registered_compilers[".sol"]
+
+
+@pytest.fixture
+def config():
+    return ape.config
