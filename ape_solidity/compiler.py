@@ -99,6 +99,12 @@ class SolidityCompiler(CompilerAPI):
         if not isinstance(items, (list, tuple)) or not isinstance(items[0], str):
             raise IncorrectMappingFormatError()
 
+        contracts_cache = (
+            base_path / ".cache"
+            if base_path
+            else self.project_manager.contracts_folder / Path(".cache")
+        )
+
         # Convert to tuple for hashing, check if there's been a change
         items_tuple = tuple(items)
         if all(
@@ -107,12 +113,16 @@ class SolidityCompiler(CompilerAPI):
                 self._import_remapping_hash,
                 self._cached_project_path == self.project_manager.path,
                 self._import_remapping_hash == hash(items_tuple),
+                contracts_cache.exists(),
             )
         ):
             return self._cached_import_map
 
-        contracts_cache = base_path / ".cache" if base_path else Path(".cache")
         packages_cache = self.config_manager.packages_folder
+
+        # Download dependencies for first time.
+        # This only happens if calling this method before compiling in ape core.
+        _ = self.project_manager.dependencies
 
         for item in items:
             item_parts = item.split("=")
@@ -127,6 +137,7 @@ class SolidityCompiler(CompilerAPI):
                 suffix = suffix.parent / f"v{suffix.name}"
 
             data_folder_cache = packages_cache / suffix
+
             if len(suffix.parents) == 1 and data_folder_cache.exists():
                 # The user did not specify a version_id suffix in their mapping.
                 # We try to smartly figure one out, else error.
@@ -183,7 +194,6 @@ class SolidityCompiler(CompilerAPI):
     def compile(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
-        # TODO: move this to solcx
         contract_types: List[ContractType] = []
         files_by_solc_version: Dict[Version, Set[Path]] = {}
         solc_version_by_file_name: Dict[Version, Path] = {}

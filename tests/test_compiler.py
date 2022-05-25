@@ -15,7 +15,7 @@ EXPECTED_IMPORTS_SET = {
 @pytest.mark.parametrize(
     "contract", [c for c in TEST_CONTRACTS if "DifferentNameThanFile" not in str(c)]
 )
-def test_integration(project, contract):
+def test_compile(project, contract):
     assert contract in project.contracts
     contract = project.contracts[contract]
     assert contract.source_id == f"{contract.name}.sol"
@@ -35,7 +35,7 @@ def test_get_imports(project, compiler):
     # NOTE: returning a list
     assert type(contract_imports) == list
     # NOTE: in case order changes
-    assert EXPECTED_IMPORTS_SET == set(contract_imports)
+    assert set(contract_imports) == EXPECTED_IMPORTS_SET
 
 
 def test_get_import_remapping(compiler, project, config):
