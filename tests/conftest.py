@@ -6,24 +6,21 @@ import pytest  # type: ignore
 
 
 @pytest.fixture
-def project():
-    base_project_dir = Path(__file__).parent
+def config():
+    return ape.config
 
-    project = ape.Project(base_project_dir)
-    project.config_manager.PROJECT_FOLDER = base_project_dir
-    project.config_manager.contracts_folder = base_project_dir / "contracts"
-    try:
-        shutil.rmtree(project._project._cache_folder)
-        yield project
-    finally:
-        shutil.rmtree(project._project._cache_folder)
+
+@pytest.fixture
+def project(config):
+    base_project_dir = Path(__file__).parent
+    with config.using_project(base_project_dir) as project:
+        try:
+            shutil.rmtree(project._project._cache_folder)
+            yield project
+        finally:
+            shutil.rmtree(project._project._cache_folder)
 
 
 @pytest.fixture
 def compiler():
     return ape.compilers.registered_compilers[".sol"]
-
-
-@pytest.fixture
-def config():
-    return ape.config
