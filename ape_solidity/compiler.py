@@ -329,7 +329,6 @@ class SolidityCompiler(CompilerAPI):
                     continue
 
                 source_id = str(get_relative_path(contracts_path / contract_path, contracts_path))
-
                 previously_compiled_version = solc_versions_by_source_id.get(source_id)
                 if previously_compiled_version:
                     # Don't add previously compiled contract type unless it was compiled
@@ -337,7 +336,7 @@ class SolidityCompiler(CompilerAPI):
                     if previously_compiled_version >= solc_version:
                         continue
                     else:
-                        contract_types.remove(contract_type)
+                        contract_types = [ct for ct in contract_types if ct.source_id != source_id]
 
                 contract_type["contractName"] = contract_name
                 contract_type["sourceId"] = source_id
