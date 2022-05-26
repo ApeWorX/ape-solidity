@@ -350,7 +350,7 @@ class SolidityCompiler(CompilerAPI):
                         import_str_to_source_id(self, import_str=ln, source_path=filepath)
                     )
 
-            source_id = str(get_relative_path(filepath, base_path))
+            source_id = str(get_relative_path(filepath, contracts_path))
             imports_dict[str(source_id)] = list(import_set)
 
         return imports_dict
