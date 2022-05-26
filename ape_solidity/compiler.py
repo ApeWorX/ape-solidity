@@ -320,17 +320,17 @@ class SolidityCompiler(CompilerAPI):
     def get_imports(
         self, contract_filepaths: List[Path], base_path: Optional[Path]
     ) -> Dict[str, List[str]]:
-        base_path = base_path or self.project_manager.contracts_folder
+        contracts_path = base_path or self.project_manager.contracts_folder
 
         def import_str_to_source_id(self, import_str: str, source_path: Path) -> str:
             quote = '"' if '"' in import_str else "'"
             import_str = import_str[import_str.index(quote) + 1 :]  # noqa:E203
             import_str = import_str[: import_str.index(quote)]
             path = (source_path.parent / import_str).resolve()
-            source_id = str(get_relative_path(path, base_path))
+            source_id = str(get_relative_path(path, contracts_path))
 
             # Convert remappings back to source
-            for key, value in self.get_import_remapping(base_path).items():
+            for key, value in self.get_import_remapping(contracts_path).items():
                 if key not in source_id:
                     continue
 
@@ -349,8 +349,6 @@ class SolidityCompiler(CompilerAPI):
                         import_str_to_source_id(self, import_str=ln, source_path=filepath)
                     )
 
-            if base_path:
-                filepath = get_relative_path(filepath, base_path)
             imports_dict[str(filepath)] = list(import_set)
 
         return imports_dict
