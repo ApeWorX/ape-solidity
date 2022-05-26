@@ -206,11 +206,11 @@ class SolidityCompiler(CompilerAPI):
     def compile(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
-        base_path = base_path or self.config_manager.contracts_folder
+        contracts_path = base_path or self.config_manager.contracts_folder
         contract_types: List[ContractType] = []
         files_by_solc_version: Dict[Version, Set[Path]] = {}
         solc_version_by_file_name: Dict[Version, Path] = {}
-        imports = self.get_imports(contract_filepaths, base_path)
+        imports = self.get_imports(contract_filepaths, contracts_path)
 
         def _get_pragma_spec(path: Path) -> Optional[NpmSpec]:
             pragma_spec = get_pragma_spec(path)
@@ -231,26 +231,37 @@ class SolidityCompiler(CompilerAPI):
 
             return pragma_spec
 
-        for path in contract_filepaths:
+        def find_best_version(path: Path) -> Version:
             pragma_spec = _get_pragma_spec(path)
+            solc_version = pragma_spec.select(self.installed_versions) if pragma_spec else None
 
             # Check import versions. If any *must* be a specific version, use that instead.
-            source_id = str(get_relative_path(path, base_path))
-            source_import_paths = [base_path / p for p in imports.get(source_id, [])]
-            imported_version_specs = [_get_pragma_spec(s) for s in source_import_paths]
-            solc_version = None
-            for imported_version_spec in [s for s in imported_version_specs if s]:
+            source_id = str(get_relative_path(path, contracts_path))
+            source_import_paths = [contracts_path / p for p in imports.get(source_id, []) if p]
+            imported_versions = [
+                v for v in [find_best_version(s) for s in source_import_paths] if v
+            ]
 
-                # Check if expression is like '=0.8.0' or '0.8.0'
-                expression_prefix = imported_version_spec.expression[0]
-                if expression_prefix == "=" or expression_prefix not in ("^", ">", "<"):
-                    solc_version = imported_version_spec.select(self.installed_versions)
+            # Pick the smallest maximum compiler used in the source's import chain
+            # so that the imported sources are able to compile.
+            for import_solc_version in imported_versions:
+                if not import_solc_version:
+                    continue
 
-            if not solc_version and pragma_spec:
-                solc_version = pragma_spec.select(self.installed_versions)
-            elif not solc_version:
+                if not solc_version:
+                    solc_version = import_solc_version
+                    continue
+
+                if import_solc_version < solc_version:
+                    solc_version = import_solc_version
+
+            if not solc_version:
                 solc_version = max(self.installed_versions)
 
+            return solc_version
+
+        for path in contract_filepaths:
+            solc_version = find_best_version(path)
             if solc_version not in files_by_solc_version:
                 files_by_solc_version[solc_version] = set()
 
@@ -280,8 +291,8 @@ class SolidityCompiler(CompilerAPI):
             "optimize": self.config.optimize,
         }
         for solc_version, files in files_by_solc_version.items():
-            cli_base_path = base_path if solc_version >= Version("0.6.9") else None
-            import_remappings = self.get_import_remapping(base_path)
+            cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
+            import_remappings = self.get_import_remapping(contracts_path)
 
             kwargs = {
                 **base_kwargs,
@@ -320,7 +331,7 @@ class SolidityCompiler(CompilerAPI):
 
                 contract_type["contractName"] = contract_name
                 contract_type["sourceId"] = str(
-                    get_relative_path(base_path / contract_path, base_path)
+                    get_relative_path(contracts_path / contract_path, contracts_path)
                 )
                 contract_type["deploymentBytecode"] = {"bytecode": contract_type["bin"]}
                 contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
