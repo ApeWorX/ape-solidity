@@ -21,6 +21,17 @@ def test_compile(project, contract):
     assert contract.source_id == f"{contract.name}.sol"
 
 
+def test_compile_specific_order(project, compiler):
+    # Replicated wild bug where the first contract had a low solidity version
+    # and the second had a bunch if imports and that causea failure to compile.
+    # ... Don't ask...
+    ordered_files = [
+        project.contracts_folder / "OlderVersion.sol",
+        project.contracts_folder / "Imports.sol",
+    ]
+    compiler.compile(ordered_files)
+
+
 def test_compile_contract_with_different_name_than_file(project):
     file_name = "DifferentNameThanFile.sol"
     contract = project.contracts["ApeDifferentNameThanFile"]

@@ -194,6 +194,7 @@ class SolidityCompiler(CompilerAPI):
     def compile(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
+        base_path = base_path or self.config_manager.contracts_folder
         contract_types: List[ContractType] = []
         files_by_solc_version: Dict[Version, Set[Path]] = {}
         solc_version_by_file_name: Dict[Version, Path] = {}
@@ -235,9 +236,6 @@ class SolidityCompiler(CompilerAPI):
                 files_by_solc_version[solc_version].add(path)
                 solc_version_by_file_name[path] = solc_version
 
-        if not base_path:
-            base_path = self.config_manager.contracts_folder
-
         base_kwargs = {
             "output_values": [
                 "abi",
@@ -250,7 +248,7 @@ class SolidityCompiler(CompilerAPI):
         }
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = base_path if solc_version >= Version("0.6.9") else None
-            import_remappings = self.get_import_remapping(base_path=cli_base_path)
+            import_remappings = self.get_import_remapping(base_path)
 
             kwargs = {
                 **base_kwargs,
