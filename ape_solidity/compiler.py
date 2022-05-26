@@ -240,6 +240,7 @@ class SolidityCompiler(CompilerAPI):
             imported_version_specs = [_get_pragma_spec(s) for s in source_import_paths]
             solc_version = None
             for imported_version_spec in [s for s in imported_version_specs if s]:
+
                 # Check if expression is like '=0.8.0' or '0.8.0'
                 expression_prefix = imported_version_spec.expression[0]
                 if expression_prefix == "=" or expression_prefix not in ("^", ">", "<"):
