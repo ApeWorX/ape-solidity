@@ -22,8 +22,8 @@ def test_compile(project, contract):
 
 
 def test_compile_specific_order(project, compiler):
-    # Replicated wild bug where the first contract had a low solidity version
-    # and the second had a bunch if imports and that causea failure to compile.
+    # Replicates wild bug where the first contract had a low solidity version
+    # and the second had a bunch of imports...
     # ... Don't ask...
     ordered_files = [
         project.contracts_folder / "OlderVersion.sol",
