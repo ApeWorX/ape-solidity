@@ -1,4 +1,4 @@
-import shutil
+from distutils.dir_util import copy_tree
 from pathlib import Path
 from tempfile import mkdtemp
 
@@ -21,19 +21,11 @@ def config():
 
 @pytest.fixture
 def project(config):
-    project_dir = Path(__file__).parent
-    contract_cache = project_dir / "contracts" / ".cache"
-    build_dir = project_dir / ".build"
-
-    def _clean():
-        for _path in (contract_cache, build_dir):
-            if _path.is_dir():
-                shutil.rmtree(str(_path))
-
-    _clean()
-    with config.using_project(project_dir) as project:
+    project_source_dir = Path(__file__).parent
+    project_dest_dir = config.PROJECT_FOLDER / project_source_dir.name
+    copy_tree(project_source_dir.as_posix(), project_dest_dir.as_posix())
+    with config.using_project(project_dest_dir) as project:
         yield project
-        _clean()
 
 
 @pytest.fixture
