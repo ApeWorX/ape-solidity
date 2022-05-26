@@ -4,7 +4,7 @@ pragma solidity =0.8.12;
 
 import "CompilesOnce.sol";
 
-contract SpecificVersion {
+contract SpecificVersionWithEqualSign {
     function foo() pure public returns(bool) {
         return true;
     }

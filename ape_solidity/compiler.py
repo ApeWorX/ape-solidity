@@ -224,14 +224,15 @@ class SolidityCompiler(CompilerAPI):
         for path in contract_filepaths:
             pragma_spec = _get_pragma_spec(path)
 
-            # Check import versions. If any starts with `=`, use that version instead.
+            # Check import versions. If any *must* be a specific version, use that instead.
             source_id = str(get_relative_path(path, base_path))
-
             source_import_paths = [base_path / p for p in imports.get(source_id, [])]
             imported_version_specs = [_get_pragma_spec(s) for s in source_import_paths]
             solc_version = None
             for imported_version_spec in [s for s in imported_version_specs if s]:
-                if str(imported_version_spec.expression).startswith("="):
+                # Check if expression is like '=0.8.0' or '0.8.0'
+                expression_prefix = imported_version_spec.expression[0]
+                if expression_prefix == "=" or expression_prefix not in ("^", ">", "<"):
                     solc_version = imported_version_spec.select(self.installed_versions)
 
             if not solc_version and pragma_spec:
