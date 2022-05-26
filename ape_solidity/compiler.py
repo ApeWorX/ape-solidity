@@ -15,13 +15,17 @@ from packaging.version import Version as _Version
 from semantic_version import NpmSpec, Version  # type: ignore
 
 
-def get_pragma_spec(source: str) -> Optional[NpmSpec]:
+def get_pragma_spec(source_path: Path) -> Optional[NpmSpec]:
     """
     Extracts pragma information from Solidity source code.
     Args:
         source: Solidity source code
     Returns: NpmSpec object or None, if no valid pragma is found
     """
+    if not source_path.is_file():
+        return None
+
+    source = source_path.read_text()
     pragma_match = next(re.finditer(r"(?:\n|^)\s*pragma\s*solidity\s*([^;\n]*)", source), None)
     if pragma_match is None:
         return None  # Try compiling with latest
@@ -67,10 +71,8 @@ class SolidityCompiler(CompilerAPI):
     def get_versions(self, all_paths: List[Path]) -> Set[str]:
         versions = set()
         for path in all_paths:
-            source = path.read_text()
-
             # Make sure we have the compiler available to compile this
-            version_spec = get_pragma_spec(source)
+            version_spec = get_pragma_spec(path)
             if version_spec:
                 versions.add(str(version_spec.select(self.available_versions)))
 
@@ -194,27 +196,46 @@ class SolidityCompiler(CompilerAPI):
     def compile(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
+        base_path = base_path or self.config_manager.contracts_folder
         contract_types: List[ContractType] = []
         files_by_solc_version: Dict[Version, Set[Path]] = {}
         solc_version_by_file_name: Dict[Version, Path] = {}
+        imports = self.get_imports(contract_filepaths, base_path)
+
+        def _get_pragma_spec(path: Path) -> Optional[NpmSpec]:
+            pragma_spec = get_pragma_spec(path)
+            if not pragma_spec:
+                return None
+
+            # Check if we need to install specified compiler version
+            if pragma_spec is pragma_spec.select(self.installed_versions):
+                return pragma_spec
+
+            solc_version = pragma_spec.select(self.available_versions)
+            if solc_version:
+                solcx.install_solc(solc_version, show_progress=False)
+            else:
+                raise CompilerError(
+                    f"Solidity version specification '{pragma_spec}' could not be met."
+                )
+
+            return pragma_spec
 
         for path in contract_filepaths:
-            source = path.read_text()
-            pragma_spec = get_pragma_spec(source)
+            pragma_spec = _get_pragma_spec(path)
 
-            if pragma_spec:
-                # Check if we need to install specified compiler version
-                if pragma_spec is not pragma_spec.select(self.installed_versions):
-                    solc_version = pragma_spec.select(self.available_versions)
-                    if solc_version:
-                        solcx.install_solc(solc_version, show_progress=False)
-                    else:
-                        raise CompilerError(
-                            f"Solidity version specification '{pragma_spec}' could not be met."
-                        )
-                else:
-                    solc_version = pragma_spec.select(self.installed_versions)
-            else:
+            # Check import versions. If any starts with `=`, use that version instead.
+            source_id = str(get_relative_path(path, base_path))
+            source_import_paths = [base_path / p for p in imports[source_id]]
+            imported_version_specs = [_get_pragma_spec(s) for s in source_import_paths]
+            solc_version = None
+            for imported_version_spec in [s for s in imported_version_specs if s]:
+                if str(imported_version_spec.expression).startswith("="):
+                    solc_version = imported_version_spec.select(self.installed_versions)
+
+            if not solc_version and pragma_spec:
+                solc_version = pragma_spec.select(self.installed_versions)
+            elif not solc_version:
                 solc_version = max(self.installed_versions)
 
             if solc_version not in files_by_solc_version:
@@ -235,9 +256,6 @@ class SolidityCompiler(CompilerAPI):
                 files_by_solc_version[solc_version].add(path)
                 solc_version_by_file_name[path] = solc_version
 
-        if not base_path:
-            base_path = self.config_manager.contracts_folder
-
         base_kwargs = {
             "output_values": [
                 "abi",
@@ -250,7 +268,7 @@ class SolidityCompiler(CompilerAPI):
         }
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = base_path if solc_version >= Version("0.6.9") else None
-            import_remappings = self.get_import_remapping(base_path=cli_base_path)
+            import_remappings = self.get_import_remapping(base_path)
 
             kwargs = {
                 **base_kwargs,
@@ -288,16 +306,13 @@ class SolidityCompiler(CompilerAPI):
                     continue
 
                 contract_type["contractName"] = contract_name
-                contract_type["sourceId"] = (
-                    str(get_relative_path(base_path / contract_path, base_path))
-                    if base_path and contract_path.is_absolute()
-                    else str(contract_path)
+                contract_type["sourceId"] = str(
+                    get_relative_path(base_path / contract_path, base_path)
                 )
                 contract_type["deploymentBytecode"] = {"bytecode": contract_type["bin"]}
                 contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
                 contract_type["userdoc"] = load_dict(contract_type["userdoc"])
                 contract_type["devdoc"] = load_dict(contract_type["devdoc"])
-
                 contract_types.append(ContractType.parse_obj(contract_type))
 
         return contract_types
@@ -305,35 +320,22 @@ class SolidityCompiler(CompilerAPI):
     def get_imports(
         self, contract_filepaths: List[Path], base_path: Optional[Path]
     ) -> Dict[str, List[str]]:
+        base_path = base_path or self.project_manager.contracts_folder
+
         def import_str_to_source_id(self, import_str: str, source_path: Path) -> str:
             quote = '"' if '"' in import_str else "'"
-
             import_str = import_str[import_str.index(quote) + 1 :]  # noqa:E203
             import_str = import_str[: import_str.index(quote)]
-
-            path = (source_path.parent / Path(import_str)).resolve()
-
-            if base_path:  # mypy
-                source_id = str(get_relative_path(path, base_path))
-            else:
-                source_id = str(path)
+            path = (source_path.parent / import_str).resolve()
+            source_id = str(get_relative_path(path, base_path))
 
             # Convert remappings back to source
             for key, value in self.get_import_remapping(base_path).items():
                 if key not in source_id:
-                    break
-                parts = Path(source_id).parts
-
-                # NOTE: a remapping key could be a partial match
-                if key not in parts:
                     continue
 
-                new_path = Path()
-                for part in parts:
-                    if part != key:
-                        new_path = new_path.joinpath(part)
-
-                source_id = str(Path(value).joinpath(new_path))
+                source_id = source_id.replace(key, value)
+                break
 
             return source_id
 

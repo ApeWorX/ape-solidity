@@ -16,9 +16,20 @@ EXPECTED_IMPORTS_SET = {
     "contract", [c for c in TEST_CONTRACTS if "DifferentNameThanFile" not in str(c)]
 )
 def test_compile(project, contract):
-    assert contract in project.contracts
+    assert contract in project.contracts, ", ".join([n for n in project.contracts.keys()])
     contract = project.contracts[contract]
     assert contract.source_id == f"{contract.name}.sol"
+
+
+def test_compile_specific_order(project, compiler):
+    # NOTE: This test seems random but it's important!
+    # It replicates a bug where the first contract had a low solidity version
+    # and the second had a bunch of imports.
+    ordered_files = [
+        project.contracts_folder / "OlderVersion.sol",
+        project.contracts_folder / "Imports.sol",
+    ]
+    compiler.compile(ordered_files)
 
 
 def test_compile_contract_with_different_name_than_file(project):

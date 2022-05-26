@@ -4,5 +4,5 @@ dependencies:
 
 solidity:
   import_remapping:
-    - "@remapping=__test_dependency__"
+    - "@remapping/contracts=__test_dependency__"
     - "@remapping_2=__test_dependency__"

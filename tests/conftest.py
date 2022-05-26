@@ -1,4 +1,5 @@
 import shutil
+from distutils.dir_util import copy_tree
 from pathlib import Path
 from tempfile import mkdtemp
 
@@ -19,21 +20,25 @@ def config():
     return ape.config
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def project(config):
-    project_dir = Path(__file__).parent
-    contract_cache = project_dir / "contracts" / ".cache"
-    build_dir = project_dir / ".build"
+    project_source_dir = Path(__file__).parent
+    project_dest_dir = config.PROJECT_FOLDER / project_source_dir.name
 
-    def _clean():
-        for _path in (contract_cache, build_dir):
-            if _path.is_dir():
-                shutil.rmtree(str(_path))
+    # Delete build / .cache that may exist pre-copy
+    project_path = Path(__file__).parent
+    dependency_path = project_path / "dependency"
+    project_2_path = project_path / "project"
+    for path in (project_path, dependency_path, project_2_path):
+        for cache in (path / ".build", path / "contracts" / ".cache"):
+            if cache.is_dir():
+                shutil.rmtree(cache)
 
-    _clean()
-    with config.using_project(project_dir) as project:
+    copy_tree(project_source_dir.as_posix(), project_dest_dir.as_posix())
+    with config.using_project(project_dest_dir) as project:
         yield project
-        _clean()
+        if project._project._cache_folder.is_dir():
+            shutil.rmtree(project._project._cache_folder)
 
 
 @pytest.fixture
