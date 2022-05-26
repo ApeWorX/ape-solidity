@@ -226,7 +226,8 @@ class SolidityCompiler(CompilerAPI):
 
             # Check import versions. If any starts with `=`, use that version instead.
             source_id = str(get_relative_path(path, base_path))
-            source_import_paths = [base_path / p for p in imports[source_id]]
+
+            source_import_paths = [base_path / p for p in imports.get(source_id, [])]
             imported_version_specs = [_get_pragma_spec(s) for s in source_import_paths]
             solc_version = None
             for imported_version_spec in [s for s in imported_version_specs if s]:
