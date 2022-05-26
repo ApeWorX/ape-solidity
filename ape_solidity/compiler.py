@@ -104,7 +104,7 @@ class SolidityCompiler(CompilerAPI):
         contracts_cache = (
             base_path / ".cache"
             if base_path
-            else self.project_manager.contracts_folder / Path(".cache")
+            else self.config_manager.contracts_folder / Path(".cache")
         )
 
         # Convert to tuple for hashing, check if there's been a change
@@ -321,7 +321,7 @@ class SolidityCompiler(CompilerAPI):
     def get_imports(
         self, contract_filepaths: List[Path], base_path: Optional[Path]
     ) -> Dict[str, List[str]]:
-        contracts_path = base_path or self.project_manager.contracts_folder
+        contracts_path = base_path or self.config_manager.contracts_folder
 
         def import_str_to_source_id(self, import_str: str, source_path: Path) -> str:
             quote = '"' if '"' in import_str else "'"
@@ -350,6 +350,7 @@ class SolidityCompiler(CompilerAPI):
                         import_str_to_source_id(self, import_str=ln, source_path=filepath)
                     )
 
-            imports_dict[str(filepath)] = list(import_set)
+            source_id = str(get_relative_path(filepath, base_path))
+            imports_dict[str(source_id)] = list(import_set)
 
         return imports_dict
