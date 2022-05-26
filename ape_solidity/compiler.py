@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union, cast
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
 from ape.exceptions import CompilerError, ConfigError
+from ape.logging import logger
 from ape.types import ContractType
 from ape.utils import cached_property, get_relative_path
 from ethpm_types import PackageManifest
@@ -30,13 +31,22 @@ def get_pragma_spec(source_path: Path) -> Optional[NpmSpec]:
     if pragma_match is None:
         return None  # Try compiling with latest
 
-    pragma_string = pragma_match.groups()[0]
-    pragma_string = " ".join(pragma_string.split())
+    # The following logic handles the case where the user puts a space
+    # between the operator and the version number in the pragam string,
+    # such as `solidity >= 0.4.19 < 0.7.0`.
+    pragma_expression = ""
+    pragma_parts = pragma_match.groups()[0].split()
+    num_parts = len(pragma_parts)
+    for index in range(num_parts):
+        pragma_expression += pragma_parts[index]
+        if any([c.isdigit() for c in pragma_parts[index]]) and index < num_parts - 1:
+            pragma_expression += " "
 
     try:
-        return NpmSpec(pragma_string)
+        return NpmSpec(pragma_expression)
 
-    except ValueError:
+    except ValueError as err:
+        logger.error(str(err))
         return None
 
 
