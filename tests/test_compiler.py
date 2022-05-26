@@ -16,7 +16,7 @@ EXPECTED_IMPORTS_SET = {
     "contract", [c for c in TEST_CONTRACTS if "DifferentNameThanFile" not in str(c)]
 )
 def test_compile(project, contract):
-    assert contract in project.contracts
+    assert contract in project.contracts, ", ".join([n for n in project.contracts.keys()])
     contract = project.contracts[contract]
     assert contract.source_id == f"{contract.name}.sol"
 
