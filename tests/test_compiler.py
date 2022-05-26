@@ -38,6 +38,14 @@ def test_compile_contract_with_different_name_than_file(project):
     assert contract.source_id == file_name
 
 
+def test_compile_only_returns_contract_types_for_inputs(compiler, project):
+    # The compiler has to compile multiple files for 'Imports.sol' (it imports stuff).
+    # However - it should only return a single contract type in this case.
+    contract_types = compiler.compile([project.contracts_folder / "Imports.sol"])
+    assert len(contract_types) == 1
+    assert contract_types[0].name == "Imports"
+
+
 def test_get_imports(project, compiler):
     import_dict = compiler.get_imports(TEST_CONTRACT_PATHS, BASE_PATH)
     contract_imports = import_dict["Imports.sol"]
