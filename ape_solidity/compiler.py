@@ -210,7 +210,7 @@ class SolidityCompiler(CompilerAPI):
         contracts_path = base_path or self.config_manager.contracts_folder
         contract_types: List[ContractType] = []
         files_by_solc_version: Dict[Version, Set[Path]] = {}
-        solc_version_by_path: Dict[Version, Path] = {}
+        solc_version_by_path: Dict[Path, Version] = {}
         solc_versions_by_source_id: Dict[str, Version] = {}
 
         # NOTE: Must load imports using *all* source files available.
@@ -235,7 +235,8 @@ class SolidityCompiler(CompilerAPI):
 
             return pragma_spec
 
-        def find_best_version(path: Path, previous_imports: Optional[List[Path]] = None) -> Version:
+        def find_best_version(path: Path, gathered_imports: Optional[List[Path]] = None) -> Version:
+            gathered_imports = gathered_imports or []
             pragma_spec = _get_pragma_spec(path)
             if path in solc_version_by_path:
                 return solc_version_by_path[path]
@@ -243,11 +244,23 @@ class SolidityCompiler(CompilerAPI):
             solc_version = pragma_spec.select(self.installed_versions) if pragma_spec else None
 
             source_id = str(get_relative_path(path, contracts_path))
-            imported_source_paths = [contracts_path / p for p in imports.get(source_id, []) if p]
+            imported_source_paths = [
+                contracts_path / p
+                for p in imports.get(source_id, [])
+                if p and contracts_path / p not in gathered_imports
+            ]
+
+            # Handle circular imports by ignoring already-visited imports.
+            gathered_imports += imported_source_paths
 
             # Check import versions. If any *require* a lower version, use that instead.
             imported_versions = [
-                v for v in [find_best_version(i) for i in imported_source_paths] if v
+                v
+                for v in [
+                    find_best_version(i, gathered_imports=gathered_imports)
+                    for i in imported_source_paths
+                ]
+                if v
             ]
 
             for import_version in imported_versions:
