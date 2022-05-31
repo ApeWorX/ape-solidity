@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from ape.contracts import ContractContainer
 
 BASE_PATH = Path(__file__).parent / "contracts"
 TEST_CONTRACT_PATHS = [p for p in BASE_PATH.iterdir() if ".cache" not in str(p) and not p.is_dir()]
@@ -70,3 +71,9 @@ def test_get_import_remapping(compiler, project, config):
         assert second_import_remapping
 
     assert import_remapping != second_import_remapping
+
+
+def test_brownie_project(compiler, config):
+    brownie_project_path = Path(__file__).parent / "BrownieProject"
+    with config.using_project(brownie_project_path) as project:
+        assert type(project.BrownieContract) == ContractContainer
