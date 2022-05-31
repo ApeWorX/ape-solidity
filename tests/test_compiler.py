@@ -60,7 +60,12 @@ def test_get_imports(project, compiler):
 
 def test_get_import_remapping(compiler, project, config):
     import_remapping = compiler.get_import_remapping()
-    assert import_remapping
+    assert import_remapping == {
+        "@remapping/contracts": ".cache/TestDependency/local",
+        "@remapping_2": ".cache/TestDependency/local",
+        "@brownie": ".cache/BrownieDependency/local",
+        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
+    }
 
     with config.using_project(project.path / "ProjectWithinProject") as proj:
         # Trigger downloading dependencies in new ProjectWithinProject
