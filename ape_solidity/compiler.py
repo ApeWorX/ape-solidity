@@ -279,7 +279,8 @@ class SolidityCompiler(CompilerAPI):
             if solc_version not in files_by_solc_version:
                 files_by_solc_version[solc_version] = set()
 
-            for src_path in [path, *imported_source_paths]:
+            input_imports = [p for p in imported_source_paths if p in contract_filepaths]
+            for src_path in [path, *input_imports]:
                 files_by_solc_version[solc_version].add(src_path)
                 solc_version_by_path[src_path] = solc_version
 
