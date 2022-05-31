@@ -63,6 +63,7 @@ setup(
         "py-solc-x>=1.1.0,<1.2.0",
         "eth-ape>=0.2.1,<0.3.0",
         "ethpm-types",  # Use the version ape requires
+        "eth-utils",  # Use the version ape requires
         "packaging>=20.9,<21",
     ],  # NOTE: Add 3rd party libraries here
     python_requires=">=3.7.2,<4",

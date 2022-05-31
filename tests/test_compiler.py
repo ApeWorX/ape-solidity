@@ -54,6 +54,7 @@ def test_get_imports(project, compiler):
         "CompilesOnce.sol",
         ".cache/TestDependency/local/Dependency.sol",
         "subfolder/Relativecontract.sol",
+        ".cache/BrownieDependency/local/BrownieContract.sol",
     }
     assert set(contract_imports) == expected
 

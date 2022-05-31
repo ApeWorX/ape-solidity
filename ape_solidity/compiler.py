@@ -10,6 +10,7 @@ from ape.exceptions import CompilerError, ConfigError
 from ape.logging import logger
 from ape.types import ContractType
 from ape.utils import cached_property, get_all_files_in_directory, get_relative_path
+from eth_utils import add_0x_prefix
 from ethpm_types import PackageManifest
 from packaging import version
 from packaging.version import Version as _Version
@@ -279,8 +280,12 @@ class SolidityCompiler(CompilerAPI):
             if solc_version not in files_by_solc_version:
                 files_by_solc_version[solc_version] = set()
 
-            input_imports = [p for p in imported_source_paths if p in contract_filepaths]
-            for src_path in [path, *input_imports]:
+            files_to_compile = [
+                i
+                for i in [path, *imported_source_paths]
+                if ".cache" not in [p.name for p in i.parents]
+            ]
+            for src_path in files_to_compile:
                 files_by_solc_version[solc_version].add(src_path)
                 solc_version_by_path[src_path] = solc_version
 
@@ -349,13 +354,23 @@ class SolidityCompiler(CompilerAPI):
                     else:
                         contract_types = [ct for ct in contract_types if ct.source_id != source_id]
 
+                # NOTE: Experimental ABI encode V2 does not use 0x prefixed bins.
+                bin = add_0x_prefix(contract_type["bin"])
+                runtime_bin = add_0x_prefix(contract_type["bin-runtime"])
+
                 contract_type["contractName"] = contract_name
                 contract_type["sourceId"] = source_id
-                contract_type["deploymentBytecode"] = {"bytecode": contract_type["bin"]}
-                contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
+                contract_type["deploymentBytecode"] = {"bytecode": bin}
+                contract_type["runtimeBytecode"] = {"bytecode": runtime_bin}
                 contract_type["userdoc"] = _load_dict(contract_type["userdoc"])
                 contract_type["devdoc"] = _load_dict(contract_type["devdoc"])
-                contract_type_obj = ContractType.parse_obj(contract_type)
+                from pydantic import ValidationError
+
+                try:
+                    contract_type_obj = ContractType.parse_obj(contract_type)
+                except ValidationError:
+                    breakpoint()
+
                 contract_types.append(contract_type_obj)
                 solc_versions_by_source_id[source_id] = solc_version
 
