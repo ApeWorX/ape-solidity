@@ -367,7 +367,7 @@ class SolidityCompiler(CompilerAPI):
         self, contract_filepaths: List[Path], base_path: Optional[Path]
     ) -> Dict[str, List[str]]:
         contracts_path = base_path or self.config_manager.contracts_folder
-        import_remapping = self.get_import_remapping(contracts_path)
+        import_remapping = self.get_import_remapping(base_path=contracts_path)
 
         def import_str_to_source_id(import_str: str, source_path: Path) -> str:
             quote = '"' if '"' in import_str else "'"
