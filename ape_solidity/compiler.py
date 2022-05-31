@@ -111,11 +111,8 @@ class SolidityCompiler(CompilerAPI):
         if not isinstance(items, (list, tuple)) or not isinstance(items[0], str):
             raise IncorrectMappingFormatError()
 
-        contracts_cache = (
-            base_path / ".cache"
-            if base_path
-            else self.config_manager.contracts_folder / Path(".cache")
-        )
+        base_path = base_path or self.config_manager.contracts_folder
+        contracts_cache = base_path / ".cache"
 
         # Convert to tuple for hashing, check if there's been a change
         items_tuple = tuple(items)
