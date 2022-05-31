@@ -308,7 +308,7 @@ class SolidityCompiler(CompilerAPI):
         }
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
-            import_remappings = self.get_import_remapping(contracts_path)
+            import_remappings = self.get_import_remapping(base_path=contracts_path)
 
             kwargs = {
                 **base_kwargs,
@@ -367,20 +367,35 @@ class SolidityCompiler(CompilerAPI):
         self, contract_filepaths: List[Path], base_path: Optional[Path]
     ) -> Dict[str, List[str]]:
         contracts_path = base_path or self.config_manager.contracts_folder
+        import_remapping = self.get_import_remapping(contracts_path)
 
-        def import_str_to_source_id(self, import_str: str, source_path: Path) -> str:
+        def import_str_to_source_id(import_str: str, source_path: Path) -> str:
             quote = '"' if '"' in import_str else "'"
-            import_str = import_str[import_str.index(quote) + 1 :]  # noqa:E203
-            import_str = import_str[: import_str.index(quote)]
+            end_index = import_str.index(quote) + 1
+            import_str_prefix = import_str[end_index:]
+            import_str = import_str_prefix[: import_str_prefix.index(quote)]
             path = (source_path.parent / import_str).resolve()
             source_id = str(get_relative_path(path, contracts_path))
 
             # Convert remappings back to source
-            for key, value in self.get_import_remapping(contracts_path).items():
+            for key, value in import_remapping.items():
                 if key not in source_id:
                     continue
 
-                source_id = source_id.replace(key, value)
+                sections = [s for s in source_id.split(key) if s]
+                depth = len(sections) - 1
+                source_id = ""
+
+                index = 0
+                for section in sections:
+                    if index == depth:
+                        source_id += value
+                        source_id += section
+                    elif index >= depth:
+                        source_id += section
+
+                    index += 1
+
                 break
 
             return source_id
@@ -391,9 +406,8 @@ class SolidityCompiler(CompilerAPI):
             import_set = set()
             for ln in filepath.read_text().splitlines():
                 if ln.startswith("import"):
-                    import_set.add(
-                        import_str_to_source_id(self, import_str=ln, source_path=filepath)
-                    )
+                    import_item = import_str_to_source_id(import_str=ln, source_path=filepath)
+                    import_set.add(import_item)
 
             source_id = str(get_relative_path(filepath, contracts_path))
             imports_dict[str(source_id)] = list(import_set)

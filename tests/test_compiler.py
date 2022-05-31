@@ -5,11 +5,6 @@ import pytest
 BASE_PATH = Path(__file__).parent / "contracts"
 TEST_CONTRACT_PATHS = [p for p in BASE_PATH.iterdir() if ".cache" not in str(p) and not p.is_dir()]
 TEST_CONTRACTS = [str(p.stem) for p in TEST_CONTRACT_PATHS]
-EXPECTED_IMPORTS_SET = {
-    "folder/Relativecontract.sol",
-    "CompilesOnce.sol",
-    ".cache/__test_dependency__/local/Dependency.sol",
-}
 
 
 @pytest.mark.parametrize(
@@ -54,7 +49,12 @@ def test_get_imports(project, compiler):
     # NOTE: returning a list
     assert type(contract_imports) == list
     # NOTE: in case order changes
-    assert set(contract_imports) == EXPECTED_IMPORTS_SET
+    expected = {
+        "CompilesOnce.sol",
+        ".cache/__test_dependency__/local/Dependency.sol",
+        "subfolder/Relativecontract.sol",
+    }
+    assert set(contract_imports) == expected
 
 
 def test_get_import_remapping(compiler, project, config):
