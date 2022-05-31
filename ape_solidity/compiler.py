@@ -250,7 +250,6 @@ class SolidityCompiler(CompilerAPI):
 
             # Handle circular imports by ignoring already-visited imports.
             gathered_imports += imported_source_paths
-
             # Check import versions. If any *require* a lower version, use that instead.
             imported_versions = [
                 v
