@@ -2,6 +2,9 @@ dependencies:
   - name: TestDependency
     local: ./Dependency
 
+  - name: BrownieDependency
+    local: ./BrownieProject
+
   # NOTE: Currently have to specify dependencies of dependencies
   - name: TestDependencyOfDependency
     local: ./DependencyOfDependency
@@ -10,6 +13,7 @@ solidity:
   import_remapping:
     - "@remapping/contracts=TestDependency"
     - "@remapping_2=TestDependency"
+    - "@brownie=BrownieDependency"
 
-    # NOTE: Currently have to specify remappings of dependencies of dependencies
+    # NOTE: Currently have to specify dependency-remappings of dependencies
     - "@dependency_remapping=TestDependencyOfDependency/local"
