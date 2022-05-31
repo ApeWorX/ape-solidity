@@ -51,7 +51,7 @@ def test_get_imports(project, compiler):
     # NOTE: in case order changes
     expected = {
         "CompilesOnce.sol",
-        ".cache/__test_dependency__/local/Dependency.sol",
+        ".cache/TestDependency/local/Dependency.sol",
         "subfolder/Relativecontract.sol",
     }
     assert set(contract_imports) == expected
@@ -61,8 +61,8 @@ def test_get_import_remapping(compiler, project, config):
     import_remapping = compiler.get_import_remapping()
     assert import_remapping
 
-    with config.using_project(project.path / "project_within_project") as proj:
-        # Trigger downloading dependencies in new project_within_project
+    with config.using_project(project.path / "ProjectWithinProject") as proj:
+        # Trigger downloading dependencies in new ProjectWithinProject
         dependencies = proj.dependencies
         assert dependencies
         # Should be different now that we have changed projects.

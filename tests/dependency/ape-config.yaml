@@ -1,7 +1,0 @@
-dependencies:
-  - name: __test_dependency_of_dependency__
-    local: ../dependency_of_dependency
-
-solidity:
-  import_remapping:
-    - "@dependency_remapping=__test_dependency_of_dependency__/local"

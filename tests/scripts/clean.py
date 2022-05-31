@@ -8,9 +8,9 @@ def clean():
     dependencies.
     """
     project_path = Path(__file__).parent.parent
-    dependency_path = project_path / "dependency"
-    dependency_of_dependency = project_path / "dependency_of_dependency"
-    project_within_a_project_path = project_path / "project_within_project"
+    dependency_path = project_path / "Dependency"
+    dependency_of_dependency = project_path / "DependencyOfDependency"
+    project_within_a_project_path = project_path / "ProjectWithinProject"
     for path in (
         project_path,
         dependency_path,

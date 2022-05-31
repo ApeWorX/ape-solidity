@@ -1,8 +1,15 @@
 dependencies:
-  - name: __test_dependency__
-    local: ./dependency
+  - name: TestDependency
+    local: ./Dependency
+
+  # NOTE: Currently have to specify dependencies of dependencies
+  - name: TestDependencyOfDependency
+    local: ./DependencyOfDependency
 
 solidity:
   import_remapping:
-    - "@remapping/contracts=__test_dependency__"
-    - "@remapping_2=__test_dependency__"
+    - "@remapping/contracts=TestDependency"
+    - "@remapping_2=TestDependency"
+
+    # NOTE: Currently have to specify remappings of dependencies of dependencies
+    - "@dependency_remapping=TestDependencyOfDependency/local"

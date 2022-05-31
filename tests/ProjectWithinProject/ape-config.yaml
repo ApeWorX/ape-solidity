@@ -1,0 +1,7 @@
+dependencies:
+  - name: TestRemapping
+    local: ../Dependency
+
+solidity:
+  import_remapping:
+    - "@remapping=TestRemapping"
