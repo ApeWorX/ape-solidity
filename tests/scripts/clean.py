@@ -1,0 +1,26 @@
+import shutil
+from pathlib import Path
+
+
+def clean():
+    """
+    Delete all ``.cache/ and ``.build/`` folders in the project and local
+    dependencies.
+    """
+    project_path = Path(__file__).parent.parent
+    dependency_path = project_path / "dependency"
+    dependency_of_dependency = project_path / "dependency_of_dependency"
+    project_within_a_project_path = project_path / "project_within_project"
+    for path in (
+        project_path,
+        dependency_path,
+        dependency_of_dependency,
+        project_within_a_project_path,
+    ):
+        for cache in (path / ".build", path / "contracts" / ".cache"):
+            if cache.is_dir():
+                shutil.rmtree(cache)
+
+
+def main():
+    clean()
