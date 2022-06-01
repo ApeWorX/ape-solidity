@@ -306,6 +306,26 @@ class SolidityCompiler(CompilerAPI):
             "optimize": self.config.optimize,
         }
 
+        # If being used in another version AND no imports in this version require it,
+        # remove it from this version.
+        for solc_version, files in files_by_solc_version.copy().items():
+            for file in files.copy():
+                used_in_other_version = any(
+                    [file in ls for v, ls in files_by_solc_version.items() if v != solc_version]
+                )
+                if not used_in_other_version:
+                    continue
+
+                other_files = [f for f in files_by_solc_version[solc_version] if f != file]
+                for other_file in other_files:
+                    source_id = str(get_relative_path(path, contracts_path))
+                    import_paths = [contracts_path / i for i in imports.get(source_id, []) if i]
+                    if file in import_paths:
+                        continue
+
+                files_by_solc_version[solc_version].remove(file)
+
+        files_by_solc_version = {v: f for v, f in files_by_solc_version.items() if f}
         solc_versions_by_source_id: Dict[str, Version] = {}
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
