@@ -251,25 +251,31 @@ class SolidityCompiler(CompilerAPI):
             # Handle circular imports by ignoring already-visited imports.
             gathered_imports += imported_source_paths
             # Check import versions. If any *require* a lower version, use that instead.
-            imported_versions = [
-                v
-                for v in [
-                    find_best_version(i, gathered_imports=gathered_imports)
-                    for i in imported_source_paths
+
+            if (
+                pragma_spec
+                and not pragma_spec.expression.startswith("=")
+                and not pragma_spec.expression[0].isnumeric()
+            ):
+                # NOTE: Pick the lowest version in the imports. This is not guarranteed to work.
+                imported_versions = [
+                    v
+                    for v in [
+                        find_best_version(i, gathered_imports=gathered_imports)
+                        for i in imported_source_paths
+                    ]
+                    if v
                 ]
-                if v
-            ]
+                for import_version in imported_versions:
+                    if not import_version:
+                        continue
 
-            for import_version in imported_versions:
-                if not import_version:
-                    continue
+                    if not solc_version:
+                        solc_version = import_version
+                        continue
 
-                if not solc_version:
-                    solc_version = import_version
-                    continue
-
-                if import_version < solc_version:
-                    solc_version = import_version
+                    if import_version < solc_version:
+                        solc_version = import_version
 
             if not solc_version:
                 solc_version = max(self.installed_versions)
@@ -308,6 +314,7 @@ class SolidityCompiler(CompilerAPI):
             ],
             "optimize": self.config.optimize,
         }
+
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
             import_remappings = self.get_import_remapping(base_path=contracts_path)
