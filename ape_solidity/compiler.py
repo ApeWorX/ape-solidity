@@ -284,7 +284,7 @@ class SolidityCompiler(CompilerAPI):
 
                 elif imported_version < solc_version:
                     # If we get here, the highest version of an import is lower than the reference.
-                    solc_version = solc_version
+                    solc_version = imported_version
 
             if solc_version not in files_by_solc_version:
                 files_by_solc_version[solc_version] = set()
