@@ -242,24 +242,22 @@ class SolidityCompiler(CompilerAPI):
             # Handle circular imports by ignoring already-visited imports.
             pre_length = len(gathered_imports)
             gathered_imports += [i for i in imported_source_paths if i not in gathered_imports]
-            if len(gathered_imports) == pre_length:
-                return solc_version
-
-            # Pick the lowest version in the imports.
-            imported_versions = {
-                v
-                for v in [
-                    find_best_version(i, gathered_imports=gathered_imports)
-                    for i in imported_source_paths
-                ]
-                if v
-            }
-
             if (
-                pragma_spec
+                len(gathered_imports) > pre_length
+                and pragma_spec is not None
                 and not pragma_spec.expression.startswith("=")
                 and not pragma_spec.expression[0].isnumeric()
             ):
+                # Pick the lowest version in the imports.
+                imported_versions = {
+                    v
+                    for v in [
+                        find_best_version(i, gathered_imports=gathered_imports)
+                        for i in imported_source_paths
+                    ]
+                    if v
+                }
+
                 for import_version in imported_versions:
                     if not import_version:
                         continue
@@ -296,6 +294,9 @@ class SolidityCompiler(CompilerAPI):
                 continue
 
             find_best_version(source_path)
+
+        if not files_by_solc_version:
+            return contract_types
 
         base_kwargs = {
             "output_values": [
@@ -338,7 +339,6 @@ class SolidityCompiler(CompilerAPI):
 
             for contract_name, contract_type in output.items():
                 contract_path, contract_name = parse_contract_name(contract_name)
-
                 if contract_name not in input_contract_names:
                     # Only return ContractTypes explicitly asked for.
                     continue

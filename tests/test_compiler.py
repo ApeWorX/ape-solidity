@@ -83,3 +83,11 @@ def test_brownie_project(compiler, config):
     brownie_project_path = Path(__file__).parent / "BrownieProject"
     with config.using_project(brownie_project_path) as project:
         assert type(project.BrownieContract) == ContractContainer
+
+
+def test_compile_single_source_with_no_imports(compiler, config):
+    # Tests against an important edge case that was discovered
+    # where the source file was individually compiled and it had no imports.
+    path = Path(__file__).parent / "DependencyOfDependency"
+    with config.using_project(path) as project:
+        assert type(project.DependencyOfDependency) == ContractContainer
