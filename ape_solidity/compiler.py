@@ -347,7 +347,7 @@ class SolidityCompiler(CompilerAPI):
                 runtime_bytecode = contract_type["bin"]
 
                 # Skip library linking.
-                if "$__" in deployment_bytecode or "__$" in runtime_bytecode:
+                if "__$" in deployment_bytecode or "__$" in runtime_bytecode:
                     logger.warning("Libraries must be deployed and configured separately.")
                     continue
 
