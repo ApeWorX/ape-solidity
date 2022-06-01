@@ -52,7 +52,7 @@ def get_pragma_spec(source_path: Path) -> Optional[NpmSpec]:
 
 class SolidityConfig(PluginConfig):
     # Configure re-mappings using a `=` separated-str,
-    # e.g. '@import_name=path/to/Dependency'
+    # e.g. '@import_name=path/to/dependency'
     import_remapping: List[str] = []
     optimize: bool = True
 
@@ -100,7 +100,7 @@ class SolidityCompiler(CompilerAPI):
     def get_import_remapping(self, base_path: Optional[Path] = None) -> Dict[str, str]:
         """
         Specify the remapping using a ``=`` separated str
-        e.g. ``'@import_name=path/to/Dependency'``.
+        e.g. ``'@import_name=path/to/dependency'``.
         """
         import_map: Dict[str, str] = {}
         items = self.config.import_remapping
@@ -156,7 +156,7 @@ class SolidityCompiler(CompilerAPI):
                     suffix = suffix / version_ids[0]
                     data_folder_cache = packages_cache / suffix
                 elif not version_ids:
-                    raise CompilerError(f"Missing Dependency '{suffix}'.")
+                    raise CompilerError(f"Missing dependency '{suffix}'.")
                 else:
                     options_str = ", ".join(version_ids)
                     raise CompilerError(
@@ -165,7 +165,7 @@ class SolidityCompiler(CompilerAPI):
                         f"where 'version_id' is one of '{options_str}'."
                     )
 
-            # Re-build a downloaded Dependency manifest into the .cache directory for imports.
+            # Re-build a downloaded dependency manifest into the .cache directory for imports.
             sub_contracts_cache = contracts_cache / suffix
             if not sub_contracts_cache.exists() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"

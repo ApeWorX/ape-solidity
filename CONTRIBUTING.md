@@ -3,7 +3,7 @@
 To get started with working on the codebase, use the following steps prepare your local environment:
 
 ```bash
-# clone the github repo and navigate into the subfolder
+# clone the github repo and navigate into the folder
 git clone https://github.com/ApeWorX/<PROJECT_NAME>.git
 cd <PROJECT_NAME>
 
