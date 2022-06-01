@@ -172,7 +172,6 @@ class SolidityCompiler(CompilerAPI):
                 if not cached_manifest_file.exists():
                     raise CompilerError(f"Unable to find dependency '{suffix}'.")
 
-                # NOTE: Purposely skip Pydantic validation here.
                 manifest = PackageManifest(**json.loads(cached_manifest_file.read_text()))
 
                 sub_contracts_cache.mkdir(parents=True)
