@@ -10,7 +10,6 @@ from ape.exceptions import CompilerError, ConfigError
 from ape.logging import logger
 from ape.types import ContractType
 from ape.utils import cached_property, get_all_files_in_directory, get_relative_path
-from eth_utils import add_0x_prefix
 from ethpm_types import PackageManifest
 from packaging import version
 from packaging.version import Version as _Version
@@ -236,36 +235,30 @@ class SolidityCompiler(CompilerAPI):
         def find_best_version(path: Path, gathered_imports: Optional[List[Path]] = None) -> Version:
             gathered_imports = gathered_imports or []
             pragma_spec = _get_pragma_spec(path)
-            if path in solc_version_by_path:
-                return solc_version_by_path[path]
-
             solc_version = pragma_spec.select(self.installed_versions) if pragma_spec else None
 
             source_id = str(get_relative_path(path, contracts_path))
-            imported_source_paths = [
-                contracts_path / p
-                for p in imports.get(source_id, [])
-                if p and contracts_path / p not in gathered_imports
-            ]
+            imported_source_paths = [contracts_path / p for p in imports.get(source_id, []) if p]
 
             # Handle circular imports by ignoring already-visited imports.
             gathered_imports += imported_source_paths
             # Check import versions. If any *require* a lower version, use that instead.
+
+            # NOTE: Pick the lowest version in the imports. This is not guarranteed to work.
+            imported_versions = [
+                v
+                for v in [
+                    find_best_version(i, gathered_imports=gathered_imports)
+                    for i in imported_source_paths
+                ]
+                if v
+            ]
 
             if (
                 pragma_spec
                 and not pragma_spec.expression.startswith("=")
                 and not pragma_spec.expression[0].isnumeric()
             ):
-                # NOTE: Pick the lowest version in the imports. This is not guarranteed to work.
-                imported_versions = [
-                    v
-                    for v in [
-                        find_best_version(i, gathered_imports=gathered_imports)
-                        for i in imported_source_paths
-                    ]
-                    if v
-                ]
                 for import_version in imported_versions:
                     if not import_version:
                         continue
@@ -285,12 +278,12 @@ class SolidityCompiler(CompilerAPI):
             if solc_version not in files_by_solc_version:
                 files_by_solc_version[solc_version] = set()
 
-            files_to_compile = [
+            files_for_version = [
                 i
                 for i in [path, *imported_source_paths]
                 if ".cache" not in [p.name for p in i.parents]
             ]
-            for src_path in files_to_compile:
+            for src_path in files_for_version:
                 files_by_solc_version[solc_version].add(src_path)
                 solc_version_by_path[src_path] = solc_version
 
@@ -360,23 +353,13 @@ class SolidityCompiler(CompilerAPI):
                     else:
                         contract_types = [ct for ct in contract_types if ct.source_id != source_id]
 
-                # NOTE: Experimental ABI encode V2 does not use 0x prefixed bins.
-                bin = add_0x_prefix(contract_type["bin"])
-                runtime_bin = add_0x_prefix(contract_type["bin-runtime"])
-
                 contract_type["contractName"] = contract_name
                 contract_type["sourceId"] = source_id
-                contract_type["deploymentBytecode"] = {"bytecode": bin}
-                contract_type["runtimeBytecode"] = {"bytecode": runtime_bin}
+                contract_type["deploymentBytecode"] = {"bytecode": contract_type["bin"]}
+                contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
                 contract_type["userdoc"] = _load_dict(contract_type["userdoc"])
                 contract_type["devdoc"] = _load_dict(contract_type["devdoc"])
-                from pydantic import ValidationError
-
-                try:
-                    contract_type_obj = ContractType.parse_obj(contract_type)
-                except ValidationError:
-                    breakpoint()
-
+                contract_type_obj = ContractType.parse_obj(contract_type)
                 contract_types.append(contract_type_obj)
                 solc_versions_by_source_id[source_id] = solc_version
 
