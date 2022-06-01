@@ -203,15 +203,36 @@ class SolidityCompiler(CompilerAPI):
     def compile(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
-        input_file_paths = [p for p in contract_filepaths]
         contracts_path = base_path or self.config_manager.contracts_folder
-        contract_types: List[ContractType] = []
-        files_by_solc_version: Dict[Version, Set[Path]] = {}
-        solc_version_by_path: Dict[Path, Version] = {}
-        solc_versions_by_source_id: Dict[str, Version] = {}
-
-        # NOTE: Must load imports using *all* source files available.
         imports = self.get_imports(get_all_files_in_directory(contracts_path), contracts_path)
+
+        def get_imported_source_paths(
+            path: Path, source_ids_checked: Optional[List[str]] = None
+        ) -> Set[Path]:
+            source_ids_checked = source_ids_checked or []
+            source_id = str(get_relative_path(path, contracts_path))
+            if source_id in source_ids_checked:
+                # Already got this source's imports
+                return set()
+
+            source_ids_checked.append(source_id)
+            import_paths = [contracts_path / i for i in imports.get(source_id, []) if i]
+            return_set = {i for i in import_paths}
+            for import_path in import_paths:
+                indirect_imports = get_imported_source_paths(
+                    import_path, source_ids_checked=source_ids_checked
+                )
+                for indirect_import in indirect_imports:
+                    return_set.add(indirect_import)
+
+            return return_set
+
+        # Add imported source files to list of contracts to compile.
+        source_paths_to_compile = {p for p in contract_filepaths}
+        for source_path in contract_filepaths:
+            imported_source_paths = get_imported_source_paths(source_path)
+            for imported_source in imported_source_paths:
+                source_paths_to_compile.add(imported_source)
 
         def _get_pragma_spec(path: Path) -> Optional[NpmSpec]:
             pragma_spec = get_pragma_spec(path)
@@ -232,69 +253,46 @@ class SolidityCompiler(CompilerAPI):
 
             return pragma_spec
 
-        def find_best_version(path: Path, gathered_imports: Optional[List[Path]] = None) -> Version:
-            gathered_imports = gathered_imports or []
-            pragma_spec = _get_pragma_spec(path)
-            solc_version = pragma_spec.select(self.installed_versions) if pragma_spec else None
-            source_id = str(get_relative_path(path, contracts_path))
-            imported_source_paths = [contracts_path / p for p in imports.get(source_id, []) if p]
+        # Build map of pragma-specs.
+        source_by_pragma_spec = {p: _get_pragma_spec(p) for p in source_paths_to_compile}
 
-            # Handle circular imports by ignoring already-visited imports.
-            pre_length = len(gathered_imports)
-            gathered_imports += [i for i in imported_source_paths if i not in gathered_imports]
-            if (
-                len(gathered_imports) > pre_length
-                and pragma_spec is not None
-                and not pragma_spec.expression.startswith("=")
-                and not pragma_spec.expression[0].isnumeric()
-            ):
-                # Pick the lowest version in the imports.
-                imported_versions = {
-                    v
-                    for v in [
-                        find_best_version(i, gathered_imports=gathered_imports)
-                        for i in imported_source_paths
-                    ]
-                    if v
-                }
+        def get_best_version(path: Path) -> Version:
+            pragma_spec = source_by_pragma_spec[path]
+            return (
+                pragma_spec.select(self.installed_versions)
+                if pragma_spec
+                else max(self.installed_versions)
+            )
 
-                for import_version in imported_versions:
-                    if not import_version:
-                        continue
+        # Adjust best-versions based on imports.
+        files_by_solc_version: Dict[Version, Set[Path]] = {}
+        for source_file_path in source_paths_to_compile:
+            solc_version = get_best_version(source_file_path)
+            imported_source_paths = get_imported_source_paths(source_file_path)
 
-                    elif not solc_version:
-                        solc_version = import_version
-                        continue
+            for imported_source_path in imported_source_paths:
+                imported_pragma_spec = source_by_pragma_spec[imported_source_path]
+                imported_version = get_best_version(imported_source_path)
 
-                    elif import_version < solc_version:
-                        solc_version = import_version
+                if imported_pragma_spec is not None and (
+                    imported_pragma_spec.expression.startswith("=")
+                    or imported_pragma_spec.expression[0].isdigit()
+                ):
+                    # Have to use this version.
+                    solc_version = imported_version
+                    break
 
-            if not solc_version:
-                solc_version = max(self.installed_versions)
+                elif imported_version < solc_version:
+                    # If we get here, the highest version of an import is lower than the reference.
+                    solc_version = solc_version
 
-            # By this point, we have found the largest version we can use for this set.
             if solc_version not in files_by_solc_version:
                 files_by_solc_version[solc_version] = set()
 
-            files_for_version = [
-                i
-                for i in [path, *imported_source_paths]
-                if ".cache" not in [p.name for p in i.parents]
-            ]
-            for src_path in files_for_version:
-                files_by_solc_version[solc_version].add(src_path)
-                solc_version_by_path[src_path] = solc_version
+            for path in (source_file_path, *imported_source_paths):
+                files_by_solc_version[solc_version].add(path)
 
-            return solc_version
-
-        while contract_filepaths:
-            source_path = contract_filepaths.pop()
-            if source_path in solc_version_by_path:
-                # Already found.
-                continue
-
-            find_best_version(source_path)
-
+        contract_types: List[ContractType] = []
         if not files_by_solc_version:
             return contract_types
 
@@ -309,6 +307,7 @@ class SolidityCompiler(CompilerAPI):
             "optimize": self.config.optimize,
         }
 
+        solc_versions_by_source_id: Dict[str, Version] = {}
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
             import_remappings = self.get_import_remapping(base_path=contracts_path)
@@ -333,7 +332,7 @@ class SolidityCompiler(CompilerAPI):
             input_contract_names: List[str] = []
             for contract_id in output.keys():
                 path, name = parse_contract_name(contract_id)
-                for input_file_path in input_file_paths:
+                for input_file_path in contract_filepaths:
                     if str(path) in str(input_file_path):
                         input_contract_names.append(name)
 
