@@ -6,10 +6,6 @@ from tempfile import mkdtemp
 import ape
 import pytest
 
-DEPENDENCY_0_NAME = "__test_dependency__"
-DEPENDENCY_1_NAME = "__test_remapping__"
-
-
 # NOTE: Ensure that we don't use local paths for these
 ape.config.DATA_FOLDER = Path(mkdtemp()).resolve()
 ape.config.PROJECT_FOLDER = Path(mkdtemp()).resolve()
@@ -20,16 +16,24 @@ def config():
     return ape.config
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def project(config):
     project_source_dir = Path(__file__).parent
     project_dest_dir = config.PROJECT_FOLDER / project_source_dir.name
 
     # Delete build / .cache that may exist pre-copy
     project_path = Path(__file__).parent
-    dependency_path = project_path / "dependency"
-    project_2_path = project_path / "project"
-    for path in (project_path, dependency_path, project_2_path):
+    dependency_path = project_path / "Dependency"
+    dependency_of_dependency = project_path / "DependencyOfDependency"
+    project_within_a_project_path = project_path / "ProjectWithinProject"
+    brownie_project = project_path / "BrownieProject"
+    for path in (
+        project_path,
+        dependency_path,
+        dependency_of_dependency,
+        project_within_a_project_path,
+        brownie_project,
+    ):
         for cache in (path / ".build", path / "contracts" / ".cache"):
             if cache.is_dir():
                 shutil.rmtree(cache)
@@ -37,6 +41,8 @@ def project(config):
     copy_tree(project_source_dir.as_posix(), project_dest_dir.as_posix())
     with config.using_project(project_dest_dir) as project:
         yield project
+        if project._project._cache_folder.is_dir():
+            shutil.rmtree(project._project._cache_folder)
 
 
 @pytest.fixture

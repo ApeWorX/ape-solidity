@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity >=0.8.0;
+pragma solidity =0.8.12;
 
-contract ApeDifferentNameThanFile {
+import "CompilesOnce.sol";
+
+contract SpecificVersionWithEqualSign {
     function foo() pure public returns(bool) {
         return true;
     }

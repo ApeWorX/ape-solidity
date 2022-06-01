@@ -7,32 +7,46 @@ from typing import Dict, List, Optional, Set, Tuple, Union, cast
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
 from ape.exceptions import CompilerError, ConfigError
+from ape.logging import logger
 from ape.types import ContractType
-from ape.utils import cached_property, get_relative_path
+from ape.utils import cached_property, get_all_files_in_directory, get_relative_path
 from ethpm_types import PackageManifest
 from packaging import version
 from packaging.version import Version as _Version
 from semantic_version import NpmSpec, Version  # type: ignore
 
 
-def get_pragma_spec(source: str) -> Optional[NpmSpec]:
+def get_pragma_spec(source_path: Path) -> Optional[NpmSpec]:
     """
     Extracts pragma information from Solidity source code.
     Args:
         source: Solidity source code
     Returns: NpmSpec object or None, if no valid pragma is found
     """
+    if not source_path.is_file():
+        return None
+
+    source = source_path.read_text()
     pragma_match = next(re.finditer(r"(?:\n|^)\s*pragma\s*solidity\s*([^;\n]*)", source), None)
     if pragma_match is None:
         return None  # Try compiling with latest
 
-    pragma_string = pragma_match.groups()[0]
-    pragma_string = " ".join(pragma_string.split())
+    # The following logic handles the case where the user puts a space
+    # between the operator and the version number in the pragam string,
+    # such as `solidity >= 0.4.19 < 0.7.0`.
+    pragma_expression = ""
+    pragma_parts = pragma_match.groups()[0].split()
+    num_parts = len(pragma_parts)
+    for index in range(num_parts):
+        pragma_expression += pragma_parts[index]
+        if any([c.isdigit() for c in pragma_parts[index]]) and index < num_parts - 1:
+            pragma_expression += " "
 
     try:
-        return NpmSpec(pragma_string)
+        return NpmSpec(pragma_expression)
 
-    except ValueError:
+    except ValueError as err:
+        logger.error(str(err))
         return None
 
 
@@ -67,10 +81,8 @@ class SolidityCompiler(CompilerAPI):
     def get_versions(self, all_paths: List[Path]) -> Set[str]:
         versions = set()
         for path in all_paths:
-            source = path.read_text()
-
             # Make sure we have the compiler available to compile this
-            version_spec = get_pragma_spec(source)
+            version_spec = get_pragma_spec(path)
             if version_spec:
                 versions.add(str(version_spec.select(self.available_versions)))
 
@@ -99,11 +111,8 @@ class SolidityCompiler(CompilerAPI):
         if not isinstance(items, (list, tuple)) or not isinstance(items[0], str):
             raise IncorrectMappingFormatError()
 
-        contracts_cache = (
-            base_path / ".cache"
-            if base_path
-            else self.project_manager.contracts_folder / Path(".cache")
-        )
+        base_path = base_path or self.config_manager.contracts_folder
+        contracts_cache = base_path / ".cache"
 
         # Convert to tuple for hashing, check if there's been a change
         items_tuple = tuple(items)
@@ -163,8 +172,7 @@ class SolidityCompiler(CompilerAPI):
                 if not cached_manifest_file.exists():
                     raise CompilerError(f"Unable to find dependency '{suffix}'.")
 
-                manifest_dict = json.loads(cached_manifest_file.read_text())
-                manifest = PackageManifest(**manifest_dict)
+                manifest = PackageManifest(**json.loads(cached_manifest_file.read_text()))
 
                 sub_contracts_cache.mkdir(parents=True)
                 sources = manifest.sources or {}
@@ -194,47 +202,98 @@ class SolidityCompiler(CompilerAPI):
     def compile(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
-        base_path = base_path or self.config_manager.contracts_folder
-        contract_types: List[ContractType] = []
-        files_by_solc_version: Dict[Version, Set[Path]] = {}
-        solc_version_by_file_name: Dict[Version, Path] = {}
+        contracts_path = base_path or self.config_manager.contracts_folder
+        imports = self.get_imports(get_all_files_in_directory(contracts_path), contracts_path)
 
-        for path in contract_filepaths:
-            source = path.read_text()
-            pragma_spec = get_pragma_spec(source)
+        def get_imported_source_paths(
+            path: Path, source_ids_checked: Optional[List[str]] = None
+        ) -> Set[Path]:
+            source_ids_checked = source_ids_checked or []
+            source_id = str(get_relative_path(path, contracts_path))
+            if source_id in source_ids_checked:
+                # Already got this source's imports
+                return set()
 
-            if pragma_spec:
-                # Check if we need to install specified compiler version
-                if pragma_spec is not pragma_spec.select(self.installed_versions):
-                    solc_version = pragma_spec.select(self.available_versions)
-                    if solc_version:
-                        solcx.install_solc(solc_version, show_progress=False)
-                    else:
-                        raise CompilerError(
-                            f"Solidity version specification '{pragma_spec}' could not be met."
-                        )
-                else:
-                    solc_version = pragma_spec.select(self.installed_versions)
+            source_ids_checked.append(source_id)
+            import_paths = [contracts_path / i for i in imports.get(source_id, []) if i]
+            return_set = {i for i in import_paths}
+            for import_path in import_paths:
+                indirect_imports = get_imported_source_paths(
+                    import_path, source_ids_checked=source_ids_checked
+                )
+                for indirect_import in indirect_imports:
+                    return_set.add(indirect_import)
+
+            return return_set
+
+        # Add imported source files to list of contracts to compile.
+        source_paths_to_compile = {p for p in contract_filepaths}
+        for source_path in contract_filepaths:
+            imported_source_paths = get_imported_source_paths(source_path)
+            for imported_source in imported_source_paths:
+                source_paths_to_compile.add(imported_source)
+
+        def _get_pragma_spec(path: Path) -> Optional[NpmSpec]:
+            pragma_spec = get_pragma_spec(path)
+            if not pragma_spec:
+                return None
+
+            # Check if we need to install specified compiler version
+            if pragma_spec is pragma_spec.select(self.installed_versions):
+                return pragma_spec
+
+            solc_version = pragma_spec.select(self.available_versions)
+            if solc_version:
+                solcx.install_solc(solc_version, show_progress=False)
             else:
-                solc_version = max(self.installed_versions)
+                raise CompilerError(
+                    f"Solidity version specification '{pragma_spec}' could not be met."
+                )
+
+            return pragma_spec
+
+        # Build map of pragma-specs.
+        source_by_pragma_spec = {p: _get_pragma_spec(p) for p in source_paths_to_compile}
+
+        def get_best_version(path: Path) -> Version:
+            pragma_spec = source_by_pragma_spec[path]
+            return (
+                pragma_spec.select(self.installed_versions)
+                if pragma_spec
+                else max(self.installed_versions)
+            )
+
+        # Adjust best-versions based on imports.
+        files_by_solc_version: Dict[Version, Set[Path]] = {}
+        for source_file_path in source_paths_to_compile:
+            solc_version = get_best_version(source_file_path)
+            imported_source_paths = get_imported_source_paths(source_file_path)
+
+            for imported_source_path in imported_source_paths:
+                imported_pragma_spec = source_by_pragma_spec[imported_source_path]
+                imported_version = get_best_version(imported_source_path)
+
+                if imported_pragma_spec is not None and (
+                    imported_pragma_spec.expression.startswith("=")
+                    or imported_pragma_spec.expression[0].isdigit()
+                ):
+                    # Have to use this version.
+                    solc_version = imported_version
+                    break
+
+                elif imported_version < solc_version:
+                    # If we get here, the highest version of an import is lower than the reference.
+                    solc_version = imported_version
 
             if solc_version not in files_by_solc_version:
                 files_by_solc_version[solc_version] = set()
 
-            version_meeting_same_file = solc_version_by_file_name.get(path)
-            if version_meeting_same_file:
-                if solc_version > version_meeting_same_file:
-                    # Compile file using lateset version it can.
-                    files_by_solc_version[version_meeting_same_file].remove(path)
-
-                    if len(files_by_solc_version[version_meeting_same_file]) == 0:
-                        del files_by_solc_version[version_meeting_same_file]
-
-                    files_by_solc_version[solc_version].add(path)
-                # else: do nothing
-            else:
+            for path in (source_file_path, *imported_source_paths):
                 files_by_solc_version[solc_version].add(path)
-                solc_version_by_file_name[path] = solc_version
+
+        contract_types: List[ContractType] = []
+        if not files_by_solc_version:
+            return contract_types
 
         base_kwargs = {
             "output_values": [
@@ -246,9 +305,11 @@ class SolidityCompiler(CompilerAPI):
             ],
             "optimize": self.config.optimize,
         }
+
+        solc_versions_by_source_id: Dict[str, Version] = {}
         for solc_version, files in files_by_solc_version.items():
-            cli_base_path = base_path if solc_version >= Version("0.6.9") else None
-            import_remappings = self.get_import_remapping(base_path)
+            cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
+            import_remappings = self.get_import_remapping(base_path=contracts_path)
 
             kwargs = {
                 **base_kwargs,
@@ -270,68 +331,80 @@ class SolidityCompiler(CompilerAPI):
             input_contract_names: List[str] = []
             for contract_id in output.keys():
                 path, name = parse_contract_name(contract_id)
-                for input_file_path in files:
+                for input_file_path in contract_filepaths:
                     if str(path) in str(input_file_path):
                         input_contract_names.append(name)
 
-            def load_dict(data: Union[str, dict]) -> Dict:
-                return data if isinstance(data, dict) else json.loads(data)
-
             for contract_name, contract_type in output.items():
                 contract_path, contract_name = parse_contract_name(contract_name)
-
                 if contract_name not in input_contract_names:
-                    # Contract was either not specified or was compiled
-                    # previously from a later-solidity version.
+                    # Only return ContractTypes explicitly asked for.
                     continue
 
-                contract_type["contractName"] = contract_name
-                contract_type["sourceId"] = (
-                    str(get_relative_path(base_path / contract_path, base_path))
-                    if base_path and contract_path.is_absolute()
-                    else str(contract_path)
-                )
-                contract_type["deploymentBytecode"] = {"bytecode": contract_type["bin"]}
-                contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
-                contract_type["userdoc"] = load_dict(contract_type["userdoc"])
-                contract_type["devdoc"] = load_dict(contract_type["devdoc"])
+                deployment_bytecode = contract_type["bin"]
+                runtime_bytecode = contract_type["bin"]
 
-                contract_types.append(ContractType.parse_obj(contract_type))
+                # Skip library linking.
+                if "__$" in deployment_bytecode or "__$" in runtime_bytecode:
+                    logger.warning("Libraries must be deployed and configured separately.")
+                    continue
+
+                source_id = str(get_relative_path(contracts_path / contract_path, contracts_path))
+                previously_compiled_version = solc_versions_by_source_id.get(source_id)
+                if previously_compiled_version:
+                    # Don't add previously compiled contract type unless it was compiled
+                    # using a greater Solidity version.
+                    if previously_compiled_version >= solc_version:
+                        continue
+                    else:
+                        contract_types = [ct for ct in contract_types if ct.source_id != source_id]
+
+                contract_type["contractName"] = contract_name
+                contract_type["sourceId"] = source_id
+                contract_type["deploymentBytecode"] = {"bytecode": deployment_bytecode}
+                contract_type["runtimeBytecode"] = {"bytecode": runtime_bytecode}
+                contract_type["userdoc"] = _load_dict(contract_type["userdoc"])
+                contract_type["devdoc"] = _load_dict(contract_type["devdoc"])
+                contract_type_obj = ContractType.parse_obj(contract_type)
+                contract_types.append(contract_type_obj)
+                solc_versions_by_source_id[source_id] = solc_version
 
         return contract_types
 
     def get_imports(
         self, contract_filepaths: List[Path], base_path: Optional[Path]
     ) -> Dict[str, List[str]]:
-        def import_str_to_source_id(self, import_str: str, source_path: Path) -> str:
+        contracts_path = base_path or self.config_manager.contracts_folder
+        import_remapping = self.get_import_remapping(base_path=contracts_path)
+
+        def import_str_to_source_id(import_str: str, source_path: Path) -> str:
             quote = '"' if '"' in import_str else "'"
-
-            import_str = import_str[import_str.index(quote) + 1 :]  # noqa:E203
-            import_str = import_str[: import_str.index(quote)]
-
-            path = (source_path.parent / Path(import_str)).resolve()
-
-            if base_path:  # mypy
-                source_id = str(get_relative_path(path, base_path))
-            else:
-                source_id = str(path)
+            end_index = import_str.index(quote) + 1
+            import_str_prefix = import_str[end_index:]
+            import_str = import_str_prefix[: import_str_prefix.index(quote)]
+            path = (source_path.parent / import_str).resolve()
+            source_id = str(get_relative_path(path, contracts_path))
 
             # Convert remappings back to source
-            for key, value in self.get_import_remapping(base_path).items():
+            for key, value in import_remapping.items():
                 if key not in source_id:
-                    break
-                parts = Path(source_id).parts
-
-                # NOTE: a remapping key could be a partial match
-                if key not in parts:
                     continue
 
-                new_path = Path()
-                for part in parts:
-                    if part != key:
-                        new_path = new_path.joinpath(part)
+                sections = [s for s in source_id.split(key) if s]
+                depth = len(sections) - 1
+                source_id = ""
 
-                source_id = str(Path(value).joinpath(new_path))
+                index = 0
+                for section in sections:
+                    if index == depth:
+                        source_id += value
+                        source_id += section
+                    elif index >= depth:
+                        source_id += section
+
+                    index += 1
+
+                break
 
             return source_id
 
@@ -339,14 +412,34 @@ class SolidityCompiler(CompilerAPI):
 
         for filepath in contract_filepaths:
             import_set = set()
-            for ln in filepath.read_text().splitlines():
-                if ln.startswith("import"):
-                    import_set.add(
-                        import_str_to_source_id(self, import_str=ln, source_path=filepath)
-                    )
+            source_lines = filepath.read_text().splitlines()
+            line_number = 0
+            for ln in source_lines:
+                if not ln.startswith("import"):
+                    continue
 
-            if base_path:
-                filepath = get_relative_path(filepath, base_path)
-            imports_dict[str(filepath)] = list(import_set)
+                if ";" in ln:
+                    import_str = ln
+
+                else:
+                    # Is multi-line.
+                    import_str = ln
+                    start_index = line_number + 1
+                    for next_ln in source_lines[start_index:]:
+                        import_str += f" {next_ln.strip()}"
+
+                        if ";" in next_ln:
+                            break
+
+                import_item = import_str_to_source_id(import_str=import_str, source_path=filepath)
+                import_set.add(import_item)
+                line_number += 1
+
+            source_id = str(get_relative_path(filepath, contracts_path))
+            imports_dict[str(source_id)] = list(import_set)
 
         return imports_dict
+
+
+def _load_dict(data: Union[str, dict]) -> Dict:
+    return data if isinstance(data, dict) else json.loads(data)

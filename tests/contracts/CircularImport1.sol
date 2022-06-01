@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity =0.8.12;
+pragma solidity ^0.8.4;
 
-import "CompilesOnce.sol";
+import "CircularImport2.sol";
 
-contract SpecificVersion {
+contract CircularImport1 {
     function foo() pure public returns(bool) {
         return true;
     }
