@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 from ape.contracts import ContractContainer
-from semantic_version import Version
+from semantic_version import Version  # type: ignore
 
 BASE_PATH = Path(__file__).parent / "contracts"
 TEST_CONTRACT_PATHS = [p for p in BASE_PATH.iterdir() if ".cache" not in str(p) and not p.is_dir()]
