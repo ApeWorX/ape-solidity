@@ -414,10 +414,28 @@ class SolidityCompiler(CompilerAPI):
 
         for filepath in contract_filepaths:
             import_set = set()
-            for ln in filepath.read_text().splitlines():
-                if ln.startswith("import"):
-                    import_item = import_str_to_source_id(import_str=ln, source_path=filepath)
-                    import_set.add(import_item)
+            source_lines = filepath.read_text().splitlines()
+            line_number = 0
+            for ln in source_lines:
+                if not ln.startswith("import"):
+                    continue
+
+                if ";" in ln:
+                    import_str = ln
+
+                else:
+                    # Is multi-line.
+                    import_str = ln
+                    start_index = line_number + 1
+                    for next_ln in source_lines[start_index:]:
+                        import_str += f" {next_ln.strip()}"
+
+                        if ";" in next_ln:
+                            break
+
+                import_item = import_str_to_source_id(import_str=import_str, source_path=filepath)
+                import_set.add(import_item)
+                line_number += 1
 
             source_id = str(get_relative_path(filepath, contracts_path))
             imports_dict[str(source_id)] = list(import_set)
