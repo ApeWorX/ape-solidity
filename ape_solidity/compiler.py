@@ -236,23 +236,24 @@ class SolidityCompiler(CompilerAPI):
             gathered_imports = gathered_imports or []
             pragma_spec = _get_pragma_spec(path)
             solc_version = pragma_spec.select(self.installed_versions) if pragma_spec else None
-
             source_id = str(get_relative_path(path, contracts_path))
             imported_source_paths = [contracts_path / p for p in imports.get(source_id, []) if p]
 
             # Handle circular imports by ignoring already-visited imports.
-            gathered_imports += imported_source_paths
-            # Check import versions. If any *require* a lower version, use that instead.
+            pre_length = len(gathered_imports)
+            gathered_imports += [i for i in imported_source_paths if i not in gathered_imports]
+            if len(gathered_imports) == pre_length:
+                return solc_version
 
-            # NOTE: Pick the lowest version in the imports. This is not guarranteed to work.
-            imported_versions = [
+            # Pick the lowest version in the imports.
+            imported_versions = {
                 v
                 for v in [
                     find_best_version(i, gathered_imports=gathered_imports)
                     for i in imported_source_paths
                 ]
                 if v
-            ]
+            }
 
             if (
                 pragma_spec
@@ -263,18 +264,17 @@ class SolidityCompiler(CompilerAPI):
                     if not import_version:
                         continue
 
-                    if not solc_version:
+                    elif not solc_version:
                         solc_version = import_version
                         continue
 
-                    if import_version < solc_version:
+                    elif import_version < solc_version:
                         solc_version = import_version
 
             if not solc_version:
                 solc_version = max(self.installed_versions)
 
-            # By this point, we have found the largest version we can use for this file
-            # and all of its imports.
+            # By this point, we have found the largest version we can use for this set.
             if solc_version not in files_by_solc_version:
                 files_by_solc_version[solc_version] = set()
 
@@ -343,6 +343,14 @@ class SolidityCompiler(CompilerAPI):
                     # Only return ContractTypes explicitly asked for.
                     continue
 
+                deployment_bytecode = contract_type["bin"]
+                runtime_bytecode = contract_type["bin"]
+
+                # Skip library linking.
+                if "$__" in deployment_bytecode or "__$" in runtime_bytecode:
+                    logger.warning("Libraries must be deployed and configured separately.")
+                    continue
+
                 source_id = str(get_relative_path(contracts_path / contract_path, contracts_path))
                 previously_compiled_version = solc_versions_by_source_id.get(source_id)
                 if previously_compiled_version:
@@ -355,8 +363,8 @@ class SolidityCompiler(CompilerAPI):
 
                 contract_type["contractName"] = contract_name
                 contract_type["sourceId"] = source_id
-                contract_type["deploymentBytecode"] = {"bytecode": contract_type["bin"]}
-                contract_type["runtimeBytecode"] = {"bytecode": contract_type["bin-runtime"]}
+                contract_type["deploymentBytecode"] = {"bytecode": deployment_bytecode}
+                contract_type["runtimeBytecode"] = {"bytecode": runtime_bytecode}
                 contract_type["userdoc"] = _load_dict(contract_type["userdoc"])
                 contract_type["devdoc"] = _load_dict(contract_type["devdoc"])
                 contract_type_obj = ContractType.parse_obj(contract_type)
