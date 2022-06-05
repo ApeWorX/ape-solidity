@@ -1,12 +1,17 @@
-from pathlib import Path
-
 import pytest
 from ape.contracts import ContractContainer
 from semantic_version import Version  # type: ignore
 
-BASE_PATH = Path(__file__).parent / "contracts"
+from tests.conftest import READ_ONLY_PROJECTS_DIR
+
+BASE_PATH = READ_ONLY_PROJECTS_DIR / "Project" / "contracts"
 TEST_CONTRACT_PATHS = [p for p in BASE_PATH.iterdir() if ".cache" not in str(p) and not p.is_dir()]
 TEST_CONTRACTS = [str(p.stem) for p in TEST_CONTRACT_PATHS]
+
+
+@pytest.fixture
+def projects_folder(project):
+    return project.path / "data" / "projects"
 
 
 @pytest.mark.parametrize(
@@ -60,7 +65,7 @@ def test_get_imports(project, compiler):
     assert set(contract_imports) == expected
 
 
-def test_get_import_remapping(compiler, project, config):
+def test_get_import_remapping(compiler, project, config, projects_folder):
     import_remapping = compiler.get_import_remapping()
     assert import_remapping == {
         "@remapping/contracts": ".cache/TestDependency/local",
@@ -69,7 +74,8 @@ def test_get_import_remapping(compiler, project, config):
         "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
     }
 
-    with config.using_project(project.path / "ProjectWithinProject") as proj:
+    other_project = projects_folder / "ProjectWithinProject"
+    with config.using_project(other_project) as proj:
         # Trigger downloading dependencies in new ProjectWithinProject
         dependencies = proj.dependencies
         assert dependencies
@@ -80,18 +86,30 @@ def test_get_import_remapping(compiler, project, config):
     assert import_remapping != second_import_remapping
 
 
-def test_brownie_project(compiler, config):
-    brownie_project_path = Path(__file__).parent / "BrownieProject"
+def test_brownie_project(compiler, config, projects_folder):
+    brownie_project_path = projects_folder / "BrownieProject"
     with config.using_project(brownie_project_path) as project:
+        _ = project.contracts
         assert type(project.BrownieContract) == ContractContainer
 
 
-def test_compile_single_source_with_no_imports(compiler, config):
+def test_compile_single_source_with_no_imports(compiler, config, projects_folder):
     # Tests against an important edge case that was discovered
     # where the source file was individually compiled and it had no imports.
-    path = Path(__file__).parent / "DependencyOfDependency"
+    path = projects_folder / "DependencyOfDependency"
     with config.using_project(path) as project:
+        _ = project.contracts
         assert type(project.DependencyOfDependency) == ContractContainer
+
+
+def test_compile_when_specifying_version(compiler, config, projects_folder):
+    # You have to specify a lower version in this project or else it will
+    # try to use the latest version and fail to compile because of a breaking
+    # change.
+    path = projects_folder / "SpecifiedCompilerVersion"
+    with config.using_project(path) as project:
+        _ = project.contracts
+        assert type(project.VersionAffectedByBreakingChange) == ContractContainer
 
 
 def test_get_version_map(project, compiler):

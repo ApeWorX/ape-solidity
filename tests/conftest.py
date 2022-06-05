@@ -10,6 +10,9 @@ import pytest
 ape.config.DATA_FOLDER = Path(mkdtemp()).resolve()
 ape.config.PROJECT_FOLDER = Path(mkdtemp()).resolve()
 
+READ_ONLY_MAIN_PROJECT_DIR = Path(__file__).parent
+READ_ONLY_PROJECTS_DIR = READ_ONLY_MAIN_PROJECT_DIR / "data" / "projects"
+
 
 @pytest.fixture
 def config():
@@ -18,27 +21,24 @@ def config():
 
 @pytest.fixture(autouse=True)
 def project(config):
-    project_source_dir = Path(__file__).parent
-    project_dest_dir = config.PROJECT_FOLDER / project_source_dir.name
+    project_dest_dir = config.PROJECT_FOLDER / "tests"
+    contracts_folder = READ_ONLY_PROJECTS_DIR / "Project" / "contracts"
 
     # Delete build / .cache that may exist pre-copy
-    project_path = Path(__file__).parent
-    dependency_path = project_path / "Dependency"
-    dependency_of_dependency = project_path / "DependencyOfDependency"
-    project_within_a_project_path = project_path / "ProjectWithinProject"
-    brownie_project = project_path / "BrownieProject"
-    for path in (
-        project_path,
-        dependency_path,
-        dependency_of_dependency,
-        project_within_a_project_path,
-        brownie_project,
-    ):
-        for cache in (path / ".build", path / "contracts" / ".cache"):
-            if cache.is_dir():
-                shutil.rmtree(cache)
+    sub_project_dirs = [
+        p for p in READ_ONLY_PROJECTS_DIR.iterdir() if p.is_dir() and p.name != "Project"
+    ]
+    contracts_folders = [contracts_folder, *[p / "contracts" for p in sub_project_dirs]]
+    dependency_caches = [p / ".cache" for p in contracts_folders if (p / ".cache").is_dir()]
+    build_caches = [
+        p / ".build"
+        for p in [READ_ONLY_MAIN_PROJECT_DIR, *sub_project_dirs]
+        if (p / ".build").is_dir()
+    ]
+    for path in [p for p in [*dependency_caches, *build_caches]]:
+        shutil.rmtree(path)
 
-    copy_tree(project_source_dir.as_posix(), project_dest_dir.as_posix())
+    copy_tree(READ_ONLY_MAIN_PROJECT_DIR.as_posix(), project_dest_dir.as_posix())
     with config.using_project(project_dest_dir) as project:
         yield project
         if project._project._cache_folder.is_dir():

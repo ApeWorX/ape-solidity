@@ -1,13 +1,15 @@
+contracts_folder: data/projects/Project/contracts
+
 dependencies:
   - name: TestDependency
-    local: ./Dependency
+    local: data/projects/Dependency
 
   - name: BrownieDependency
-    local: ./BrownieProject
+    local: data/projects/BrownieProject
 
   # NOTE: Currently have to specify dependencies of dependencies
   - name: TestDependencyOfDependency
-    local: ./DependencyOfDependency
+    local: data/projects/DependencyOfDependency
 
 solidity:
   import_remapping:

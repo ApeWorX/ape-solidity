@@ -55,6 +55,7 @@ class SolidityConfig(PluginConfig):
     # e.g. '@import_name=path/to/dependency'
     import_remapping: List[str] = []
     optimize: bool = True
+    version: Optional[str] = None
 
 
 class IncorrectMappingFormatError(ConfigError):
@@ -204,6 +205,7 @@ class SolidityCompiler(CompilerAPI):
     ) -> List[ContractType]:
         contracts_path = base_path or self.config_manager.contracts_folder
         files_by_solc_version = self.get_version_map(contract_filepaths, base_path=contracts_path)
+
         if not files_by_solc_version:
             return []
 
@@ -386,14 +388,10 @@ class SolidityCompiler(CompilerAPI):
             for imported_source in imported_source_paths:
                 source_paths_to_compile.add(imported_source)
 
-        def _get_pragma_spec(path: Path) -> Optional[NpmSpec]:
-            pragma_spec = get_pragma_spec(path)
-            if not pragma_spec:
-                return None
-
+        def install_pragma_spec_if_needed(pragma_spec: NpmSpec) -> Optional[Version]:
             # Check if we need to install specified compiler version
             if pragma_spec is pragma_spec.select(self.installed_versions):
-                return pragma_spec
+                return None
 
             solc_version = pragma_spec.select(self.available_versions)
             if solc_version:
@@ -403,10 +401,28 @@ class SolidityCompiler(CompilerAPI):
                     f"Solidity version specification '{pragma_spec}' could not be met."
                 )
 
+            return solc_version
+
+        # Use configured version if one exists.
+        if self.config.version:
+            pragma_spec = NpmSpec(self.config.version)
+            version = install_pragma_spec_if_needed(pragma_spec)
+            return {version: source_paths_to_compile}
+
+        # else: Figure out optimal verisons to use.
+
+        def get_pragma_spec_from_source_path(path: Path) -> Optional[NpmSpec]:
+            pragma_spec = get_pragma_spec(path)
+            if not pragma_spec:
+                return None
+
+            install_pragma_spec_if_needed(pragma_spec)
             return pragma_spec
 
         # Build map of pragma-specs.
-        source_by_pragma_spec = {p: _get_pragma_spec(p) for p in source_paths_to_compile}
+        source_by_pragma_spec = {
+            p: get_pragma_spec_from_source_path(p) for p in source_paths_to_compile
+        }
 
         def get_best_version(path: Path) -> Version:
             pragma_spec = source_by_pragma_spec[path]

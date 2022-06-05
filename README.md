@@ -4,7 +4,7 @@ Compile Solidity contracts.
 
 ## Dependencies
 
-* [python3](https://www.python.org/downloads) version 3.6 or greater, python3-dev
+* [python3](https://www.python.org/downloads) version 3.7.2 or greater, python3-dev
 
 ## Installation
 
@@ -37,6 +37,18 @@ ape compile
 ```
 
 The byte-code and ABI for your contracts should now exist in a `__local__.json` file in a `.build/` directory.
+
+### Compiler Version
+
+By default, the `ape-solidity` plugin tries to figure out the best compiler versions to use to compile your project.
+However, to manually set a version expression, use the `version:` key in your project's `ape-config.yaml` file:
+
+```yaml
+solidity:
+  version: =0.8.12
+```
+
+This can help resolve issues when a newer Solidity version has breaking changes and you are compiling a source file with a more lenient version constraint.
 
 ### Dependency Mapping
 
