@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from ape.contracts import ContractContainer
+from semantic_version import Version  # type: ignore
 
 BASE_PATH = Path(__file__).parent / "contracts"
 TEST_CONTRACT_PATHS = [p for p in BASE_PATH.iterdir() if ".cache" not in str(p) and not p.is_dir()]
@@ -91,3 +92,18 @@ def test_compile_single_source_with_no_imports(compiler, config):
     path = Path(__file__).parent / "DependencyOfDependency"
     with config.using_project(path) as project:
         assert type(project.DependencyOfDependency) == ContractContainer
+
+
+def test_get_version_map(project, compiler):
+    # Files are selected in order to trigger `CompilesOnce.sol` to
+    # get removed from version '0.8.12'.
+    file_paths = [
+        project.contracts_folder / "ImportSourceWithEqualSignVersion.sol",
+        project.contracts_folder / "SpecificVersionNoPrefix.sol",
+        project.contracts_folder / "CompilesOnce.sol",
+    ]
+    version_map = compiler.get_version_map(file_paths)
+    expected_version = Version("0.8.12")
+    assert len(version_map) == 1
+    assert expected_version in version_map
+    assert all([f in version_map[expected_version] for f in file_paths])
