@@ -13,6 +13,7 @@ from ape.utils import cached_property, get_all_files_in_directory, get_relative_
 from ethpm_types import PackageManifest
 from packaging import version
 from packaging.version import Version as _Version
+from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 
 
@@ -91,7 +92,12 @@ class SolidityCompiler(CompilerAPI):
     @cached_property
     def available_versions(self) -> List[Version]:
         # NOTE: Package version should already be included in available versions
-        return solcx.get_installable_solc_versions()
+        try:
+            return solcx.get_installable_solc_versions()
+        except ConnectionError:
+            # Compiling offline
+            logger.warning("Internet connection required to fetch installable Solidity versions.")
+            return []
 
     @property
     def installed_versions(self) -> List[Version]:
