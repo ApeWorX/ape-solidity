@@ -360,8 +360,11 @@ class SolidityCompiler(CompilerAPI):
         return imports_dict
 
     def get_version_map(
-        self, contract_filepaths: List[Path], base_path: Optional[Path] = None
+        self, contract_filepaths: Union[Path, List[Path]], base_path: Optional[Path] = None
     ) -> Dict[Version, Set[Path]]:
+        if not isinstance(contract_filepaths, (list, tuple)):
+            contract_filepaths = [contract_filepaths]
+
         contracts_path = base_path or self.config_manager.contracts_folder
         imports = self.get_imports(get_all_files_in_directory(contracts_path), contracts_path)
 

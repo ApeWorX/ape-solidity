@@ -94,6 +94,14 @@ def test_compile_single_source_with_no_imports(compiler, config):
         assert type(project.DependencyOfDependency) == ContractContainer
 
 
+def test_version_specified_in_config_file(compiler, config):
+    path = Path(__file__).parent / "VersionSpecifiedInConfig"
+    with config.using_project(path) as project:
+        source_path = project.contracts_folder / "VersionSpecifiedInConfig.sol"
+        version_map = compiler.get_version_map(source_path)
+        assert version_map[Version("0.8.12")] == {source_path}
+
+
 def test_get_version_map(project, compiler):
     # Files are selected in order to trigger `CompilesOnce.sol` to
     # get removed from version '0.8.12'.
