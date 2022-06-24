@@ -13,6 +13,7 @@ from ape.utils import cached_property, get_all_files_in_directory, get_relative_
 from ethpm_types import PackageManifest
 from packaging import version
 from packaging.version import Version as _Version
+from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 
 
@@ -55,6 +56,7 @@ class SolidityConfig(PluginConfig):
     # e.g. '@import_name=path/to/dependency'
     import_remapping: List[str] = []
     optimize: bool = True
+    version: Optional[str] = None
 
 
 class IncorrectMappingFormatError(ConfigError):
@@ -91,7 +93,12 @@ class SolidityCompiler(CompilerAPI):
     @cached_property
     def available_versions(self) -> List[Version]:
         # NOTE: Package version should already be included in available versions
-        return solcx.get_installable_solc_versions()
+        try:
+            return solcx.get_installable_solc_versions()
+        except ConnectionError:
+            # Compiling offline
+            logger.warning("Internet connection required to fetch installable Solidity versions.")
+            return []
 
     @property
     def installed_versions(self) -> List[Version]:
@@ -170,21 +177,21 @@ class SolidityCompiler(CompilerAPI):
             if not sub_contracts_cache.exists() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"
                 if not cached_manifest_file.exists():
-                    raise CompilerError(f"Unable to find dependency '{suffix}'.")
+                    logger.warning(f"Unable to find dependency '{suffix}'.")
 
-                manifest = PackageManifest(**json.loads(cached_manifest_file.read_text()))
+                else:
+                    manifest = PackageManifest(**json.loads(cached_manifest_file.read_text()))
+                    sub_contracts_cache.mkdir(parents=True)
+                    sources = manifest.sources or {}
+                    for source_name, source in sources.items():
+                        cached_source = sub_contracts_cache / source_name
 
-                sub_contracts_cache.mkdir(parents=True)
-                sources = manifest.sources or {}
-                for source_name, source in sources.items():
-                    cached_source = sub_contracts_cache / source_name
+                        # NOTE: Cached source may included sub-directories.
+                        cached_source.parent.mkdir(parents=True, exist_ok=True)
 
-                    # NOTE: Cached source may included sub-directories.
-                    cached_source.parent.mkdir(parents=True, exist_ok=True)
-
-                    if source.content:
-                        cached_source.touch()
-                        cached_source.write_text(source.content)
+                        if source.content:
+                            cached_source.touch()
+                            cached_source.write_text(source.content)
 
             sub_contracts_cache = (
                 get_relative_path(sub_contracts_cache, base_path)
@@ -203,6 +210,7 @@ class SolidityCompiler(CompilerAPI):
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
         contracts_path = base_path or self.config_manager.contracts_folder
+        import_remappings = self.get_import_remapping(base_path=contracts_path)
         files_by_solc_version = self.get_version_map(contract_filepaths, base_path=contracts_path)
         if not files_by_solc_version:
             return []
@@ -221,7 +229,6 @@ class SolidityCompiler(CompilerAPI):
         solc_versions_by_source_id: Dict[str, Version] = {}
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
-            import_remappings = self.get_import_remapping(base_path=contracts_path)
 
             kwargs = {
                 **base_kwargs,
@@ -232,7 +239,7 @@ class SolidityCompiler(CompilerAPI):
             if cli_base_path:
                 kwargs["base_path"] = cli_base_path
 
-            output = solcx.compile_files(files, **kwargs)
+            output = solcx.compile_files([f for f in files], **kwargs)
 
             def parse_contract_name(value: str) -> Tuple[Path, str]:
                 parts = value.split(":")
@@ -353,8 +360,11 @@ class SolidityCompiler(CompilerAPI):
         return imports_dict
 
     def get_version_map(
-        self, contract_filepaths: List[Path], base_path: Optional[Path] = None
+        self, contract_filepaths: Union[Path, List[Path]], base_path: Optional[Path] = None
     ) -> Dict[Version, Set[Path]]:
+        if not isinstance(contract_filepaths, (list, tuple)):
+            contract_filepaths = [contract_filepaths]
+
         contracts_path = base_path or self.config_manager.contracts_folder
         imports = self.get_imports(get_all_files_in_directory(contracts_path), contracts_path)
 
@@ -385,6 +395,11 @@ class SolidityCompiler(CompilerAPI):
             imported_source_paths = get_imported_source_paths(source_path)
             for imported_source in imported_source_paths:
                 source_paths_to_compile.add(imported_source)
+
+        # Use specified version if given one
+        if self.config.version is not None:
+            return {Version(self.config.version): source_paths_to_compile}
+        # else: find best version per source file
 
         def _get_pragma_spec(path: Path) -> Optional[NpmSpec]:
             pragma_spec = get_pragma_spec(path)

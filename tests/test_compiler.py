@@ -94,6 +94,14 @@ def test_compile_single_source_with_no_imports(compiler, config):
         assert type(project.DependencyOfDependency) == ContractContainer
 
 
+def test_version_specified_in_config_file(compiler, config):
+    path = Path(__file__).parent / "VersionSpecifiedInConfig"
+    with config.using_project(path) as project:
+        source_path = project.contracts_folder / "VersionSpecifiedInConfig.sol"
+        version_map = compiler.get_version_map(source_path)
+        assert version_map[Version("0.8.12")] == {source_path}
+
+
 def test_get_version_map(project, compiler):
     # Files are selected in order to trigger `CompilesOnce.sol` to
     # get removed from version '0.8.12'.
@@ -101,9 +109,11 @@ def test_get_version_map(project, compiler):
         project.contracts_folder / "ImportSourceWithEqualSignVersion.sol",
         project.contracts_folder / "SpecificVersionNoPrefix.sol",
         project.contracts_folder / "CompilesOnce.sol",
+        project.contracts_folder / "Imports.sol",  # Uses mapped imports!
     ]
     version_map = compiler.get_version_map(file_paths)
-    expected_version = Version("0.8.12")
-    assert len(version_map) == 1
-    assert expected_version in version_map
-    assert all([f in version_map[expected_version] for f in file_paths])
+    assert len(version_map) == 2
+    assert all([f in version_map[Version("0.8.12")] for f in file_paths[:-1]])
+
+    # Will fail if the import remappings have not loaded yet.
+    assert all([f.is_file() for f in file_paths])
