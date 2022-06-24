@@ -113,7 +113,6 @@ def test_get_version_map(project, compiler):
     ]
     version_map = compiler.get_version_map(file_paths)
     assert len(version_map) == 2
-    assert Version("0.6.12") in version_map
     assert all([f in version_map[Version("0.8.12")] for f in file_paths[:-1]])
 
     # Will fail if the import remappings have not loaded yet.
