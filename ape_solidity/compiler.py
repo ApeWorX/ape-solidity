@@ -210,6 +210,7 @@ class SolidityCompiler(CompilerAPI):
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
         contracts_path = base_path or self.config_manager.contracts_folder
+        import_remappings = self.get_import_remapping(base_path=contracts_path)
         files_by_solc_version = self.get_version_map(contract_filepaths, base_path=contracts_path)
         if not files_by_solc_version:
             return []
@@ -228,7 +229,6 @@ class SolidityCompiler(CompilerAPI):
         solc_versions_by_source_id: Dict[str, Version] = {}
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
-            import_remappings = self.get_import_remapping(base_path=contracts_path)
 
             kwargs = {
                 **base_kwargs,
@@ -239,7 +239,7 @@ class SolidityCompiler(CompilerAPI):
             if cli_base_path:
                 kwargs["base_path"] = cli_base_path
 
-            output = solcx.compile_files(files, **kwargs)
+            output = solcx.compile_files([f for f in files], **kwargs)
 
             def parse_contract_name(value: str) -> Tuple[Path, str]:
                 parts = value.split(":")

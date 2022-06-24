@@ -109,9 +109,12 @@ def test_get_version_map(project, compiler):
         project.contracts_folder / "ImportSourceWithEqualSignVersion.sol",
         project.contracts_folder / "SpecificVersionNoPrefix.sol",
         project.contracts_folder / "CompilesOnce.sol",
+        project.contracts_folder / "Imports.sol",  # Uses mapped imports!
     ]
     version_map = compiler.get_version_map(file_paths)
-    expected_version = Version("0.8.12")
-    assert len(version_map) == 1
-    assert expected_version in version_map
-    assert all([f in version_map[expected_version] for f in file_paths])
+    assert len(version_map) == 2
+    assert Version("0.6.12") in version_map
+    assert all([f in version_map[Version("0.8.12")] for f in file_paths[:-1]])
+
+    # Will fail if the import remappings have not loaded yet.
+    assert all([f.is_file() for f in file_paths])
