@@ -177,21 +177,21 @@ class SolidityCompiler(CompilerAPI):
             if not sub_contracts_cache.exists() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"
                 if not cached_manifest_file.exists():
-                    raise CompilerError(f"Unable to find dependency '{suffix}'.")
+                    logger.warning(f"Unable to find dependency '{suffix}'.")
 
-                manifest = PackageManifest(**json.loads(cached_manifest_file.read_text()))
+                else:
+                    manifest = PackageManifest(**json.loads(cached_manifest_file.read_text()))
+                    sub_contracts_cache.mkdir(parents=True)
+                    sources = manifest.sources or {}
+                    for source_name, source in sources.items():
+                        cached_source = sub_contracts_cache / source_name
 
-                sub_contracts_cache.mkdir(parents=True)
-                sources = manifest.sources or {}
-                for source_name, source in sources.items():
-                    cached_source = sub_contracts_cache / source_name
+                        # NOTE: Cached source may included sub-directories.
+                        cached_source.parent.mkdir(parents=True, exist_ok=True)
 
-                    # NOTE: Cached source may included sub-directories.
-                    cached_source.parent.mkdir(parents=True, exist_ok=True)
-
-                    if source.content:
-                        cached_source.touch()
-                        cached_source.write_text(source.content)
+                        if source.content:
+                            cached_source.touch()
+                            cached_source.write_text(source.content)
 
             sub_contracts_cache = (
                 get_relative_path(sub_contracts_cache, base_path)
