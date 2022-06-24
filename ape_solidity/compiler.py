@@ -56,6 +56,7 @@ class SolidityConfig(PluginConfig):
     # e.g. '@import_name=path/to/dependency'
     import_remapping: List[str] = []
     optimize: bool = True
+    version: Optional[str] = None
 
 
 class IncorrectMappingFormatError(ConfigError):
@@ -391,6 +392,11 @@ class SolidityCompiler(CompilerAPI):
             imported_source_paths = get_imported_source_paths(source_path)
             for imported_source in imported_source_paths:
                 source_paths_to_compile.add(imported_source)
+
+        # Use specified version if given one
+        if self.config.version is not None:
+            return {Version(self.config.version): source_paths_to_compile}
+        # else: find best version per source file
 
         def _get_pragma_spec(path: Path) -> Optional[NpmSpec]:
             pragma_spec = get_pragma_spec(path)
