@@ -390,6 +390,11 @@ class SolidityCompiler(CompilerAPI):
         # Build map of pragma-specs.
         source_by_pragma_spec = {p: self._get_pragma_spec(p) for p in source_paths_to_compile}
 
+        # If not Solidity version has been auto-installed while fetching the
+        # contract versions, we must install the latest compiler
+        if not self.installed_versions and not any(source_by_pragma_spec.values()):
+            solcx.install_solc(max(self.available_versions), show_progress=False)
+
         # Adjust best-versions based on imports.
         files_by_solc_version: Dict[Version, Set[Path]] = {}
         for source_file_path in source_paths_to_compile:
