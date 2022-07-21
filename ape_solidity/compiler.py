@@ -226,7 +226,7 @@ class SolidityCompiler(CompilerAPI):
             "optimize": self.config.optimize,
         }
         contract_types: List[ContractType] = []
-        solc_versions_by_source_id: Dict[str, Version] = {}
+        solc_versions_by_contract_name: Dict[str, Version] = {}
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
 
@@ -239,6 +239,7 @@ class SolidityCompiler(CompilerAPI):
             if cli_base_path:
                 kwargs["base_path"] = cli_base_path
 
+            logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
             output = solcx.compile_files([f for f in files], **kwargs)
 
             def parse_contract_name(value: str) -> Tuple[Path, str]:
@@ -268,25 +269,26 @@ class SolidityCompiler(CompilerAPI):
                     logger.warning("Libraries must be deployed and configured separately.")
                     continue
 
-                source_id = str(get_relative_path(contracts_path / contract_path, contracts_path))
-                previously_compiled_version = solc_versions_by_source_id.get(source_id)
+                previously_compiled_version = solc_versions_by_contract_name.get(contract_name)
                 if previously_compiled_version:
                     # Don't add previously compiled contract type unless it was compiled
                     # using a greater Solidity version.
                     if previously_compiled_version >= solc_version:
                         continue
                     else:
-                        contract_types = [ct for ct in contract_types if ct.source_id != source_id]
+                        contract_types = [ct for ct in contract_types if ct.name != contract_name]
 
                 contract_type["contractName"] = contract_name
-                contract_type["sourceId"] = source_id
+                contract_type["sourceId"] = str(
+                    get_relative_path(contracts_path / contract_path, contracts_path)
+                )
                 contract_type["deploymentBytecode"] = {"bytecode": deployment_bytecode}
                 contract_type["runtimeBytecode"] = {"bytecode": runtime_bytecode}
                 contract_type["userdoc"] = _load_dict(contract_type["userdoc"])
                 contract_type["devdoc"] = _load_dict(contract_type["devdoc"])
                 contract_type_obj = ContractType.parse_obj(contract_type)
                 contract_types.append(contract_type_obj)
-                solc_versions_by_source_id[source_id] = solc_version
+                solc_versions_by_contract_name[contract_name] = solc_version
 
         return contract_types
 
