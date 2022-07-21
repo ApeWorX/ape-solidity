@@ -28,6 +28,9 @@ def test_compile_multiple_definitions_in_source(project, compiler):
     assert [r.name for r in result] == ["IMultipleDefinitions", "MultipleDefinitions"]
     assert all(r.source_id == "MultipleDefinitions.sol" for r in result)
 
+    assert project.MultipleDefinitions
+    assert project.IMultipleDefinitions
+
 
 def test_compile_specific_order(project, compiler):
     # NOTE: This test seems random but it's important!
