@@ -8,14 +8,25 @@ BASE_PATH = Path(__file__).parent / "contracts"
 TEST_CONTRACT_PATHS = [p for p in BASE_PATH.iterdir() if ".cache" not in str(p) and not p.is_dir()]
 TEST_CONTRACTS = [str(p.stem) for p in TEST_CONTRACT_PATHS]
 
+# These are tested elsewhere, not in `test_compile`.
+normal_test_skips = ("DifferentNameThanFile", "MultipleDefinitions")
+
 
 @pytest.mark.parametrize(
-    "contract", [c for c in TEST_CONTRACTS if "DifferentNameThanFile" not in str(c)]
+    "contract", [c for c in TEST_CONTRACTS if all(n not in str(c) for n in normal_test_skips)]
 )
 def test_compile(project, contract):
     assert contract in project.contracts, ", ".join([n for n in project.contracts.keys()])
     contract = project.contracts[contract]
     assert contract.source_id == f"{contract.name}.sol"
+
+
+def test_compile_multiple_definitions_in_source(project, compiler):
+    source_path = project.contracts_folder / "MultipleDefinitions.sol"
+    result = compiler.compile([source_path])
+    assert len(result) == 2
+    assert [r.name for r in result] == ["IMultipleDefinitions", "MultipleDefinitions"]
+    assert all(r.source_id == "MultipleDefinitions.sol" for r in result)
 
 
 def test_compile_specific_order(project, compiler):
