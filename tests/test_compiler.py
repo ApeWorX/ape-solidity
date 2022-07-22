@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import solcx  # type: ignore
 from ape.contracts import ContractContainer
 from semantic_version import Version  # type: ignore
 
@@ -41,6 +42,26 @@ def test_compile_specific_order(project, compiler):
         project.contracts_folder / "Imports.sol",
     ]
     compiler.compile(ordered_files)
+
+
+def test_compile_missing_version(project, compiler, temp_solcx_path):
+    """
+    Test the compilation of a contract with no defined pragma spec.
+
+    The plugin should implicitly download the latest version to compile the
+    contract with. `temp_solcx_path` is used to simulate an environment without
+    compilers installed.
+    """
+    assert not solcx.get_installed_solc_versions()
+
+    contract_types = compiler.compile([project.contracts_folder / "MissingPragma.sol"])
+
+    assert len(contract_types) == 1
+
+    installed_versions = solcx.get_installed_solc_versions()
+
+    assert len(installed_versions) == 1
+    assert installed_versions[0] == max(solcx.get_installable_solc_versions())
 
 
 def test_compile_contract_with_different_name_than_file(project):

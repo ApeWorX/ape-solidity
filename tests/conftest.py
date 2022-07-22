@@ -5,10 +5,26 @@ from tempfile import mkdtemp
 
 import ape
 import pytest
+import solcx  # type: ignore
 
 # NOTE: Ensure that we don't use local paths for these
 ape.config.DATA_FOLDER = Path(mkdtemp()).resolve()
 ape.config.PROJECT_FOLDER = Path(mkdtemp()).resolve()
+
+
+@pytest.fixture()
+def temp_solcx_path(monkeypatch):
+    solcx_install_path = mkdtemp()
+
+    monkeypatch.setenv(
+        solcx.install.SOLCX_BINARY_PATH_VARIABLE,
+        solcx_install_path,
+    )
+
+    yield solcx_install_path
+
+    if Path(solcx_install_path).is_dir():
+        shutil.rmtree(solcx_install_path, ignore_errors=True)
 
 
 @pytest.fixture
