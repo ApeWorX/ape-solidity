@@ -25,7 +25,7 @@ jobs:
 
         - name: Run isort
           run: isort --check-only --diff .
-    
+
     type-check:
         runs-on: ubuntu-latest
 
@@ -48,7 +48,7 @@ jobs:
 
         strategy:
             matrix:
-                python-version: [3.7, 3.8, 3.9]
+                python-version: [3.7, 3.8, 3.9, '3.10']
 
         steps:
         - uses: actions/checkout@v2
