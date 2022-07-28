@@ -1,4 +1,5 @@
 import shutil
+from contextlib import contextmanager
 from distutils.dir_util import copy_tree
 from pathlib import Path
 from tempfile import mkdtemp
@@ -12,8 +13,8 @@ ape.config.DATA_FOLDER = Path(mkdtemp()).resolve()
 ape.config.PROJECT_FOLDER = Path(mkdtemp()).resolve()
 
 
-@pytest.fixture()
-def temp_solcx_path(monkeypatch):
+@contextmanager
+def _tmp_solcx_path(monkeypatch):
     solcx_install_path = mkdtemp()
 
     monkeypatch.setenv(
@@ -25,6 +26,34 @@ def temp_solcx_path(monkeypatch):
 
     if Path(solcx_install_path).is_dir():
         shutil.rmtree(solcx_install_path, ignore_errors=True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_session_solcx_path(request):
+    """
+    Creates a new, temporary installation path for solcx when the test suite is
+    run.
+
+    This ensures the Solidity installations do not conflict with the user's
+    installed versions and that the installations from the tests are cleaned up
+    after the suite is finished.
+    """
+    from _pytest.monkeypatch import MonkeyPatch
+
+    patch = MonkeyPatch()
+    request.addfinalizer(patch.undo)
+
+    with _tmp_solcx_path(patch) as path:
+        yield path
+
+
+@pytest.fixture
+def temp_solcx_path(monkeypatch):
+    """
+    Creates a new, temporary installation path for solcx for a given test.
+    """
+    with _tmp_solcx_path(monkeypatch) as path:
+        yield path
 
 
 @pytest.fixture
