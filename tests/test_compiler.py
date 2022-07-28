@@ -4,6 +4,7 @@ import pytest
 import solcx  # type: ignore
 from ape.contracts import ContractContainer
 from semantic_version import Version  # type: ignore
+from ethpm_types.source import Compiler
 
 BASE_PATH = Path(__file__).parent / "contracts"
 TEST_CONTRACT_PATHS = [p for p in BASE_PATH.iterdir() if ".cache" not in str(p) and not p.is_dir()]
@@ -152,3 +153,20 @@ def test_get_version_map(project, compiler):
 
     # Will fail if the import remappings have not loaded yet.
     assert all([f.is_file() for f in file_paths])
+
+
+def test_compiler_data_in_manifest(project):
+    manifest = project.extract_manifest()
+    
+    compiler_0812 = [c for c in manifest.compilers if str(c.version) == "0.8.12"][0]
+    compiler_0612 = [c for c in manifest.compilers if str(c.version) == "0.6.12"][0]
+    compiler_0426 = [c for c in manifest.compilers if str(c.version) == "0.4.26"][0]
+
+    assert compiler_0812.name == "solidity"
+    assert compiler_0612.name == "solidity"
+    assert compiler_0426.name == "solidity"
+
+    assert set(compiler_0812.contractTypes) == {'ImportSourceWithEqualSignVersion', 'ImportSourceWithNoPrefixVersion', 'ImportingLessConstrainedVersion', 'IndirectlyImportingMoreConstrainedVersion', 'IndirectlyImportingMoreConstrainedVersionCompanion', 'SpecificVersionNoPrefix', 'SpecificVersionRange', 'SpecificVersionWithEqualSign', 'CompilesOnce', 'IndirectlyImportingMoreConstrainedVersionCompanionImport'}
+    assert set(compiler_0612.contractTypes) == {'RangedVersion', 'VagueVersion'}
+    assert set(compiler_0426.contractTypes) == {'ExperimentalABIEncoderV2', 'SpacesInPragma'}
+    
