@@ -1,3 +1,4 @@
+import os
 import shutil
 from contextlib import contextmanager
 from distutils.dir_util import copy_tree
@@ -28,7 +29,10 @@ def _tmp_solcx_path(monkeypatch):
         shutil.rmtree(solcx_install_path, ignore_errors=True)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(
+    scope="session",
+    autouse=os.environ.get("APE_SOLIDITY_USE_SYSTEM_SOLC") is None,
+)
 def setup_session_solcx_path(request):
     """
     Creates a new, temporary installation path for solcx when the test suite is
