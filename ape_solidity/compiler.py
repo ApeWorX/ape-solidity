@@ -215,7 +215,7 @@ class SolidityCompiler(CompilerAPI):
         if not files_by_solc_version:
             return []
 
-        base_kwargs = {
+        base_settings = {
             "output_values": [
                 "abi",
                 "bin",
@@ -230,17 +230,17 @@ class SolidityCompiler(CompilerAPI):
         for solc_version, files in files_by_solc_version.items():
             cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
 
-            kwargs = {
-                **base_kwargs,
+            settings = {
+                **base_settings,
                 "solc_version": solc_version,
                 "import_remappings": import_remappings,
             }
 
             if cli_base_path:
-                kwargs["base_path"] = cli_base_path
+                settings["base_path"] = cli_base_path
 
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
-            output = solcx.compile_files([f for f in files], **kwargs)
+            output = solcx.compile_files([f for f in files], **settings)
 
             def parse_contract_name(value: str) -> Tuple[Path, str]:
                 parts = value.split(":")
