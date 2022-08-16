@@ -238,6 +238,11 @@ class SolidityCompiler(CompilerAPI):
 
             if cli_base_path:
                 kwargs["base_path"] = cli_base_path
+            else:
+                kwargs["import_remappings"] = {
+                    i: str(contracts_path / relative_path)
+                    for i, relative_path in import_remappings.items()
+                }
 
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
             output = solcx.compile_files([f for f in files], **kwargs)
