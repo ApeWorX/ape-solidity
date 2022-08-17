@@ -243,7 +243,7 @@ class SolidityCompiler(CompilerAPI):
                 settings["base_path"] = cli_base_path
             else:
                 settings["import_remappings"] = {
-                    i: str(contracts_path / relative_path)
+                    i: str(base_path / relative_path)
                     for i, relative_path in import_remappings.items()
                 }
             settings_map[solc_version] = settings
