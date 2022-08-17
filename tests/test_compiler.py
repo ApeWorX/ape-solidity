@@ -172,47 +172,27 @@ def test_compiler_data_in_manifest(project):
     assert compiler_0426.settings["optimize"] is True
 
     # Output values test
-    assert compiler_0812.settings["output_values"] == [
+    output_values = [
         "abi",
         "bin",
         "bin-runtime",
         "devdoc",
         "userdoc",
     ]
-    assert compiler_0612.settings["output_values"] == [
-        "abi",
-        "bin",
-        "bin-runtime",
-        "devdoc",
-        "userdoc",
-    ]
-    assert compiler_0426.settings["output_values"] == [
-        "abi",
-        "bin",
-        "bin-runtime",
-        "devdoc",
-        "userdoc",
-    ]
+    assert compiler_0812.settings["output_values"] == output_values
+    assert compiler_0612.settings["output_values"] == output_values
+    assert compiler_0426.settings["output_values"] == output_values
 
     # Import remappings test
-    assert compiler_0812.settings["import_remappings"] == {
+    remappings = {
         "@remapping/contracts": ".cache/TestDependency/local",
         "@remapping_2": ".cache/TestDependency/local",
         "@brownie": ".cache/BrownieDependency/local",
         "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
     }
-    assert compiler_0612.settings["import_remappings"] == {
-        "@remapping/contracts": ".cache/TestDependency/local",
-        "@remapping_2": ".cache/TestDependency/local",
-        "@brownie": ".cache/BrownieDependency/local",
-        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
-    }
-    assert compiler_0426.settings["import_remappings"] == {
-        "@remapping/contracts": ".cache/TestDependency/local",
-        "@remapping_2": ".cache/TestDependency/local",
-        "@brownie": ".cache/BrownieDependency/local",
-        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
-    }
+    assert compiler_0812.settings["import_remappings"] == remappings
+    assert compiler_0612.settings["import_remappings"] == remappings
+    assert compiler_0426.settings["import_remappings"] == remappings
 
     # Base path test
     assert compiler_0812.settings["base_path"]
