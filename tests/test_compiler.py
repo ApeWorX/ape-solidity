@@ -161,10 +161,66 @@ def test_compiler_data_in_manifest(project):
     compiler_0612 = [c for c in manifest.compilers if str(c.version) == "0.6.12"][0]
     compiler_0426 = [c for c in manifest.compilers if str(c.version) == "0.4.26"][0]
 
+    # Compiler name test
     assert compiler_0812.name == "solidity"
     assert compiler_0612.name == "solidity"
     assert compiler_0426.name == "solidity"
 
+    # Compiler settings test
+    assert compiler_0812.settings["optimize"] is True
+    assert compiler_0612.settings["optimize"] is True
+    assert compiler_0426.settings["optimize"] is True
+
+    # Output values test
+    assert compiler_0812.settings["output_values"] == [
+        "abi",
+        "bin",
+        "bin-runtime",
+        "devdoc",
+        "userdoc",
+    ]
+    assert compiler_0612.settings["output_values"] == [
+        "abi",
+        "bin",
+        "bin-runtime",
+        "devdoc",
+        "userdoc",
+    ]
+    assert compiler_0426.settings["output_values"] == [
+        "abi",
+        "bin",
+        "bin-runtime",
+        "devdoc",
+        "userdoc",
+    ]
+
+    # Import remappings test
+    assert compiler_0812.settings["import_remappings"] == {
+        "@remapping/contracts": ".cache/TestDependency/local",
+        "@remapping_2": ".cache/TestDependency/local",
+        "@brownie": ".cache/BrownieDependency/local",
+        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
+    }
+    assert compiler_0612.settings["import_remappings"] == {
+        "@remapping/contracts": ".cache/TestDependency/local",
+        "@remapping_2": ".cache/TestDependency/local",
+        "@brownie": ".cache/BrownieDependency/local",
+        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
+    }
+    assert compiler_0426.settings["import_remappings"] == {
+        "@remapping/contracts": ".cache/TestDependency/local",
+        "@remapping_2": ".cache/TestDependency/local",
+        "@brownie": ".cache/BrownieDependency/local",
+        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
+    }
+
+    # Base path test
+    assert compiler_0812.settings["base_path"]
+    assert compiler_0612.settings["base_path"]
+    # 0426 does not have base path
+    assert "base_path" not in compiler_0426.settings
+
+    # Compiler contract types test
     assert set(compiler_0812.contractTypes) == {
         "ImportSourceWithEqualSignVersion",
         "ImportSourceWithNoPrefixVersion",
