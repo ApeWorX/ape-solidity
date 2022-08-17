@@ -212,7 +212,7 @@ class SolidityCompiler(CompilerAPI):
         contracts_path = base_path or self.config_manager.contracts_folder
         files_by_solc_version = self.get_version_map(contract_filepaths, base_path=contracts_path)
         if not files_by_solc_version:
-            return []
+            return {}
         settings_map = self._get_compiler_settings(files_by_solc_version, contracts_path)
         return settings_map
 
