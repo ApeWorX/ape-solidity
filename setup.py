@@ -62,7 +62,7 @@ setup(
     install_requires=[
         "importlib-metadata ; python_version<'3.8'",
         "py-solc-x>=1.1.0,<1.2.0",
-        "eth-ape>=0.4.0,<0.5.0",
+        "eth-ape>=0.4.4,<0.5.0",
         "ethpm-types",  # Use the version ape requires
         "packaging>=20.9,<21",
         "requests",

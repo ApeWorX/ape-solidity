@@ -206,16 +206,19 @@ class SolidityCompiler(CompilerAPI):
         self._import_remapping_hash = hash(items_tuple)
         return import_map
 
-    def compile(
+    def get_compiler_settings(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
-    ) -> List[ContractType]:
+    ) -> Dict[Version, Dict]:
         contracts_path = base_path or self.config_manager.contracts_folder
-        import_remappings = self.get_import_remapping(base_path=contracts_path)
         files_by_solc_version = self.get_version_map(contract_filepaths, base_path=contracts_path)
         if not files_by_solc_version:
-            return []
+            return {}
+        settings_map = self._get_compiler_settings(files_by_solc_version, contracts_path)
+        return settings_map
 
-        base_kwargs = {
+    def _get_compiler_settings(self, version_map: Dict, base_path: Path) -> Dict[Version, Dict]:
+        import_remappings = self.get_import_remapping(base_path=base_path)
+        base_settings = {
             "output_values": [
                 "abi",
                 "bin",
@@ -225,27 +228,39 @@ class SolidityCompiler(CompilerAPI):
             ],
             "optimize": self.config.optimize,
         }
-        contract_types: List[ContractType] = []
-        solc_versions_by_contract_name: Dict[str, Version] = {}
-        for solc_version, files in files_by_solc_version.items():
-            cli_base_path = contracts_path if solc_version >= Version("0.6.9") else None
+        settings_map = {}
+        for solc_version in version_map:
 
-            kwargs = {
-                **base_kwargs,
+            cli_base_path = base_path if solc_version >= Version("0.6.9") else None
+
+            settings = {
+                **base_settings,
                 "solc_version": solc_version,
                 "import_remappings": import_remappings,
             }
 
             if cli_base_path:
-                kwargs["base_path"] = cli_base_path
+                settings["base_path"] = cli_base_path
             else:
-                kwargs["import_remappings"] = {
+                settings["import_remappings"] = {
                     i: str(contracts_path / relative_path)
                     for i, relative_path in import_remappings.items()
                 }
+            settings_map[solc_version] = settings
+        return settings_map
 
+    def compile(
+        self, contract_filepaths: List[Path], base_path: Optional[Path] = None
+    ) -> List[ContractType]:
+        contracts_path = base_path or self.config_manager.contracts_folder
+        files_by_solc_version = self.get_version_map(contract_filepaths, base_path=contracts_path)
+        settings_map = self._get_compiler_settings(files_by_solc_version, base_path=contracts_path)
+        contract_types: List[ContractType] = []
+        solc_versions_by_contract_name: Dict[str, Version] = {}
+        for solc_version, settings in settings_map.items():
+            files = files_by_solc_version[solc_version]
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
-            output = solcx.compile_files([f for f in files], **kwargs)
+            output = solcx.compile_files([f for f in files], **settings)
 
             def parse_contract_name(value: str) -> Tuple[Path, str]:
                 parts = value.split(":")
