@@ -192,7 +192,11 @@ def test_compiler_data_in_manifest(project):
     }
     assert compiler_0812.settings["import_remappings"] == remappings
     assert compiler_0612.settings["import_remappings"] == remappings
-    assert compiler_0426.settings["import_remappings"] == remappings
+    # 0426 should have absolute paths here due to lack of base_path
+    absolute_remappings = {
+        prefix: str(project.contracts_folder / path) for prefix, path in remappings.items()
+    }
+    assert compiler_0426.settings["import_remappings"] == absolute_remappings
 
     # Base path test
     assert compiler_0812.settings["base_path"]
@@ -214,4 +218,8 @@ def test_compiler_data_in_manifest(project):
         "IndirectlyImportingMoreConstrainedVersionCompanionImport",
     }
     assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion"}
-    assert set(compiler_0426.contractTypes) == {"ExperimentalABIEncoderV2", "SpacesInPragma"}
+    assert set(compiler_0426.contractTypes) == {
+        "ExperimentalABIEncoderV2",
+        "SpacesInPragma",
+        "ImportOlderDependency",
+    }

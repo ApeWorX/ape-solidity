@@ -241,6 +241,11 @@ class SolidityCompiler(CompilerAPI):
 
             if cli_base_path:
                 settings["base_path"] = cli_base_path
+            else:
+                settings["import_remappings"] = {
+                    i: str(base_path / relative_path)
+                    for i, relative_path in import_remappings.items()
+                }
             settings_map[solc_version] = settings
         return settings_map
 
