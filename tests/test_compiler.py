@@ -167,42 +167,22 @@ def test_compiler_data_in_manifest(project):
     assert compiler_0426.name == "solidity"
 
     # Compiler settings test
-    assert compiler_0812.settings["optimize"] is True
-    assert compiler_0612.settings["optimize"] is True
-    assert compiler_0426.settings["optimize"] is True
-
-    # Output values test
-    output_values = [
-        "abi",
-        "bin",
-        "bin-runtime",
-        "devdoc",
-        "userdoc",
-    ]
-    assert compiler_0812.settings["output_values"] == output_values
-    assert compiler_0612.settings["output_values"] == output_values
-    assert compiler_0426.settings["output_values"] == output_values
-
-    # Import remappings test
+    assert compiler_0812.settings["optimizer"]["enabled"] is True
+    assert compiler_0612.settings["optimizer"]["enabled"] is True
+    assert compiler_0426.settings["optimizer"]["enabled"] is True
     remappings = {
         "@remapping/contracts": ".cache/TestDependency/local",
         "@remapping_2": ".cache/TestDependency/local",
         "@brownie": ".cache/BrownieDependency/local",
         "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
     }
-    assert compiler_0812.settings["import_remappings"] == remappings
-    assert compiler_0612.settings["import_remappings"] == remappings
+    assert compiler_0812.settings["remappings"] == remappings
+    assert compiler_0612.settings["remappings"] == remappings
     # 0426 should have absolute paths here due to lack of base_path
     absolute_remappings = {
         prefix: str(project.contracts_folder / path) for prefix, path in remappings.items()
     }
-    assert compiler_0426.settings["import_remappings"] == absolute_remappings
-
-    # Base path test
-    assert compiler_0812.settings["base_path"]
-    assert compiler_0612.settings["base_path"]
-    # 0426 does not have base path
-    assert "base_path" not in compiler_0426.settings
+    assert compiler_0426.settings["remappings"] == absolute_remappings
 
     # Compiler contract types test
     assert set(compiler_0812.contractTypes) == {

@@ -213,10 +213,18 @@ class SolidityCompiler(CompilerAPI):
         files_by_solc_version = self.get_version_map(contract_filepaths, base_path=contracts_path)
         if not files_by_solc_version:
             return {}
-        settings_map = self._get_compiler_settings(files_by_solc_version, contracts_path)
-        return settings_map
 
-    def _get_compiler_settings(self, version_map: Dict, base_path: Path) -> Dict[Version, Dict]:
+        compiler_args = self._get_compiler_arguments(files_by_solc_version, contracts_path)
+        settings = {}
+        for vers, arguments in compiler_args.items():
+            settings[vers] = {
+                "remappings": arguments.get("import_remappings", []),
+                "optimizer": {"enabled": arguments.get("optimize", False)},
+            }
+
+        return settings
+
+    def _get_compiler_arguments(self, version_map: Dict, base_path: Path) -> Dict[Version, Dict]:
         import_remappings = self.get_import_remapping(base_path=base_path)
         base_settings = {
             "output_values": [
@@ -254,7 +262,7 @@ class SolidityCompiler(CompilerAPI):
     ) -> List[ContractType]:
         contracts_path = base_path or self.config_manager.contracts_folder
         files_by_solc_version = self.get_version_map(contract_filepaths, base_path=contracts_path)
-        settings_map = self._get_compiler_settings(files_by_solc_version, base_path=contracts_path)
+        settings_map = self._get_compiler_arguments(files_by_solc_version, base_path=contracts_path)
         contract_types: List[ContractType] = []
         solc_versions_by_contract_name: Dict[str, Version] = {}
         for solc_version, settings in settings_map.items():
