@@ -115,12 +115,6 @@ def test_get_import_remapping(compiler, project, config):
     assert import_remapping != second_import_remapping
 
 
-def test_get_import_remapping_specify_sources(compiler, project):
-    source = project.contracts_folder / "ImportOlderDependency.sol"
-    import_remapping = compiler.get_import_remapping(source_paths={source})
-    assert import_remapping == {"@remapping/contracts": ".cache/TestDependency/local"}
-
-
 def test_brownie_project(compiler, config):
     brownie_project_path = Path(__file__).parent / "BrownieProject"
     with config.using_project(brownie_project_path) as project:
@@ -183,18 +177,19 @@ def test_compiler_data_in_manifest(project):
     assert "remappings" not in compiler_0812.settings
     assert "remappings" not in compiler_0612.settings
 
+    common_suffix = ".cache/TestDependency/local"
     expected_remappings = {
-        "@remapping/contracts": ".cache/TestDependency/local",
-        "@remapping_2": ".cache/TestDependency/local",
-        "@brownie": ".cache/BrownieDependency/local",
-        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
+        f"@remapping/contracts={common_suffix}",
+        f"@remapping_2={common_suffix}",
+        "@brownie=.cache/BrownieDependency/local",
+        "@dependency_remapping=.cache/TestDependencyOfDependency/local",
     }
     assert compiler_0816.settings["remappings"] == expected_remappings
     # 0.4.26 should have absolute paths here due to lack of base_path
-    expected_0426_remappings = {
-        "@remapping/contracts": str(project.contracts_folder / ".cache/TestDependency/local")
-    }
-    assert compiler_0426.settings["remappings"] == expected_0426_remappings
+    assert (
+        f"@remapping/contracts={project.contracts_folder}/{common_suffix}"
+        in compiler_0426.settings["remappings"]
+    )
 
     # Compiler contract types test
     assert set(compiler_0812.contractTypes) == {
