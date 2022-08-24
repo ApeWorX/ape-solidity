@@ -12,7 +12,7 @@ TEST_CONTRACTS = [str(p.stem) for p in TEST_CONTRACT_PATHS]
 PATTERN_REQUIRING_COMMIT_HASH = re.compile(r"\d+.\d+.\d+\+commit.[\d|a-f]+")
 
 # These are tested elsewhere, not in `test_compile`.
-normal_test_skips = ("DifferentNameThanFile", "MultipleDefinitions")
+normal_test_skips = ("DifferentNameThanFile", "MultipleDefinitions", "RandomVyperFile")
 
 
 @pytest.mark.parametrize(
@@ -80,6 +80,10 @@ def test_compile_only_returns_contract_types_for_inputs(compiler, project):
     assert contract_types[0].name == "Imports"
 
 
+def test_compile_vyper_contract(compiler, vyper_source_path):
+    assert not compiler.compile([vyper_source_path])
+
+
 def test_get_imports(project, compiler):
     import_dict = compiler.get_imports(TEST_CONTRACT_PATHS, BASE_PATH)
     contract_imports = import_dict["Imports.sol"]
@@ -95,6 +99,10 @@ def test_get_imports(project, compiler):
         ".cache/BrownieDependency/local/BrownieContract.sol",
     }
     assert set(contract_imports) == expected
+
+
+def test_get_imports_ignores_non_solidity_files(compiler, vyper_source_path):
+    assert not compiler.get_imports([vyper_source_path])
 
 
 def test_get_import_remapping(compiler, project, config):
@@ -160,6 +168,16 @@ def test_get_version_map(project, compiler):
 
     # Will fail if the import remappings have not loaded yet.
     assert all([f.is_file() for f in file_paths])
+
+
+def test_get_version_map_single_source(compiler, project):
+    # Source has no imports
+    source = project.contracts_folder / "OlderVersion.sol"
+    assert compiler.get_version_map([source]) == {Version("0.5.16"): {source}}
+
+
+def test_get_version_map_ignores_non_solidity_sources(compiler, vyper_source_path):
+    assert not compiler.get_version_map([vyper_source_path])
 
 
 def test_compiler_data_in_manifest(project):

@@ -8,7 +8,7 @@ from ape.api import CompilerAPI, PluginConfig
 from ape.exceptions import CompilerError
 from ape.logging import logger
 from ape.types import ContractType
-from ape.utils import cached_property, get_all_files_in_directory, get_relative_path
+from ape.utils import cached_property, get_relative_path
 from ethpm_types import PackageManifest
 from packaging.version import InvalidVersion
 from packaging.version import Version as _Version
@@ -22,6 +22,7 @@ from ape_solidity._utils import (
     get_version_with_commit_hash,
     load_dict,
     strip_commit_hash,
+    verify_contract_filepaths,
 )
 from ape_solidity.exceptions import IncorrectMappingFormatError
 
@@ -331,7 +332,7 @@ class SolidityCompiler(CompilerAPI):
     def get_imports(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> Dict[str, List[str]]:
-        contract_filepaths_set = set(contract_filepaths)
+        contract_filepaths_set = verify_contract_filepaths(contract_filepaths)
         contracts_path = base_path or self.config_manager.contracts_folder
         import_remapping = self.get_import_remapping(base_path=contracts_path)
 
@@ -386,18 +387,17 @@ class SolidityCompiler(CompilerAPI):
         if not isinstance(contract_filepaths, (list, tuple)):
             contract_filepaths = [contract_filepaths]
 
-        contract_filepaths_set = set(contract_filepaths)
-        contracts_path = base_path or self.config_manager.contracts_folder
-        imports = self.get_imports(get_all_files_in_directory(contracts_path), contracts_path)
+        base_path = base_path or self.project_manager.contracts_folder
+        contract_filepaths_set = verify_contract_filepaths(contract_filepaths)
+        sources = [p for p in self.project_manager.source_paths if p.suffix == ".sol"]
+        imports = self.get_imports(sources, base_path)
 
         # Add imported source files to list of contracts to compile.
-        source_paths_to_compile = contract_filepaths_set.copy()
+        source_paths_to_get = contract_filepaths_set.copy()
         for source_path in contract_filepaths_set:
-            imported_source_paths = self._get_imported_source_paths(
-                source_path, contracts_path, imports
-            )
+            imported_source_paths = self._get_imported_source_paths(source_path, base_path, imports)
             for imported_source in imported_source_paths:
-                source_paths_to_compile.add(imported_source)
+                source_paths_to_get.add(imported_source)
 
         # Use specified version if given one
         if self.config.version is not None:
@@ -405,12 +405,12 @@ class SolidityCompiler(CompilerAPI):
             if specified_version not in self.installed_versions:
                 solcx.install_solc(specified_version)
 
-            return {specified_version: source_paths_to_compile}
+            return {specified_version: source_paths_to_get}
 
         # else: find best version per source file
 
         # Build map of pragma-specs.
-        source_by_pragma_spec = {p: self._get_pragma_spec(p) for p in source_paths_to_compile}
+        source_by_pragma_spec = {p: self._get_pragma_spec(p) for p in source_paths_to_get}
 
         # If no Solidity version has been installed previously while fetching the
         # contract version pragma, we must install a compiler, so choose the latest
@@ -419,10 +419,10 @@ class SolidityCompiler(CompilerAPI):
 
         # Adjust best-versions based on imports.
         files_by_solc_version: Dict[Version, Set[Path]] = {}
-        for source_file_path in source_paths_to_compile:
+        for source_file_path in source_paths_to_get:
             solc_version = self._get_best_version(source_file_path, source_by_pragma_spec)
             imported_source_paths = self._get_imported_source_paths(
-                source_file_path, contracts_path, imports
+                source_file_path, base_path, imports
             )
 
             for imported_source_path in imported_source_paths:
@@ -462,8 +462,8 @@ class SolidityCompiler(CompilerAPI):
                 other_files = [f for f in files_by_solc_version[solc_version] if f != file]
                 used_in_imports = False
                 for other_file in other_files:
-                    source_id = str(get_relative_path(other_file, contracts_path))
-                    import_paths = [contracts_path / i for i in imports.get(source_id, []) if i]
+                    source_id = str(get_relative_path(other_file, base_path))
+                    import_paths = [base_path / i for i in imports.get(source_id, []) if i]
                     if file in import_paths:
                         used_in_imports = True
                         break

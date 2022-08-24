@@ -86,3 +86,7 @@ def strip_commit_hash(version: Version) -> Version:
 def get_version_with_commit_hash(version: Union[str, Version]) -> Version:
     executable = get_executable(version)
     return _get_solc_version(executable, with_commit_hash=True)
+
+
+def verify_contract_filepaths(contract_filepaths: List[Path]) -> Set[Path]:
+    return {p for p in contract_filepaths if p.suffix == ".sol"}
