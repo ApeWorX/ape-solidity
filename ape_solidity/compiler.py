@@ -192,21 +192,17 @@ class SolidityCompiler(CompilerAPI):
         settings: Dict = {}
         for vers, arguments in compiler_args.items():
             sources = files_by_solc_version[vers]
-            settings[vers] = {
+            version_settings = {
                 "optimizer": {"enabled": arguments.get("optimize", False), "runs": 200},
+                "outputSelection": {
+                    p.name: {p.stem: arguments.get("output_values", [])} for p in sources
+                },
             }
-            settings[vers]["outputSelection"] = {
-                p.name: {p.stem: arguments.get("output_values", [])} for p in sources
-            }
-
             remappings = arguments.get("import_remappings")
-            if remappings and "remappings" in settings[vers]:
-                new_mappings = [r for r in remappings if r not in settings[vers]["remappings"]]
-                for new_remapping in new_mappings:
-                    settings[vers]["remappings"].append(new_remapping)
+            if remappings:
+                version_settings["remappings"] = remappings
 
-            elif remappings:
-                settings[vers]["remappings"] = remappings
+            settings[vers] = version_settings
 
         return settings
 
