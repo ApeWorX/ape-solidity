@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
 from ape.logging import logger
-from semantic_version import NpmSpec  # type: ignore
+from semantic_version import NpmSpec, Version  # type: ignore
+from solcx.install import get_executable  # type: ignore
+from solcx.wrapper import _get_solc_version  # type: ignore
 
 
 def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
@@ -75,3 +77,12 @@ def get_pragma_spec(source_file_path: Path) -> Optional[NpmSpec]:
 
 def load_dict(data: Union[str, dict]) -> Dict:
     return data if isinstance(data, dict) else json.loads(data)
+
+
+def strip_commit_hash(version: Version) -> Version:
+    return Version(str(version).split("+")[0].strip())
+
+
+def get_version_with_commit_hash(version: Union[str, Version]) -> Version:
+    executable = get_executable(version)
+    return _get_solc_version(executable, with_commit_hash=True)

@@ -14,8 +14,15 @@ from packaging.version import InvalidVersion
 from packaging.version import Version as _Version
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
+from solcx.install import get_executable  # type: ignore
 
-from ape_solidity._utils import get_import_lines, get_pragma_spec, load_dict
+from ape_solidity._utils import (
+    get_import_lines,
+    get_pragma_spec,
+    get_version_with_commit_hash,
+    load_dict,
+    strip_commit_hash,
+)
 from ape_solidity.exceptions import IncorrectMappingFormatError
 
 
@@ -215,6 +222,7 @@ class SolidityCompiler(CompilerAPI):
         }
         arguments_map = {}
         for solc_version, sources in version_map.items():
+            cleaned_version = strip_commit_hash(solc_version)
             import_remappings = self.get_import_remapping(base_path=base_path)
             remappings_kept = set()
             if import_remappings:
@@ -234,7 +242,8 @@ class SolidityCompiler(CompilerAPI):
 
             arguments = {
                 **base_arguments,
-                "solc_version": solc_version,
+                "solc_binary": get_executable(cleaned_version),
+                "solc_version": cleaned_version,
             }
 
             if solc_version >= Version("0.6.9"):
@@ -358,7 +367,6 @@ class SolidityCompiler(CompilerAPI):
             return source_id_value
 
         imports_dict: Dict[str, List[str]] = {}
-
         for src_path, import_strs in get_import_lines(contract_filepaths_set).items():
             import_set = set()
             for import_str in import_strs:
@@ -465,7 +473,7 @@ class SolidityCompiler(CompilerAPI):
                     if not files_by_solc_version[solc_version]:
                         del files_by_solc_version[solc_version]
 
-        return files_by_solc_version
+        return {get_version_with_commit_hash(v): ls for v, ls in files_by_solc_version.items()}
 
     def _get_imported_source_paths(
         self,
