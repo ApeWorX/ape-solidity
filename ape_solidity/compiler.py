@@ -203,7 +203,7 @@ class SolidityCompiler(CompilerAPI):
         return settings
 
     def _get_compiler_arguments(self, version_map: Dict, base_path: Path) -> Dict[Version, Dict]:
-        base_settings = {
+        base_arguments = {
             "output_values": [
                 "abi",
                 "bin",
@@ -213,7 +213,7 @@ class SolidityCompiler(CompilerAPI):
             ],
             "optimize": self.config.optimize,
         }
-        settings_map = {}
+        arguments_map = {}
         for solc_version, sources in version_map.items():
             import_remappings = self.get_import_remapping(base_path=base_path)
             remappings_kept = set()
@@ -232,32 +232,32 @@ class SolidityCompiler(CompilerAPI):
                     for k, v in [(k, v) for k, v in import_remappings.items() if parent_key in v]:
                         remappings_kept.add(f"{k}={v}")
 
-            settings = {
-                **base_settings,
+            arguments = {
+                **base_arguments,
                 "solc_version": solc_version,
             }
 
             if solc_version >= Version("0.6.9"):
-                settings["base_path"] = base_path
+                arguments["base_path"] = base_path
             else:
                 # Append base_path to remappings
                 parts = [x.split("=") for x in remappings_kept]
                 remappings_kept = {f"{p[0]}={base_path / p[1]}" for p in parts}
 
             if remappings_kept:
-                settings["import_remappings"] = remappings_kept
+                arguments["import_remappings"] = remappings_kept
 
-            settings_map[solc_version] = settings
+            arguments_map[solc_version] = arguments
 
-        return settings_map
+        return arguments_map
 
     def compile(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
-        contracts_path = base_path or self.config_manager.contracts_folder
-        files_by_solc_version = self.get_version_map(contract_filepaths, base_path=contracts_path)
+        base_path = base_path or self.config_manager.contracts_folder
+        files_by_solc_version = self.get_version_map(contract_filepaths, base_path=base_path)
         compiler_arguments = self._get_compiler_arguments(
-            files_by_solc_version, base_path=contracts_path
+            files_by_solc_version, base_path=base_path
         )
         contract_types: List[ContractType] = []
         solc_versions_by_contract_name: Dict[str, Version] = {}
@@ -307,7 +307,7 @@ class SolidityCompiler(CompilerAPI):
 
                 contract_type["contractName"] = contract_name
                 contract_type["sourceId"] = str(
-                    get_relative_path(contracts_path / contract_path, contracts_path)
+                    get_relative_path(base_path / contract_path, base_path)
                 )
                 contract_type["deploymentBytecode"] = {"bytecode": deployment_bytecode}
                 contract_type["runtimeBytecode"] = {"bytecode": runtime_bytecode}
