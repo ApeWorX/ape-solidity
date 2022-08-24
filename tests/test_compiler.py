@@ -175,32 +175,39 @@ def test_get_version_map_ignores_non_solidity_sources(compiler, vyper_source_pat
 def test_compiler_data_in_manifest(project):
     manifest = project.extract_manifest()
 
+    compiler_0816 = [c for c in manifest.compilers if str(c.version) == "0.8.16"][0]
     compiler_0812 = [c for c in manifest.compilers if str(c.version) == "0.8.12"][0]
     compiler_0612 = [c for c in manifest.compilers if str(c.version) == "0.6.12"][0]
     compiler_0426 = [c for c in manifest.compilers if str(c.version) == "0.4.26"][0]
 
     # Compiler name test
-    assert compiler_0812.name == "solidity"
-    assert compiler_0612.name == "solidity"
-    assert compiler_0426.name == "solidity"
+    for compiler in (compiler_0816, compiler_0812, compiler_0612, compiler_0426):
+        assert compiler.name == "solidity"
 
     # Compiler settings test
-    assert compiler_0812.settings["optimizer"]["enabled"] is True
-    assert compiler_0612.settings["optimizer"]["enabled"] is True
-    assert compiler_0426.settings["optimizer"]["enabled"] is True
-    remappings = {
-        "@remapping/contracts": ".cache/TestDependency/local",
-        "@remapping_2": ".cache/TestDependency/local",
-        "@brownie": ".cache/BrownieDependency/local",
-        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
+    expected_optimizer = {"enabled": True, "runs": 200}
+    assert compiler_0816.settings["optimizer"] == expected_optimizer
+    assert compiler_0812.settings["optimizer"] == expected_optimizer
+    assert compiler_0612.settings["optimizer"] == expected_optimizer
+    assert compiler_0426.settings["optimizer"] == expected_optimizer
+
+    # No remappings for sources in the following compilers
+    assert "remappings" not in compiler_0812.settings
+    assert "remappings" not in compiler_0612.settings
+
+    common_suffix = ".cache/TestDependency/local"
+    expected_remappings = {
+        f"@remapping/contracts={common_suffix}",
+        f"@remapping_2={common_suffix}",
+        "@brownie=.cache/BrownieDependency/local",
+        "@dependency_remapping=.cache/TestDependencyOfDependency/local",
     }
-    assert compiler_0812.settings["remappings"] == remappings
-    assert compiler_0612.settings["remappings"] == remappings
-    # 0426 should have absolute paths here due to lack of base_path
-    absolute_remappings = {
-        prefix: str(project.contracts_folder / path) for prefix, path in remappings.items()
-    }
-    assert compiler_0426.settings["remappings"] == absolute_remappings
+    assert compiler_0816.settings["remappings"] == expected_remappings
+    # 0.4.26 should have absolute paths here due to lack of base_path
+    assert (
+        f"@remapping/contracts={project.contracts_folder}/{common_suffix}"
+        in compiler_0426.settings["remappings"]
+    )
 
     # Compiler contract types test
     assert set(compiler_0812.contractTypes) == {
