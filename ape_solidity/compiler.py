@@ -21,7 +21,6 @@ from ape_solidity._utils import (
     get_pragma_spec,
     get_version_with_commit_hash,
     load_dict,
-    strip_commit_hash,
     verify_contract_filepaths,
 )
 from ape_solidity.exceptions import IncorrectMappingFormatError
@@ -219,7 +218,7 @@ class SolidityCompiler(CompilerAPI):
         }
         arguments_map = {}
         for solc_version, sources in version_map.items():
-            cleaned_version = strip_commit_hash(solc_version)
+            cleaned_version = solc_version.truncate()
             import_remappings = self.get_import_remapping(base_path=base_path)
             remappings_kept = set()
             if import_remappings:
