@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 import solcx  # type: ignore
 from ape.contracts import ContractContainer
+from ape.exceptions import CompilerError
 from semantic_version import Version  # type: ignore
 
 BASE_PATH = Path(__file__).parent / "contracts"
@@ -81,7 +82,9 @@ def test_compile_only_returns_contract_types_for_inputs(compiler, project):
 
 
 def test_compile_vyper_contract(compiler, vyper_source_path):
-    assert not compiler.compile([vyper_source_path])
+    expected_message = "Unable to compile 'RandomVyperFile.vy' using Solidity compiler."
+    with pytest.raises(CompilerError, match=expected_message):
+        compiler.compile([vyper_source_path])
 
 
 def test_get_imports(project, compiler):

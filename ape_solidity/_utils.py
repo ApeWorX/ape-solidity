@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
+from ape.exceptions import CompilerError
 from ape.logging import logger
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError
@@ -94,4 +95,9 @@ def get_version_with_commit_hash(version: Union[str, Version]) -> Version:
 
 
 def verify_contract_filepaths(contract_filepaths: List[Path]) -> Set[Path]:
-    return {p for p in contract_filepaths if p.suffix == ".sol"}
+    invalid_files = [p.name for p in contract_filepaths if p.suffix != ".sol"]
+    if not invalid_files:
+        return set(contract_filepaths)
+
+    sources_str = "', '".join(invalid_files)
+    raise CompilerError(f"Unable to compile '{sources_str}' using Solidity compiler.")
