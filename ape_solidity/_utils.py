@@ -7,9 +7,9 @@ from typing import Dict, List, Optional, Set, Union
 from ape.exceptions import CompilerError
 from ape.logging import logger
 from semantic_version import NpmSpec, Version  # type: ignore
-from solcx.exceptions import SolcError
+from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
-from solcx.wrapper import VERSION_REGEX
+from solcx.wrapper import VERSION_REGEX  # type: ignore
 
 
 def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
