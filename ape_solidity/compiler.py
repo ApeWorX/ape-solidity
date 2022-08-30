@@ -180,12 +180,12 @@ class SolidityCompiler(CompilerAPI):
     def get_compiler_settings(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> Dict[Version, Dict]:
-        contracts_path = base_path or self.config_manager.contracts_folder
-        files_by_solc_version = self.get_version_map(contract_filepaths, base_path=contracts_path)
+        base_path = base_path or self.config_manager.contracts_folder
+        files_by_solc_version = self.get_version_map(contract_filepaths, base_path=base_path)
         if not files_by_solc_version:
             return {}
 
-        compiler_args = self._get_compiler_arguments(files_by_solc_version, contracts_path)
+        compiler_args = self._get_compiler_arguments(files_by_solc_version, base_path)
         settings: Dict = {}
         for vers, arguments in compiler_args.items():
             sources = files_by_solc_version[vers]
@@ -474,22 +474,22 @@ class SolidityCompiler(CompilerAPI):
     def _get_imported_source_paths(
         self,
         path: Path,
-        contracts_path: Path,
+        base_path: Path,
         imports: Dict,
         source_ids_checked: Optional[List[str]] = None,
     ) -> Set[Path]:
         source_ids_checked = source_ids_checked or []
-        source_identifier = str(get_relative_path(path, contracts_path))
+        source_identifier = str(get_relative_path(path, base_path))
         if source_identifier in source_ids_checked:
             # Already got this source's imports
             return set()
 
         source_ids_checked.append(source_identifier)
-        import_file_paths = [contracts_path / i for i in imports.get(source_identifier, []) if i]
+        import_file_paths = [base_path / i for i in imports.get(source_identifier, []) if i]
         return_set = {i for i in import_file_paths}
         for import_path in import_file_paths:
             indirect_imports = self._get_imported_source_paths(
-                import_path, contracts_path, imports, source_ids_checked=source_ids_checked
+                import_path, base_path, imports, source_ids_checked=source_ids_checked
             )
             for indirect_import in indirect_imports:
                 return_set.add(indirect_import)
