@@ -85,6 +85,9 @@ def load_dict(data: Union[str, dict]) -> Dict:
 def get_version_with_commit_hash(version: Union[str, Version]) -> Version:
     # Borrowed from:
     # https://github.com/iamdefinitelyahuman/py-solc-x/blob/master/solcx/wrapper.py#L15-L28
+    if "+commit" in str(version):
+        return Version(str(version))
+
     executable = get_executable(version)
     stdout_data = subprocess.check_output([str(executable), "--version"], encoding="utf8")
     try:

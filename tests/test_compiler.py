@@ -130,12 +130,6 @@ def test_get_import_remapping(compiler, project, config):
     assert import_remapping != second_import_remapping
 
 
-def test_get_import_remapping_specify_sources(compiler, project):
-    source = project.contracts_folder / "ImportOlderDependency.sol"
-    import_remapping = compiler.get_import_remapping(source_paths={source})
-    assert import_remapping == {"@remapping/contracts": ".cache/TestDependency/local"}
-
-
 def test_brownie_project(compiler, config):
     brownie_project_path = Path(__file__).parent / "BrownieProject"
     with config.using_project(brownie_project_path) as project:
@@ -155,7 +149,11 @@ def test_version_specified_in_config_file(compiler, config):
     with config.using_project(path) as project:
         source_path = project.contracts_folder / "VersionSpecifiedInConfig.sol"
         version_map = compiler.get_version_map(source_path)
-        assert version_map[Version("0.8.12+commit.f00d7308")] == {source_path}
+        actual_versions = ", ".join([str(v) for v in version_map.keys()])
+        fail_msg = f"Actual versions: {actual_versions}"
+        expected_version = Version("0.8.12+commit.f00d7308")
+        assert expected_version in version_map, fail_msg
+        assert version_map[expected_version] == {source_path}, fail_msg
 
 
 def test_get_version_map(project, compiler):
@@ -178,7 +176,10 @@ def test_get_version_map(project, compiler):
 def test_get_version_map_single_source(compiler, project):
     # Source has no imports
     source = project.contracts_folder / "OlderVersion.sol"
-    assert compiler.get_version_map([source]) == {Version("0.5.16"): {source}}
+    actual = compiler.get_version_map([source])
+    expected = {Version("0.5.16+commit.9c3226ce"): {source}}
+    assert len(actual) == 1
+    assert actual == expected, f"Actual version: {[k for k in actual.keys()][0]}"
 
 
 def test_get_version_map_raises_on_non_solidity_sources(compiler, vyper_source_path):
@@ -245,12 +246,15 @@ def test_compiler_data_in_manifest(project):
 
 
 def test_get_versions(compiler, project):
+    # NOTE: the expected versions **DO NOT** contain commit hashes here
+    # because we can only get the commit hash of installed compilers
+    # and this returns all versions including uninstalled.
     versions = compiler.get_versions(project.source_paths)
     assert versions == {
-        "0.8.14+commit.80d49f37",
-        "0.8.16+commit.07a7930e",
-        "0.6.12+commit.27d51765",
-        "0.4.26+commit.4563c3fc",
-        "0.5.16+commit.9c3226ce",
-        "0.8.12+commit.f00d7308",
+        "0.8.14",
+        "0.8.16",
+        "0.6.12",
+        "0.4.26",
+        "0.5.16",
+        "0.8.12",
     }

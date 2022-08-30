@@ -400,7 +400,8 @@ class SolidityCompiler(CompilerAPI):
             if specified_version not in self.installed_versions:
                 solcx.install_solc(specified_version)
 
-            return {specified_version: source_paths_to_get}
+            specified_version_with_commit_hash = get_version_with_commit_hash(specified_version)
+            return {specified_version_with_commit_hash: source_paths_to_get}
 
         # else: find best version per source file
 
