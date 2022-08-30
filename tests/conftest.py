@@ -94,3 +94,8 @@ def project(config):
 @pytest.fixture
 def compiler():
     return ape.compilers.registered_compilers[".sol"]
+
+
+@pytest.fixture
+def vyper_source_path(project):
+    return project.contracts_folder / "RandomVyperFile.vy"
