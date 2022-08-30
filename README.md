@@ -71,8 +71,8 @@ import "@openzeppelin/token/ERC721/ERC721.sol";
 ### Compiler Settings
 
 When using `ape-solidity`, your project's manifest's compiler settings will include standard JSON output.
-You should have one listed ``compiler`` per `solc` version used in your project.
-You can view your current project manifest by doing:
+You should have one listed `compiler` per `solc` version used in your project.
+You can view your current project manifest, including the compiler settings, by doing:
 
 ```python
 from ape import project
