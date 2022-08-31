@@ -31,6 +31,7 @@ class SolidityConfig(PluginConfig):
     import_remapping: List[str] = []
     optimize: bool = True
     version: Optional[str] = None
+    evm_version: Optional[str] = None
 
 
 class SolidityCompiler(CompilerAPI):
@@ -186,10 +187,10 @@ class SolidityCompiler(CompilerAPI):
         if not files_by_solc_version:
             return {}
 
-        compiler_args = self._get_compiler_arguments(files_by_solc_version, base_path)
+        compiler_args: Dict = self._get_compiler_arguments(files_by_solc_version, base_path)
         settings: Dict = {}
-        for vers, arguments in compiler_args.items():
-            sources = files_by_solc_version[vers]
+        for solc_version, arguments in compiler_args.items():
+            sources = files_by_solc_version[solc_version]
             version_settings: Dict[str, Union[Any, List[Any]]] = {
                 "optimizer": {"enabled": arguments.get("optimize", False), "runs": 200},
                 "outputSelection": {
@@ -200,7 +201,11 @@ class SolidityCompiler(CompilerAPI):
             if remappings:
                 version_settings["remappings"] = list(remappings)
 
-            settings[vers] = version_settings
+            evm_version = arguments.get("evm_version")
+            if evm_version:
+                version_settings["evmVersion"] = evm_version
+
+            settings[solc_version] = version_settings
 
         return settings
 
@@ -214,6 +219,7 @@ class SolidityCompiler(CompilerAPI):
                 "userdoc",
             ],
             "optimize": self.config.optimize,
+            "evm_version": self.config.evm_version,
         }
         arguments_map = {}
         for solc_version, sources in version_map.items():
