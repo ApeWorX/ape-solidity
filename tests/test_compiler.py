@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -13,8 +14,8 @@ TEST_CONTRACT_PATHS = [
     if ".cache" not in str(p) and not p.is_dir() and p.suffix == ".sol"
 ]
 TEST_CONTRACTS = [str(p.stem) for p in TEST_CONTRACT_PATHS]
+PATTERN_REQUIRING_COMMIT_HASH = re.compile(r"\d+\.\d+\.\d+\+commit\.[\d|a-f]+")
 EXPECTED_NON_SOLIDITY_ERR_MSG = "Unable to compile 'RandomVyperFile.vy' using Solidity compiler."
-
 
 # These are tested elsewhere, not in `test_compile`.
 normal_test_skips = ("DifferentNameThanFile", "MultipleDefinitions", "RandomVyperFile")
@@ -148,7 +149,11 @@ def test_version_specified_in_config_file(compiler, config):
     with config.using_project(path) as project:
         source_path = project.contracts_folder / "VersionSpecifiedInConfig.sol"
         version_map = compiler.get_version_map(source_path)
-        assert version_map[Version("0.8.12")] == {source_path}
+        actual_versions = ", ".join(str(v) for v in version_map)
+        fail_msg = f"Actual versions: {actual_versions}"
+        expected_version = Version("0.8.12+commit.f00d7308")
+        assert expected_version in version_map, fail_msg
+        assert version_map[expected_version] == {source_path}, fail_msg
 
 
 def test_get_version_map(project, compiler):
@@ -162,7 +167,7 @@ def test_get_version_map(project, compiler):
     ]
     version_map = compiler.get_version_map(file_paths)
     assert len(version_map) == 2
-    assert all([f in version_map[Version("0.8.12")] for f in file_paths[:-1]])
+    assert all([f in version_map[Version("0.8.12+commit.f00d7308")] for f in file_paths[:-1]])
 
     # Will fail if the import remappings have not loaded yet.
     assert all([f.is_file() for f in file_paths])
@@ -171,7 +176,10 @@ def test_get_version_map(project, compiler):
 def test_get_version_map_single_source(compiler, project):
     # Source has no imports
     source = project.contracts_folder / "OlderVersion.sol"
-    assert compiler.get_version_map([source]) == {Version("0.5.16"): {source}}
+    actual = compiler.get_version_map([source])
+    expected = {Version("0.5.16+commit.9c3226ce"): {source}}
+    assert len(actual) == 1
+    assert actual == expected, f"Actual version: {[k for k in actual.keys()][0]}"
 
 
 def test_get_version_map_raises_on_non_solidity_sources(compiler, vyper_source_path):
@@ -181,11 +189,12 @@ def test_get_version_map_raises_on_non_solidity_sources(compiler, vyper_source_p
 
 def test_compiler_data_in_manifest(project):
     manifest = project.extract_manifest()
+    compilers = manifest.compilers
 
-    compiler_0816 = [c for c in manifest.compilers if str(c.version) == "0.8.16"][0]
-    compiler_0812 = [c for c in manifest.compilers if str(c.version) == "0.8.12"][0]
-    compiler_0612 = [c for c in manifest.compilers if str(c.version) == "0.6.12"][0]
-    compiler_0426 = [c for c in manifest.compilers if str(c.version) == "0.4.26"][0]
+    compiler_0816 = [c for c in compilers if str(c.version) == "0.8.16+commit.07a7930e"][0]
+    compiler_0812 = [c for c in compilers if str(c.version) == "0.8.12+commit.f00d7308"][0]
+    compiler_0612 = [c for c in compilers if str(c.version) == "0.6.12+commit.27d51765"][0]
+    compiler_0426 = [c for c in compilers if str(c.version) == "0.4.26+commit.4563c3fc"][0]
 
     # Compiler name test
     for compiler in (compiler_0816, compiler_0812, compiler_0612, compiler_0426):
@@ -234,4 +243,19 @@ def test_compiler_data_in_manifest(project):
         "ExperimentalABIEncoderV2",
         "SpacesInPragma",
         "ImportOlderDependency",
+    }
+
+
+def test_get_versions(compiler, project):
+    # NOTE: the expected versions **DO NOT** contain commit hashes here
+    # because we can only get the commit hash of installed compilers
+    # and this returns all versions including uninstalled.
+    versions = compiler.get_versions(project.source_paths)
+    assert versions == {
+        "0.8.14",
+        "0.8.16",
+        "0.6.12",
+        "0.4.26",
+        "0.5.16",
+        "0.8.12",
     }

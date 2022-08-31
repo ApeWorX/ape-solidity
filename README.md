@@ -68,6 +68,24 @@ Once you have your dependencies configured, you can import packages using your i
 import "@openzeppelin/token/ERC721/ERC721.sol";
 ```
 
+### Compiler Settings
+
+When using `ape-solidity`, your project's manifest's compiler settings will include standard JSON output.
+You should have one listed `compiler` per `solc` version used in your project.
+You can view your current project manifest, including the compiler settings, by doing:
+
+```python
+from ape import project
+
+manifest = project.extract_manifest()
+
+for compiler_entry in manifest.compilers:
+    print(compiler_entry.version)
+    print(compiler_entry.settings)
+```
+
+**NOTE**: These are the settings used during contract verification when using the [Etherscan plugin](https://github.com/ApeWorX/ape-etherscan).
+
 ## Development
 
 Please see the [contributing guide](CONTRIBUTING.md) to learn more how to contribute to this project.

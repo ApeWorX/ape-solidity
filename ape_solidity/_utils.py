@@ -1,11 +1,15 @@
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
 from ape.exceptions import CompilerError
 from ape.logging import logger
-from semantic_version import NpmSpec  # type: ignore
+from semantic_version import NpmSpec, Version  # type: ignore
+from solcx.exceptions import SolcError  # type: ignore
+from solcx.install import get_executable  # type: ignore
+from solcx.wrapper import VERSION_REGEX  # type: ignore
 
 
 def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
@@ -76,6 +80,23 @@ def get_pragma_spec(source_file_path: Path) -> Optional[NpmSpec]:
 
 def load_dict(data: Union[str, dict]) -> Dict:
     return data if isinstance(data, dict) else json.loads(data)
+
+
+def get_version_with_commit_hash(version: Union[str, Version]) -> Version:
+    # Borrowed from:
+    # https://github.com/iamdefinitelyahuman/py-solc-x/blob/master/solcx/wrapper.py#L15-L28
+    if "+commit" in str(version):
+        return Version(str(version))
+
+    executable = get_executable(version)
+    stdout_data = subprocess.check_output([str(executable), "--version"], encoding="utf8")
+    try:
+        match = next(re.finditer(VERSION_REGEX, stdout_data))
+        version_str = "".join(match.groups())
+    except StopIteration:
+        raise SolcError("Could not determine the solc binary version")
+
+    return Version.coerce(version_str)
 
 
 def verify_contract_filepaths(contract_filepaths: List[Path]) -> Set[Path]:

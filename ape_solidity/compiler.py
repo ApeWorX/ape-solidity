@@ -14,10 +14,12 @@ from packaging.version import InvalidVersion
 from packaging.version import Version as _Version
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
+from solcx.install import get_executable  # type: ignore
 
 from ape_solidity._utils import (
     get_import_lines,
     get_pragma_spec,
+    get_version_with_commit_hash,
     load_dict,
     verify_contract_filepaths,
 )
@@ -189,21 +191,17 @@ class SolidityCompiler(CompilerAPI):
         settings: Dict = {}
         for vers, arguments in compiler_args.items():
             sources = files_by_solc_version[vers]
-            settings[vers] = {
+            version_settings = {
                 "optimizer": {"enabled": arguments.get("optimize", False), "runs": 200},
+                "outputSelection": {
+                    p.name: {p.stem: arguments.get("output_values", [])} for p in sources
+                },
             }
-            settings[vers]["outputSelection"] = {
-                p.name: {p.stem: arguments.get("output_values", [])} for p in sources
-            }
-
             remappings = arguments.get("import_remappings")
-            if remappings and "remappings" in settings[vers]:
-                new_mappings = [r for r in remappings if r not in settings[vers]["remappings"]]
-                for new_remapping in new_mappings:
-                    settings[vers]["remappings"].append(new_remapping)
+            if remappings:
+                version_settings["remappings"] = remappings
 
-            elif remappings:
-                settings[vers]["remappings"] = remappings
+            settings[vers] = version_settings
 
         return settings
 
@@ -220,6 +218,7 @@ class SolidityCompiler(CompilerAPI):
         }
         arguments_map = {}
         for solc_version, sources in version_map.items():
+            cleaned_version = solc_version.truncate()
             import_remappings = self.get_import_remapping(base_path=base_path)
             remappings_kept = set()
             if import_remappings:
@@ -239,7 +238,8 @@ class SolidityCompiler(CompilerAPI):
 
             arguments = {
                 **base_arguments,
-                "solc_version": solc_version,
+                "solc_binary": get_executable(cleaned_version),
+                "solc_version": cleaned_version,
             }
 
             if solc_version >= Version("0.6.9"):
@@ -363,7 +363,6 @@ class SolidityCompiler(CompilerAPI):
             return source_id_value
 
         imports_dict: Dict[str, List[str]] = {}
-
         for src_path, import_strs in get_import_lines(contract_filepaths_set).items():
             import_set = set()
             for import_str in import_strs:
@@ -401,7 +400,8 @@ class SolidityCompiler(CompilerAPI):
             if specified_version not in self.installed_versions:
                 solcx.install_solc(specified_version)
 
-            return {specified_version: source_paths_to_get}
+            specified_version_with_commit_hash = get_version_with_commit_hash(specified_version)
+            return {specified_version_with_commit_hash: source_paths_to_get}
 
         # else: find best version per source file
 
@@ -469,7 +469,7 @@ class SolidityCompiler(CompilerAPI):
                     if not files_by_solc_version[solc_version]:
                         del files_by_solc_version[solc_version]
 
-        return files_by_solc_version
+        return {get_version_with_commit_hash(v): ls for v, ls in files_by_solc_version.items()}
 
     def _get_imported_source_paths(
         self,
