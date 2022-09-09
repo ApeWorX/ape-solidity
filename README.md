@@ -1,10 +1,10 @@
-# Ape Solidity
+# Quick Start
 
 Compile Solidity contracts.
 
 ## Dependencies
 
-* [python3](https://www.python.org/downloads) version 3.7.2 or greater, python3-dev
+* [python3](https://www.python.org/downloads) version 3.8 or greater, python3-dev
 
 ## Installation
 
@@ -85,12 +85,3 @@ for compiler_entry in manifest.compilers:
 ```
 
 **NOTE**: These are the settings used during contract verification when using the [Etherscan plugin](https://github.com/ApeWorX/ape-etherscan).
-
-## Development
-
-Please see the [contributing guide](CONTRIBUTING.md) to learn more how to contribute to this project.
-Comments, questions, criticisms and pull requests are welcomed.
-
-## License
-
-This project is licensed under the [Apache 2.0](LICENSE).
