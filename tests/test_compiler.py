@@ -189,20 +189,21 @@ def test_get_version_map_raises_on_non_solidity_sources(compiler, vyper_source_p
 
 def test_compiler_data_in_manifest(project):
     manifest = project.extract_manifest()
-    compilers = manifest.compilers
+    compilers = [c for c in manifest.compilers if c.name == "solidity"]
+    latest_version = max(c.version for c in compilers)
 
-    compiler_0816 = [c for c in compilers if str(c.version) == "0.8.16+commit.07a7930e"][0]
+    compiler_latest = [c for c in compilers if str(c.version) == latest_version][0]
     compiler_0812 = [c for c in compilers if str(c.version) == "0.8.12+commit.f00d7308"][0]
     compiler_0612 = [c for c in compilers if str(c.version) == "0.6.12+commit.27d51765"][0]
     compiler_0426 = [c for c in compilers if str(c.version) == "0.4.26+commit.4563c3fc"][0]
 
     # Compiler name test
-    for compiler in (compiler_0816, compiler_0812, compiler_0612, compiler_0426):
+    for compiler in (compiler_latest, compiler_0812, compiler_0612, compiler_0426):
         assert compiler.name == "solidity"
 
     # Compiler settings test
     expected_optimizer = {"enabled": True, "runs": 200}
-    assert compiler_0816.settings["optimizer"] == expected_optimizer
+    assert compiler_latest.settings["optimizer"] == expected_optimizer
     assert compiler_0812.settings["optimizer"] == expected_optimizer
     assert compiler_0612.settings["optimizer"] == expected_optimizer
     assert compiler_0426.settings["optimizer"] == expected_optimizer
@@ -218,7 +219,7 @@ def test_compiler_data_in_manifest(project):
         "@brownie=.cache/BrownieDependency/local",
         "@dependency_remapping=.cache/TestDependencyOfDependency/local",
     }
-    assert compiler_0816.settings["remappings"] == expected_remappings
+    assert compiler_latest.settings["remappings"] == expected_remappings
     # 0.4.26 should have absolute paths here due to lack of base_path
     assert (
         f"@remapping/contracts={project.contracts_folder}/{common_suffix}"
@@ -253,7 +254,7 @@ def test_get_versions(compiler, project):
     versions = compiler.get_versions(project.source_paths)
     assert versions == {
         "0.8.14",
-        "0.8.16",
+        "0.8.17",
         "0.6.12",
         "0.4.26",
         "0.5.16",
