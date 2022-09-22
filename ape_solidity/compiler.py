@@ -96,7 +96,7 @@ class SolidityCompiler(CompilerAPI):
                 self._import_remapping_hash,
                 self._cached_project_path == self.project_manager.path,
                 self._import_remapping_hash == hash(items_tuple),
-                contracts_cache.exists(),
+                contracts_cache.is_dir(),
             )
         ):
             return self._cached_import_map
