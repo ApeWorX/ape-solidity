@@ -1,4 +1,3 @@
-import json
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Union, cast
@@ -78,25 +77,25 @@ class SolidityCompiler(CompilerAPI):
         """
         base_path = base_path or self.project_manager.contracts_folder
         import_map: Dict[str, str] = {}
-        items = self.config.import_remapping
+        remappings = self.config.import_remapping
 
-        if not items:
+        if not remappings:
             return import_map
 
-        elif not isinstance(items, (list, tuple)) or not isinstance(items[0], str):
+        elif not isinstance(remappings, (list, tuple)) or not isinstance(remappings[0], str):
             raise IncorrectMappingFormatError()
 
         contracts_cache = base_path / ".cache"
 
         # Convert to tuple for hashing, check if there's been a change
-        items_tuple = tuple(items)
+        remappings_tuple = tuple(remappings)
         if all(
             (
                 self._cached_project_path,
                 self._import_remapping_hash,
                 self._cached_project_path == self.project_manager.path,
-                self._import_remapping_hash == hash(items_tuple),
-                contracts_cache.exists(),
+                self._import_remapping_hash == hash(remappings_tuple),
+                contracts_cache.is_dir(),
             )
         ):
             return self._cached_import_map
@@ -107,7 +106,7 @@ class SolidityCompiler(CompilerAPI):
         # This only happens if calling this method before compiling in ape core.
         _ = self.project_manager.dependencies
 
-        for item in items:
+        for item in remappings:
             item_parts = item.split("=")
             if len(item_parts) != 2:
                 raise IncorrectMappingFormatError()
@@ -126,7 +125,7 @@ class SolidityCompiler(CompilerAPI):
 
             data_folder_cache = packages_cache / suffix
 
-            if len(suffix.parents) == 1 and data_folder_cache.exists():
+            if len(suffix.parents) == 1 and data_folder_cache.is_dir():
                 # The user did not specify a version_id suffix in their mapping.
                 # We try to smartly figure one out, else error.
                 version_ids = [d.name for d in data_folder_cache.iterdir()]
@@ -146,24 +145,24 @@ class SolidityCompiler(CompilerAPI):
 
             # Re-build a downloaded dependency manifest into the .cache directory for imports.
             sub_contracts_cache = contracts_cache / suffix
-            if not sub_contracts_cache.exists() or not list(sub_contracts_cache.iterdir()):
+            if not sub_contracts_cache.is_dir() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"
-                if not cached_manifest_file.exists():
+                if not cached_manifest_file.is_file():
                     logger.warning(f"Unable to find dependency '{suffix}'.")
 
                 else:
-                    manifest = PackageManifest(**json.loads(cached_manifest_file.read_text()))
+                    manifest = PackageManifest.parse_raw(cached_manifest_file.read_text())
                     sub_contracts_cache.mkdir(parents=True)
                     sources = manifest.sources or {}
-                    for source_name, source in sources.items():
+                    for source_name, src in sources.items():
                         cached_source = sub_contracts_cache / source_name
 
                         # NOTE: Cached source may included sub-directories.
                         cached_source.parent.mkdir(parents=True, exist_ok=True)
 
-                        if source.content:
+                        if src.content:
                             cached_source.touch()
-                            cached_source.write_text(source.content)
+                            cached_source.write_text(src.content)
 
             sub_contracts_cache = (
                 get_relative_path(sub_contracts_cache, base_path)
@@ -175,7 +174,7 @@ class SolidityCompiler(CompilerAPI):
         # Update cache and hash
         self._cached_project_path = self.project_manager.path
         self._cached_import_map = import_map
-        self._import_remapping_hash = hash(items_tuple)
+        self._import_remapping_hash = hash(remappings_tuple)
 
         return import_map
 
@@ -327,9 +326,10 @@ class SolidityCompiler(CompilerAPI):
     def get_imports(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> Dict[str, List[str]]:
-        contract_filepaths_set = verify_contract_filepaths(contract_filepaths)
+        # NOTE: Process import remappings _before_ getting the full contract set.
         contracts_path = base_path or self.config_manager.contracts_folder
         import_remapping = self.get_import_remapping(base_path=contracts_path)
+        contract_filepaths_set = verify_contract_filepaths(contract_filepaths)
 
         def import_str_to_source_id(_import_str: str, source_path: Path) -> str:
             quote = '"' if '"' in _import_str else "'"
@@ -379,6 +379,9 @@ class SolidityCompiler(CompilerAPI):
         contract_filepaths: Union[Path, List[Path]],
         base_path: Optional[Path] = None,
     ) -> Dict[Version, Set[Path]]:
+        #  Ensure `.cache` folder is built before getting version map.
+        _ = self.get_import_remapping(base_path=base_path)
+
         if not isinstance(contract_filepaths, (list, tuple)):
             contract_filepaths = [contract_filepaths]
 
