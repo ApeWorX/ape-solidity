@@ -126,7 +126,7 @@ class SolidityCompiler(CompilerAPI):
 
             data_folder_cache = packages_cache / suffix
 
-            if len(suffix.parents) == 1 and data_folder_cache.exists():
+            if len(suffix.parents) == 1 and data_folder_cache.is_dir():
                 # The user did not specify a version_id suffix in their mapping.
                 # We try to smartly figure one out, else error.
                 version_ids = [d.name for d in data_folder_cache.iterdir()]
@@ -146,9 +146,9 @@ class SolidityCompiler(CompilerAPI):
 
             # Re-build a downloaded dependency manifest into the .cache directory for imports.
             sub_contracts_cache = contracts_cache / suffix
-            if not sub_contracts_cache.exists() or not list(sub_contracts_cache.iterdir()):
+            if not sub_contracts_cache.is_dir() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"
-                if not cached_manifest_file.exists():
+                if not cached_manifest_file.is_file():
                     logger.warning(f"Unable to find dependency '{suffix}'.")
 
                 else:
