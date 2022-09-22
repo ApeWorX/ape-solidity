@@ -1,4 +1,5 @@
 import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -159,6 +160,10 @@ def test_version_specified_in_config_file(compiler, config):
 def test_get_version_map(project, compiler):
     # Files are selected in order to trigger `CompilesOnce.sol` to
     # get removed from version '0.8.12'.
+    cache_folder = project.contracts_folder / ".cache"
+    if cache_folder.is_dir():
+        shutil.rmtree(cache_folder)
+
     file_paths = [
         project.contracts_folder / "ImportSourceWithEqualSignVersion.sol",
         project.contracts_folder / "SpecificVersionNoPrefix.sol",
@@ -167,7 +172,14 @@ def test_get_version_map(project, compiler):
     ]
     version_map = compiler.get_version_map(file_paths)
     assert len(version_map) == 2
-    assert all([f in version_map[Version("0.8.12+commit.f00d7308")] for f in file_paths[:-1]])
+
+    expected_version = Version("0.8.12+commit.f00d7308")
+    latest_version = [v for v in version_map if v != expected_version][0]
+    assert all([f in version_map[expected_version] for f in file_paths[:-1]])
+
+    latest_version_sources = version_map[latest_version]
+    assert len(latest_version_sources) == 6, "Did the import remappings load correctly?"
+    assert file_paths[-1] in latest_version_sources
 
     # Will fail if the import remappings have not loaded yet.
     assert all([f.is_file() for f in file_paths])
