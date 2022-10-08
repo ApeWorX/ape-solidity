@@ -18,25 +18,20 @@ def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
     for filepath in source_paths:
         import_set = set()
         source_lines = filepath.read_text().splitlines()
+
         line_number = 0
-        for ln in source_lines:
-            if not ln.startswith("import"):
-                continue
+        while line_number < len(source_lines):
+            ln = source_lines[line_number]
 
-            if ";" in ln:
-                import_str = ln
+            if ln.startswith("import"):
+                import_str = ln.strip()
+                while ";" not in source_lines[line_number]:
+                    # Is multi-line.
+                    line_number += 1
+                    import_str += f" {source_lines[line_number].strip()}"
 
-            else:
-                # Is multi-line.
-                import_str = ln
-                start_index = line_number + 1
-                for next_ln in source_lines[start_index:]:
-                    import_str += f" {next_ln.strip()}"
+                import_set.add(import_str)
 
-                    if ";" in next_ln:
-                        break
-
-            import_set.add(import_str)
             line_number += 1
 
         imports_dict[filepath] = list(import_set)
