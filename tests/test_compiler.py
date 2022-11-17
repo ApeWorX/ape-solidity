@@ -111,6 +111,8 @@ def test_get_imports(project, compiler):
         ".cache/TestDependency/local/Dependency.sol",
         "subfolder/Relativecontract.sol",
         ".cache/BrownieDependency/local/BrownieContract.sol",
+        "MissingPragma.sol",
+        "NumerousDefinitions.sol",
     }
     assert set(contract_imports) == expected
 
@@ -187,7 +189,7 @@ def test_get_version_map(project, compiler):
     assert all([f in version_map[expected_version] for f in file_paths[:-1]])
 
     latest_version_sources = version_map[latest_version]
-    assert len(latest_version_sources) == 6, "Did the import remappings load correctly?"
+    assert len(latest_version_sources) == 8, "Did the import remappings load correctly?"
     assert file_paths[-1] in latest_version_sources
 
     # Will fail if the import remappings have not loaded yet.

@@ -339,7 +339,14 @@ class SolidityCompiler(CompilerAPI):
 
         def import_str_to_source_id(_import_str: str, source_path: Path) -> str:
             quote = '"' if '"' in _import_str else "'"
-            end_index = _import_str.index(quote) + 1
+
+            try:
+                end_index = _import_str.index(quote) + 1
+            except ValueError as err:
+                raise CompilerError(
+                    f"Error parsing import statement '{_import_str}' in '{source_path.name}'."
+                ) from err
+
             import_str_prefix = _import_str[end_index:]
             import_str_value = import_str_prefix[: import_str_prefix.index(quote)]
             path = (source_path.parent / import_str_value).resolve()

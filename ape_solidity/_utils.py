@@ -18,23 +18,20 @@ def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
     for filepath in source_paths:
         import_set = set()
         source_lines = filepath.read_text().splitlines()
-        line_number = 0
-        for ln in source_lines:
+        num_lines = len(source_lines)
+        for line_number, ln in enumerate(source_lines):
             if not ln.startswith("import"):
                 continue
 
-            if ";" in ln:
-                import_str = ln
+            import_str = ln
+            second_line_number = line_number
+            while ";" not in import_str:
+                second_line_number += 1
+                if second_line_number >= num_lines:
+                    raise CompilerError("Import statement missing semicolon.")
 
-            else:
-                # Is multi-line.
-                import_str = ln
-                start_index = line_number + 1
-                for next_ln in source_lines[start_index:]:
-                    import_str += f" {next_ln.strip()}"
-
-                    if ";" in next_ln:
-                        break
+                next_line = source_lines[second_line_number]
+                import_str += f" {next_line.strip()}"
 
             import_set.add(import_str)
             line_number += 1
