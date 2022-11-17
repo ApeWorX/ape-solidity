@@ -13,7 +13,7 @@ extras_require = {
         "black>=22.10.0,<23.0",  # auto-formatter and linter
         "mypy==0.982",  # Static type analyzer
         "types-requests",  # Needed due to mypy typeshed
-        "types-pkg-resources",  # Needed due to mypy typeshed
+        "types-setuptools",  # Needed due to mypy typeshed
         "flake8>=5.0.4",  # Style linter
         "isort>=5.10.1",  # Import sorting linter
     ],
