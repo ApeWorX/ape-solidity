@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
@@ -190,13 +190,13 @@ class SolidityCompiler(CompilerAPI):
         settings: Dict = {}
         for vers, arguments in compiler_args.items():
             sources = files_by_solc_version[vers]
-            version_settings = {
+            version_settings: Dict[str, Union[Any, List[Any]]] = {
                 "optimizer": {"enabled": arguments.get("optimize", False), "runs": 200},
                 "outputSelection": {
                     p.name: {p.stem: arguments.get("output_values", [])} for p in sources
                 },
             }
-            remappings = arguments.get("import_remappings")
+            remappings: List[str] = arguments.get("import_remappings", [])
             if remappings:
                 version_settings["remappings"] = list(remappings)
 
