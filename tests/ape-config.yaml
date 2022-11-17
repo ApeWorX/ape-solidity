@@ -17,3 +17,6 @@ solidity:
 
     # NOTE: Currently have to specify dependency-remappings of dependencies
     - "@dependency_remapping=TestDependencyOfDependency/local"
+
+  # Using evm_version compatible with older and newer solidity versions.
+  evm_version: constantinople

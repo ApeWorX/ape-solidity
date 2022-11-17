@@ -223,12 +223,8 @@ def test_compiler_data_in_manifest(project):
     # Compiler name test
     for compiler in (compiler_latest, compiler_0812, compiler_0612, compiler_0426):
         assert compiler.name == "solidity"
-
-    # Compiler settings test
-    assert compiler_latest.settings["optimizer"] == DEFAULT_OPTIMIZER
-    assert compiler_0812.settings["optimizer"] == DEFAULT_OPTIMIZER
-    assert compiler_0612.settings["optimizer"] == DEFAULT_OPTIMIZER
-    assert compiler_0426.settings["optimizer"] == DEFAULT_OPTIMIZER
+        assert compiler.settings["optimizer"] == DEFAULT_OPTIMIZER
+        assert compiler.settings["evmVersion"] == "constantinople"
 
     # No remappings for sources in the following compilers
     assert "remappings" not in compiler_0812.settings
@@ -334,3 +330,7 @@ def test_get_compiler_settings(compiler, project):
     # to contract verification.
     for key, output_json_dict in actual.items():
         assert json.dumps(output_json_dict)
+
+
+def test_evm_version(compiler):
+    assert compiler.config.evm_version == "constantinople"
