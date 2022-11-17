@@ -233,13 +233,13 @@ def test_compiler_data_in_manifest(project):
     assert "remappings" not in compiler_0612.settings
 
     common_suffix = ".cache/TestDependency/local"
-    expected_remappings = {
+    expected_remappings = (
         f"@remapping/contracts={common_suffix}",
         f"@remapping_2={common_suffix}",
         "@brownie=.cache/BrownieDependency/local",
         "@dependency_remapping=.cache/TestDependencyOfDependency/local",
-    }
-    assert compiler_latest.settings["remappings"] == expected_remappings
+    )
+    assert all(x in compiler_latest.settings["remappings"] for x in expected_remappings)
     # 0.4.26 should have absolute paths here due to lack of base_path
     assert (
         f"@remapping/contracts={project.contracts_folder}/{common_suffix}"
