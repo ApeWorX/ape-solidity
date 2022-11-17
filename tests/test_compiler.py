@@ -1,3 +1,4 @@
+import json
 import re
 import shutil
 from pathlib import Path
@@ -21,6 +22,14 @@ EXPECTED_NON_SOLIDITY_ERR_MSG = "Unable to compile 'RandomVyperFile.vy' using So
 # These are tested elsewhere, not in `test_compile`.
 normal_test_skips = ("DifferentNameThanFile", "MultipleDefinitions", "RandomVyperFile")
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
+DEFAULT_OUTPUT_SELECTION = (
+    "abi",
+    "bin",
+    "bin-runtime",
+    "devdoc",
+    "userdoc",
+)
+DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
 
 
 @pytest.mark.parametrize(
@@ -214,11 +223,10 @@ def test_compiler_data_in_manifest(project):
         assert compiler.name == "solidity"
 
     # Compiler settings test
-    expected_optimizer = {"enabled": True, "runs": 200}
-    assert compiler_latest.settings["optimizer"] == expected_optimizer
-    assert compiler_0812.settings["optimizer"] == expected_optimizer
-    assert compiler_0612.settings["optimizer"] == expected_optimizer
-    assert compiler_0426.settings["optimizer"] == expected_optimizer
+    assert compiler_latest.settings["optimizer"] == DEFAULT_OPTIMIZER
+    assert compiler_0812.settings["optimizer"] == DEFAULT_OPTIMIZER
+    assert compiler_0612.settings["optimizer"] == DEFAULT_OPTIMIZER
+    assert compiler_0426.settings["optimizer"] == DEFAULT_OPTIMIZER
 
     # No remappings for sources in the following compilers
     assert "remappings" not in compiler_0812.settings
@@ -272,3 +280,55 @@ def test_get_versions(compiler, project):
         "0.5.16",
         "0.8.12",
     }
+
+
+def test_get_compiler_settings(compiler, project):
+    source_a = "ImportSourceWithEqualSignVersion.sol"
+    source_b = "SpecificVersionNoPrefix.sol"
+    source_c = "CompilesOnce.sol"
+    source_d = "Imports.sol"  # Uses mapped imports!
+    indirect_source = "SpecificVersionWithEqualSign.sol"
+    file_paths = [project.contracts_folder / x for x in (source_a, source_b, source_c, source_d)]
+    actual = compiler.get_compiler_settings(file_paths)
+    v812 = Version("0.8.12+commit.f00d7308")
+    v817 = Version("0.8.17+commit.8df45f5f")
+    expected_remappings = (
+        "@remapping/contracts=.cache/TestDependency/local",
+        "@brownie=.cache/BrownieDependency/local",
+        "@dependency_remapping=.cache/TestDependencyOfDependency/local",
+        "@remapping_2=.cache/TestDependency/local",
+    )
+    expected_v812_contracts = (source_a, source_b, source_c, indirect_source)
+    expected_v817_contracts = (
+        "BrownieContract.sol",
+        "CompilesOnce.sol",
+        "Dependency.sol",
+        "DependencyOfDependency.sol",
+        source_d,
+        "Relativecontract.sol",
+    )
+
+    # Shared compiler defaults tests
+    expected_source_lists = (expected_v812_contracts, expected_v817_contracts)
+    for version, expected_sources in zip((v812, v817), expected_source_lists):
+        output_selection = actual[version]["outputSelection"]
+        assert actual[version]["optimizer"] == DEFAULT_OPTIMIZER
+        for source_key, item_selections in output_selection.items():
+            for item, selections in item_selections.items():
+                assert len(selections) == len(DEFAULT_OUTPUT_SELECTION)
+                assert all(x in selections for x in DEFAULT_OUTPUT_SELECTION)
+
+        actual_sources = [x for x in output_selection.keys()]
+        for expected_source_id in expected_sources:
+            assert expected_source_id in actual_sources
+
+    # Remappings test
+    actual_remappings = actual[v817]["remappings"]
+    assert isinstance(actual_remappings, list)
+    assert len(actual_remappings) == len(expected_remappings)
+    assert all(e in actual_remappings for e in expected_remappings)
+
+    # Tests against bug potentially preventing JSON decoding errors related
+    # to contract verification.
+    for key, output_json_dict in actual.items():
+        assert json.dumps(output_json_dict)

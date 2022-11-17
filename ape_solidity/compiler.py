@@ -198,7 +198,7 @@ class SolidityCompiler(CompilerAPI):
             }
             remappings = arguments.get("import_remappings")
             if remappings:
-                version_settings["remappings"] = remappings
+                version_settings["remappings"] = list(remappings)
 
             settings[vers] = version_settings
 
