@@ -199,6 +199,7 @@ class SolidityCompiler(CompilerAPI):
             }
             remappings: List[str] = arguments.get("import_remappings", [])
             if remappings:
+                # Standard JSON input requires remappings to be sorted.
                 version_settings["remappings"] = sorted(list(remappings))
 
             evm_version = arguments.get("evm_version")
