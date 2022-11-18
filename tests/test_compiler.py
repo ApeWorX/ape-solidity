@@ -237,7 +237,10 @@ def test_compiler_data_in_manifest(project):
         "@brownie=.cache/BrownieDependency/local",
         "@dependency_remapping=.cache/TestDependencyOfDependency/local",
     )
-    assert all(x in compiler_latest.settings["remappings"] for x in expected_remappings)
+    actual_remappings = compiler_latest.settings["remappings"]
+    assert all(x in actual_remappings for x in expected_remappings)
+    assert all(b >= a for a, b in zip(actual_remappings, actual_remappings[1:]))
+
     # 0.4.26 should have absolute paths here due to lack of base_path
     assert (
         f"@remapping/contracts={project.contracts_folder}/{common_suffix}"
@@ -325,6 +328,7 @@ def test_get_compiler_settings(compiler, project):
     assert isinstance(actual_remappings, list)
     assert len(actual_remappings) == len(expected_remappings)
     assert all(e in actual_remappings for e in expected_remappings)
+    assert all(b >= a for a, b in zip(actual_remappings, actual_remappings[1:]))
 
     # Tests against bug potentially preventing JSON decoding errors related
     # to contract verification.

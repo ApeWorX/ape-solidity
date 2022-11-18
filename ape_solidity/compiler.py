@@ -199,7 +199,7 @@ class SolidityCompiler(CompilerAPI):
             }
             remappings: List[str] = arguments.get("import_remappings", [])
             if remappings:
-                version_settings["remappings"] = list(remappings)
+                version_settings["remappings"] = sorted(list(remappings))
 
             evm_version = arguments.get("evm_version")
             if evm_version:
