@@ -183,8 +183,19 @@ class SolidityCompiler(CompilerAPI):
     def get_compiler_settings(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> Dict[Version, Dict]:
+
+        # Currently needed because of a bug in Ape core 0.5.5.
+        only_files = []
+        for path in contract_filepaths:
+            if path.is_dir():
+                logger.error(
+                    f"Unable to get compiler settings for directory '{path.name}'. Skipping."
+                )
+            else:
+                only_files.append(path)
+
         base_path = base_path or self.config_manager.contracts_folder
-        files_by_solc_version = self.get_version_map(contract_filepaths, base_path=base_path)
+        files_by_solc_version = self.get_version_map(only_files, base_path=base_path)
         if not files_by_solc_version:
             return {}
 
