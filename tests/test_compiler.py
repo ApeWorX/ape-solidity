@@ -9,11 +9,13 @@ from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
 from semantic_version import Version  # type: ignore
 
+from ape_solidity import Extension
+
 BASE_PATH = Path(__file__).parent / "contracts"
 TEST_CONTRACT_PATHS = [
     p
     for p in BASE_PATH.iterdir()
-    if ".cache" not in str(p) and not p.is_dir() and p.suffix == ".sol"
+    if ".cache" not in str(p) and not p.is_dir() and p.suffix == Extension.SOL.value
 ]
 TEST_CONTRACTS = [str(p.stem) for p in TEST_CONTRACT_PATHS]
 PATTERN_REQUIRING_COMMIT_HASH = re.compile(r"\d+\.\d+\.\d+\+commit\.[\d|a-f]+")

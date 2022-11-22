@@ -16,6 +16,7 @@ from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.install import get_executable  # type: ignore
 
 from ape_solidity._utils import (
+    Extension,
     get_import_lines,
     get_pragma_spec,
     get_version_with_commit_hash,
@@ -401,7 +402,11 @@ class SolidityCompiler(CompilerAPI):
 
         base_path = base_path or self.project_manager.contracts_folder
         contract_filepaths_set = verify_contract_filepaths(contract_filepaths)
-        sources = [p for p in self.project_manager.source_paths if p.suffix == ".sol"]
+        sources = [
+            p
+            for p in self.project_manager.source_paths
+            if p.is_file() and p.suffix == Extension.SOL.value
+        ]
         imports = self.get_imports(sources, base_path)
 
         # Add imported source files to list of contracts to compile.

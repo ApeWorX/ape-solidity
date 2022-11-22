@@ -9,6 +9,8 @@ import ape
 import pytest
 import solcx  # type: ignore
 
+from ape_solidity.compiler import Extension
+
 # NOTE: Ensure that we don't use local paths for these
 ape.config.DATA_FOLDER = Path(mkdtemp()).resolve()
 ape.config.PROJECT_FOLDER = Path(mkdtemp()).resolve()
@@ -93,7 +95,7 @@ def project(config):
 
 @pytest.fixture
 def compiler():
-    return ape.compilers.registered_compilers[".sol"]
+    return ape.compilers.registered_compilers[Extension.SOL.value]
 
 
 @pytest.fixture
