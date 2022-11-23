@@ -16,6 +16,7 @@ from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.install import get_executable  # type: ignore
 
 from ape_solidity._utils import (
+    Extension,
     get_import_lines,
     get_pragma_spec,
     get_version_with_commit_hash,
@@ -182,8 +183,19 @@ class SolidityCompiler(CompilerAPI):
     def get_compiler_settings(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> Dict[Version, Dict]:
+
+        # Currently needed because of a bug in Ape core 0.5.5.
+        only_files = []
+        for path in contract_filepaths:
+            if path.is_dir():
+                logger.error(
+                    f"Unable to get compiler settings for directory '{path.name}'. Skipping."
+                )
+            else:
+                only_files.append(path)
+
         base_path = base_path or self.config_manager.contracts_folder
-        files_by_solc_version = self.get_version_map(contract_filepaths, base_path=base_path)
+        files_by_solc_version = self.get_version_map(only_files, base_path=base_path)
         if not files_by_solc_version:
             return {}
 
@@ -401,7 +413,11 @@ class SolidityCompiler(CompilerAPI):
 
         base_path = base_path or self.project_manager.contracts_folder
         contract_filepaths_set = verify_contract_filepaths(contract_filepaths)
-        sources = [p for p in self.project_manager.source_paths if p.suffix == ".sol"]
+        sources = [
+            p
+            for p in self.project_manager.source_paths
+            if p.is_file() and p.suffix == Extension.SOL.value
+        ]
         imports = self.get_imports(sources, base_path)
 
         # Add imported source files to list of contracts to compile.

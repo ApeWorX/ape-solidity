@@ -1,6 +1,7 @@
 import json
 import re
 import subprocess
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
@@ -10,6 +11,10 @@ from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
 from solcx.wrapper import VERSION_REGEX  # type: ignore
+
+
+class Extension(Enum):
+    SOL = ".sol"
 
 
 def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
@@ -97,7 +102,7 @@ def get_version_with_commit_hash(version: Union[str, Version]) -> Version:
 
 
 def verify_contract_filepaths(contract_filepaths: List[Path]) -> Set[Path]:
-    invalid_files = [p.name for p in contract_filepaths if p.suffix != ".sol"]
+    invalid_files = [p.name for p in contract_filepaths if p.suffix != Extension.SOL.value]
     if not invalid_files:
         return set(contract_filepaths)
 
