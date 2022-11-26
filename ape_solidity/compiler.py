@@ -13,6 +13,7 @@ from packaging.version import InvalidVersion
 from packaging.version import Version as _Version
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
+from solcx.exceptions import SolcError
 from solcx.install import get_executable  # type: ignore
 
 from ape_solidity._utils import (
@@ -153,7 +154,7 @@ class SolidityCompiler(CompilerAPI):
                     logger.warning(f"Unable to find dependency '{suffix}'.")
 
                 else:
-                    manifest = PackageManifest.parse_raw(cached_manifest_file.read_text())
+                    manifest = PackageManifest.parse_file(cached_manifest_file)
                     sub_contracts_cache.mkdir(parents=True)
                     sources = manifest.sources or {}
                     for source_name, src in sources.items():
@@ -290,7 +291,11 @@ class SolidityCompiler(CompilerAPI):
                 continue
 
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
-            output = solcx.compile_files(files, **arguments)
+
+            try:
+                output = solcx.compile_files(files, **arguments)
+            except SolcError as err:
+                raise CompilerError(str(err)) from err
 
             def parse_contract_name(value: str) -> Tuple[Path, str]:
                 parts = value.split(":")
