@@ -254,12 +254,7 @@ class SolidityCompiler(CompilerAPI):
                 )
                 for source in resolved_remapped_sources:
                     parent_key = os.path.sep.join(source.split(os.path.sep)[:3])
-
                     for k, v in [(k, v) for k, v in import_remappings.items() if parent_key in v]:
-
-                        if "0.6.12" in str(solc_version):
-                            breakpoint()
-
                         remappings_kept.add(f"{k}={v}")
 
             arguments = {
