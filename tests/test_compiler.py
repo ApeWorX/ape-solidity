@@ -286,7 +286,6 @@ def test_get_versions(compiler, project):
         "0.6.12",
         "0.4.26",
         "0.5.16",
-        "0.7.6",
         "0.8.12",
     }
 
