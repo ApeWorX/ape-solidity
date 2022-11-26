@@ -1,4 +1,5 @@
 import os
+from copy import copy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
@@ -13,7 +14,7 @@ from packaging.version import InvalidVersion
 from packaging.version import Version as _Version
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
-from solcx.exceptions import SolcError
+from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
 
 from ape_solidity._utils import (
@@ -236,9 +237,10 @@ class SolidityCompiler(CompilerAPI):
             "evm_version": self.config.evm_version,
         }
         arguments_map = {}
+        global_import_remappings = self.get_import_remapping(base_path=base_path)
         for solc_version, sources in version_map.items():
             cleaned_version = solc_version.truncate()
-            import_remappings = self.get_import_remapping(base_path=base_path)
+            import_remappings = copy(global_import_remappings)
             remappings_kept = set()
             if import_remappings:
                 # Filter out unused import remappings
@@ -252,7 +254,12 @@ class SolidityCompiler(CompilerAPI):
                 )
                 for source in resolved_remapped_sources:
                     parent_key = os.path.sep.join(source.split(os.path.sep)[:3])
+
                     for k, v in [(k, v) for k, v in import_remappings.items() if parent_key in v]:
+
+                        if "0.6.12" in str(solc_version):
+                            breakpoint()
+
                         remappings_kept.add(f"{k}={v}")
 
             arguments = {

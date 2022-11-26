@@ -109,12 +109,13 @@ def test_get_imports(project, compiler):
     assert type(contract_imports) == list
     # NOTE: in case order changes
     expected = {
-        "CompilesOnce.sol",
-        ".cache/TestDependency/local/Dependency.sol",
-        "subfolder/Relativecontract.sol",
         ".cache/BrownieDependency/local/BrownieContract.sol",
+        ".cache/BrownieStyleDependency/local/BrownieStyleDependency.sol",
+        ".cache/TestDependency/local/Dependency.sol",
+        "CompilesOnce.sol",
         "MissingPragma.sol",
         "NumerousDefinitions.sol",
+        "subfolder/Relativecontract.sol",
     }
     assert set(contract_imports) == expected
 
@@ -127,10 +128,11 @@ def test_get_imports_raises_when_non_solidity_files(compiler, vyper_source_path)
 def test_get_import_remapping(compiler, project, config):
     import_remapping = compiler.get_import_remapping()
     assert import_remapping == {
-        "@remapping/contracts": ".cache/TestDependency/local",
-        "@remapping_2": ".cache/TestDependency/local",
         "@brownie": ".cache/BrownieDependency/local",
         "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
+        "@remapping_2": ".cache/TestDependency/local",
+        "@remapping/contracts": ".cache/TestDependency/local",
+        "@styleofbrownie": ".cache/BrownieStyleDependency/local",
     }
 
     with config.using_project(project.path / "ProjectWithinProject") as proj:
@@ -191,7 +193,7 @@ def test_get_version_map(project, compiler):
     assert all([f in version_map[expected_version] for f in file_paths[:-1]])
 
     latest_version_sources = version_map[latest_version]
-    assert len(latest_version_sources) == 8, "Did the import remappings load correctly?"
+    assert len(latest_version_sources) == 9, "Did the import remappings load correctly?"
     assert file_paths[-1] in latest_version_sources
 
     # Will fail if the import remappings have not loaded yet.
@@ -234,10 +236,11 @@ def test_compiler_data_in_manifest(project):
 
     common_suffix = ".cache/TestDependency/local"
     expected_remappings = (
-        f"@remapping/contracts={common_suffix}",
-        f"@remapping_2={common_suffix}",
         "@brownie=.cache/BrownieDependency/local",
         "@dependency_remapping=.cache/TestDependencyOfDependency/local",
+        f"@remapping_2={common_suffix}",
+        f"@remapping/contracts={common_suffix}",
+        "@styleofbrownie=.cache/BrownieStyleDependency/local",
     )
     actual_remappings = compiler_latest.settings["remappings"]
     assert all(x in actual_remappings for x in expected_remappings)
@@ -283,6 +286,7 @@ def test_get_versions(compiler, project):
         "0.6.12",
         "0.4.26",
         "0.5.16",
+        "0.7.6",
         "0.8.12",
     }
 
@@ -298,10 +302,11 @@ def test_get_compiler_settings(compiler, project):
     v812 = Version("0.8.12+commit.f00d7308")
     v817 = Version("0.8.17+commit.8df45f5f")
     expected_remappings = (
-        "@remapping/contracts=.cache/TestDependency/local",
         "@brownie=.cache/BrownieDependency/local",
         "@dependency_remapping=.cache/TestDependencyOfDependency/local",
         "@remapping_2=.cache/TestDependency/local",
+        "@remapping/contracts=.cache/TestDependency/local",
+        "@styleofbrownie=.cache/BrownieStyleDependency/local",
     )
     expected_v812_contracts = (source_a, source_b, source_c, indirect_source)
     expected_v817_contracts = (

@@ -77,6 +77,7 @@ def project(config):
     for path in (
         project_path,
         project_path / "BrownieProject",
+        project_path / "BrownieStyleDependency",
         project_path / "Dependency",
         project_path / "DependencyOfDependency",
         project_path / "ProjectWithinProject",
