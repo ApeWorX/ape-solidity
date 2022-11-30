@@ -151,7 +151,10 @@ class SolidityCompiler(CompilerAPI):
             sub_contracts_cache = contracts_cache / suffix
             if not sub_contracts_cache.is_dir() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"
-                if cached_manifest_file.is_file():
+                if not cached_manifest_file.is_file():
+                    logger.debug(f"Unable to find dependency '{suffix}'.")
+
+                else:
                     manifest = PackageManifest.parse_file(cached_manifest_file)
                     sub_contracts_cache.mkdir(parents=True)
                     sources = manifest.sources or {}
