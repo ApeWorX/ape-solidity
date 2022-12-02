@@ -1,4 +1,5 @@
 import os
+from copy import copy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
@@ -13,6 +14,7 @@ from packaging.version import InvalidVersion
 from packaging.version import Version as _Version
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
+from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
 
 from ape_solidity._utils import (
@@ -150,10 +152,10 @@ class SolidityCompiler(CompilerAPI):
             if not sub_contracts_cache.is_dir() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{name}.json"
                 if not cached_manifest_file.is_file():
-                    logger.warning(f"Unable to find dependency '{suffix}'.")
+                    logger.debug(f"Unable to find dependency '{suffix}'.")
 
                 else:
-                    manifest = PackageManifest.parse_raw(cached_manifest_file.read_text())
+                    manifest = PackageManifest.parse_file(cached_manifest_file)
                     sub_contracts_cache.mkdir(parents=True)
                     sources = manifest.sources or {}
                     for source_name, src in sources.items():
@@ -235,9 +237,10 @@ class SolidityCompiler(CompilerAPI):
             "evm_version": self.config.evm_version,
         }
         arguments_map = {}
+        global_import_remappings = self.get_import_remapping(base_path=base_path)
         for solc_version, sources in version_map.items():
             cleaned_version = solc_version.truncate()
-            import_remappings = self.get_import_remapping(base_path=base_path)
+            import_remappings = copy(global_import_remappings)
             remappings_kept = set()
             if import_remappings:
                 # Filter out unused import remappings
@@ -290,7 +293,11 @@ class SolidityCompiler(CompilerAPI):
                 continue
 
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
-            output = solcx.compile_files(files, **arguments)
+
+            try:
+                output = solcx.compile_files(files, **arguments)
+            except SolcError as err:
+                raise CompilerError(str(err)) from err
 
             def parse_contract_name(value: str) -> Tuple[Path, str]:
                 parts = value.split(":")
