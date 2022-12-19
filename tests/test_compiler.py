@@ -231,8 +231,12 @@ def test_compiler_data_in_manifest(project):
         assert compiler.settings["evmVersion"] == "constantinople"
 
     # No remappings for sources in the following compilers
-    assert "remappings" not in compiler_0812.settings
-    assert "remappings" not in compiler_0612.settings
+    assert (
+        "remappings" not in compiler_0812.settings
+    ), f"Remappings found: {compiler_0812.settings['remappings']}"
+    assert (
+        "remappings" not in compiler_0612.settings
+    ), f"Remappings found: {compiler_0612.settings['remappings']}"
 
     common_suffix = ".cache/TestDependency/local"
     expected_remappings = (
