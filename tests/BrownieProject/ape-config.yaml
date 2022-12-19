@@ -1,9 +1,0 @@
-contracts_folder: contracts
-dependencies:
-- github: OpenZeppelin/openzeppelin-contracts
-  name: OpenZeppelin
-  version: 4.8.0
-solidity:
-  import_remapping:
-  - '@openzeppelin/contracts=OpenZeppelin/4.8.0'
-  version: 0.8.12
