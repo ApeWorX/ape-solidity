@@ -147,9 +147,16 @@ def test_get_import_remapping(compiler, project, config):
 
 
 def test_brownie_project(compiler, config):
+    from ape import project
+
+    _ = project.contracts
+
     brownie_project_path = Path(__file__).parent / "BrownieProject"
     with config.using_project(brownie_project_path) as project:
         assert type(project.BrownieContract) == ContractContainer
+
+        # Ensure can access twice (to make sure caching does not break anything).
+        _ = project.BrownieContract
 
 
 def test_compile_single_source_with_no_imports(compiler, config):
