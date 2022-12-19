@@ -35,7 +35,8 @@ DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
 
 
 @pytest.mark.parametrize(
-    "contract", [c for c in TEST_CONTRACTS if all(n not in str(c) for n in normal_test_skips)]
+    "contract",
+    [c for c in TEST_CONTRACTS if all(n not in str(c) for n in normal_test_skips)],
 )
 def test_compile(project, contract):
     assert contract in project.contracts, ", ".join([n for n in project.contracts.keys()])
