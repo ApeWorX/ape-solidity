@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import subprocess
 from enum import Enum
@@ -7,14 +8,69 @@ from typing import Dict, List, Optional, Set, Union
 
 from ape.exceptions import CompilerError
 from ape.logging import logger
+from packaging.version import InvalidVersion
+from packaging.version import Version as _Version
+from pydantic import BaseModel, validator
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
 from solcx.wrapper import VERSION_REGEX  # type: ignore
 
+from ape_solidity.exceptions import IncorrectMappingFormatError
+
 
 class Extension(Enum):
     SOL = ".sol"
+
+
+class ImportRemapping(BaseModel):
+    entry: str
+
+    @validator("entry")
+    def validate_entry(cls, value):
+        if len((value or "").split("=")) != 2:
+            raise IncorrectMappingFormatError()
+
+        return value
+
+    @property
+    def _parts(self) -> List[str]:
+        return self.entry.split("=")
+
+    @property
+    def key(self) -> str:
+        return self._parts[0]
+
+    @property
+    def name(self) -> str:
+        suffix_str = self._parts[1]
+        return suffix_str.split(os.path.sep)[0]
+
+    @property
+    def package_id(self) -> Path:
+        suffix = Path(self._parts[1])
+
+        try:
+            _Version(suffix.name)
+            if not suffix.name.startswith("v"):
+                suffix = suffix.parent / f"v{suffix.name}"
+
+        except InvalidVersion:
+            pass
+
+        return suffix
+
+
+class ImportRemappingBuilder:
+    def __init__(self):
+        self.import_map: Dict[str, str] = {}
+
+    def add_entry(self, remapping: ImportRemapping):
+        path = remapping.package_id
+        if not str(path).startswith(f".cache{os.path.sep}"):
+            path = Path(".cache") / path
+
+        self.import_map[remapping.key] = str(path)
 
 
 def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:

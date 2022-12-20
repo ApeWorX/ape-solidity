@@ -1,7 +1,7 @@
 from ape.exceptions import ConfigError
 
 
-class IncorrectMappingFormatError(ConfigError):
+class IncorrectMappingFormatError(ConfigError, ValueError):
     def __init__(self):
         super().__init__(
             "Incorrectly formatted 'solidity.remapping' config property. "

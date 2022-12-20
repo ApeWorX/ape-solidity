@@ -1,4 +1,6 @@
+import json
 import os
+import re
 from copy import copy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
@@ -9,9 +11,6 @@ from ape.exceptions import CompilerError
 from ape.logging import logger
 from ape.types import ContractType
 from ape.utils import cached_property, get_relative_path
-from ethpm_types import PackageManifest
-from packaging.version import InvalidVersion
-from packaging.version import Version as _Version
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
@@ -19,6 +18,8 @@ from solcx.install import get_executable  # type: ignore
 
 from ape_solidity._utils import (
     Extension,
+    ImportRemapping,
+    ImportRemappingBuilder,
     get_import_lines,
     get_pragma_spec,
     get_version_with_commit_hash,
@@ -80,11 +81,11 @@ class SolidityCompiler(CompilerAPI):
         e.g. ``'@import_name=path/to/dependency'``.
         """
         base_path = base_path or self.project_manager.contracts_folder
-        import_map: Dict[str, str] = {}
+        builder = ImportRemappingBuilder()
         remappings = self.config.import_remapping
 
         if not remappings:
-            return import_map
+            return {}
 
         elif not isinstance(remappings, (list, tuple)) or not isinstance(remappings[0], str):
             raise IncorrectMappingFormatError()
@@ -111,25 +112,11 @@ class SolidityCompiler(CompilerAPI):
         _ = self.project_manager.dependencies
 
         for item in remappings:
-            item_parts = item.split("=")
-            if len(item_parts) != 2:
-                raise IncorrectMappingFormatError()
-
-            suffix_str = item_parts[1]
-            name = suffix_str.split(os.path.sep)[0]
-            suffix = Path(suffix_str)
-
-            try:
-                _Version(suffix.name)
-                if not suffix.name.startswith("v"):
-                    suffix = suffix.parent / f"v{suffix.name}"
-
-            except InvalidVersion:
-                pass
-
+            remapping_obj = ImportRemapping(entry=item)
+            suffix = remapping_obj.package_id
             data_folder_cache = packages_cache / suffix
 
-            if len(suffix.parents) == 1 and data_folder_cache.is_dir():
+            if len(Path(remapping_obj.package_id).parents) == 1 and data_folder_cache.is_dir():
                 # The user did not specify a version_id suffix in their mapping.
                 # We try to smartly figure one out, else error.
                 version_ids = [d.name for d in data_folder_cache.iterdir()]
@@ -150,37 +137,85 @@ class SolidityCompiler(CompilerAPI):
             # Re-build a downloaded dependency manifest into the .cache directory for imports.
             sub_contracts_cache = contracts_cache / suffix
             if not sub_contracts_cache.is_dir() or not list(sub_contracts_cache.iterdir()):
-                cached_manifest_file = data_folder_cache / f"{name}.json"
+                cached_manifest_file = data_folder_cache / f"{remapping_obj.name}.json"
                 if not cached_manifest_file.is_file():
                     logger.debug(f"Unable to find dependency '{suffix}'.")
 
                 else:
-                    manifest = PackageManifest.parse_file(cached_manifest_file)
-                    sub_contracts_cache.mkdir(parents=True)
-                    sources = manifest.sources or {}
-                    for source_name, src in sources.items():
-                        cached_source = sub_contracts_cache / source_name
 
-                        # NOTE: Cached source may included sub-directories.
-                        cached_source.parent.mkdir(parents=True, exist_ok=True)
+                    def make_dirs(_manifest: Dict, cache_dir: Path):
+                        cache_dir.mkdir(exist_ok=True, parents=True)
+                        sources = _manifest.get("sources") or {}
+                        for source_name, src in sources.items():
+                            cached_source = cache_dir / source_name
 
-                        if src.content:
-                            cached_source.touch()
-                            cached_source.write_text(src.content)
+                            if cached_source.is_file():
+                                continue
 
-            sub_contracts_cache = (
-                get_relative_path(sub_contracts_cache, base_path)
-                if base_path
-                else sub_contracts_cache
-            )
-            import_map[item_parts[0]] = str(sub_contracts_cache)
+                            # NOTE: Cached source may included sub-directories.
+                            cached_source.parent.mkdir(parents=True, exist_ok=True)
+                            if "content" in src:
+                                cached_source.touch()
+                                cached_source.write_text(src.get("content") or "")
+
+                        # Check if dependency downloaded
+                        dependencies = _manifest.get("buildDependencies") or {}
+                        packages_dir = self.config_manager.packages_folder
+                        for dependency_package_name, url in dependencies.items():
+                            dependency_name = str(dependency_package_name)
+                            # Check for GitHub-style dependency version listing
+                            version_match = re.match(r".*/releases/tag/(v?[\d|.]+)", str(url))
+                            if version_match:
+                                version = version_match.groups()[0]
+                                if not version.startswith("v"):
+                                    version = f"v{version}"
+                            else:
+                                version = "local"
+
+                            # Find matching package
+                            for package in packages_dir.iterdir():
+                                if package.name.replace("_", "-").lower() == dependency_name:
+                                    dependency_name = str(package.name)
+                                    break
+
+                            package_id = Path(dependency_name) / version
+                            dependency_path = (
+                                self.config_manager.packages_folder
+                                / package_id
+                                / f"{dependency_name}.json"
+                            )
+                            if dependency_path.is_file():
+                                raw_manifest = json.loads(dependency_path.read_text())
+
+                                cache_dir_suffix = os.path.sep.join(
+                                    str(cache_dir).split(os.path.sep)[-2:]
+                                )
+                                if cache_dir_suffix != f"{dependency_name}{os.path.sep}{version}":
+                                    make_dirs(
+                                        raw_manifest,
+                                        contracts_cache / dependency_name / version,
+                                    )
+
+                        # Add dependency remappings that may be needed.
+                        for compiler in manifest.get("compilers") or []:
+                            settings = compiler.get("settings") or {}
+                            _remappings = [
+                                ImportRemapping(entry=x) for x in settings.get("remappings") or []
+                            ]
+                            for remapping in _remappings:
+                                builder.add_entry(remapping)
+
+                    manifest = json.loads(cached_manifest_file.read_text())
+                    make_dirs(manifest, sub_contracts_cache)
+
+            builder.add_entry(remapping_obj)
 
         # Update cache and hash
         self._cached_project_path = self.project_manager.path
-        self._cached_import_map = import_map
+        self._cached_import_map = builder.import_map
         self._import_remapping_hash = hash(remappings_tuple)
 
-        return import_map
+        return builder.import_map
 
     def get_compiler_settings(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
