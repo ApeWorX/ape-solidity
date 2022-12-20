@@ -112,65 +112,58 @@ class SolidityCompiler(CompilerAPI):
         _ = self.project_manager.dependencies
 
         for item in remappings:
-            remapping_obj = ImportRemapping(entry=item)
-            suffix = remapping_obj.package_id
-            data_folder_cache = packages_cache / suffix
-
-            if len(Path(remapping_obj.package_id).parents) == 1 and data_folder_cache.is_dir():
-                # The user did not specify a version_id suffix in their mapping.
-                # We try to smartly figure one out, else error.
-                version_ids = [d.name for d in data_folder_cache.iterdir()]
-                if len(version_ids) == 1:
-                    # Use only version ID available.
-                    suffix = suffix / version_ids[0]
-                    data_folder_cache = packages_cache / suffix
-                elif not version_ids:
-                    raise CompilerError(f"Missing dependency '{suffix}'.")
-                else:
-                    options_str = ", ".join(version_ids)
-                    raise CompilerError(
-                        "Ambiguous version reference. "
-                        f"Please set import remapping value to {suffix}/{{version_id}} "
-                        f"where 'version_id' is one of '{options_str}'."
-                    )
+            remapping_obj = ImportRemapping(entry=item, packages_cache=packages_cache)
+            package_id = remapping_obj.package_id
+            data_folder_cache = packages_cache / package_id
 
             # Re-build a downloaded dependency manifest into the .cache directory for imports.
-            sub_contracts_cache = contracts_cache / suffix
+            sub_contracts_cache = contracts_cache / package_id
             if not sub_contracts_cache.is_dir() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{remapping_obj.name}.json"
                 if not cached_manifest_file.is_file():
-                    logger.debug(f"Unable to find dependency '{suffix}'.")
+                    logger.debug(f"Unable to find dependency '{package_id}'.")
 
                 else:
 
-                    def make_dirs(_manifest: Dict, cache_dir: Path):
-                        cache_dir.mkdir(exist_ok=True, parents=True)
-                        sources = _manifest.get("sources") or {}
-                        for source_name, src in sources.items():
-                            cached_source = cache_dir / source_name
+                    def add_dependencies(
+                        manifest_data: Dict, cache_dir: Path, dependencies_added: List[Path]
+                    ):
+                        if not cache_dir.is_dir():
+                            cache_dir.mkdir(parents=True)
+                            sources = manifest_data.get("sources") or {}
+                            for source_name, src in sources.items():
+                                cached_source = cache_dir / source_name
 
-                            if cached_source.is_file():
-                                continue
+                                if cached_source.is_file():
+                                    continue
 
-                            # NOTE: Cached source may included sub-directories.
-                            cached_source.parent.mkdir(parents=True, exist_ok=True)
-                            if "content" in src:
-                                cached_source.touch()
-                                cached_source.write_text(src.get("content") or "")
+                                # NOTE: Cached source may included sub-directories.
+                                cached_source.parent.mkdir(parents=True, exist_ok=True)
+                                if "content" in src:
+                                    cached_source.touch()
+                                    cached_source.write_text(src.get("content") or "")
 
-                        # Check if dependency downloaded
-                        dependencies = _manifest.get("buildDependencies") or {}
+                        # Locate the dependency in the .ape packages cache
+                        dependencies = manifest_data.get("buildDependencies") or {}
                         packages_dir = self.config_manager.packages_folder
                         for dependency_package_name, url in dependencies.items():
+                            url = "://".join(url.split("://")[1:])  # strip off scheme
                             dependency_name = str(dependency_package_name)
-                            # Check for GitHub-style dependency version listing
-                            version_match = re.match(r".*/releases/tag/(v?[\d|.]+)", str(url))
-                            if version_match:
-                                version = version_match.groups()[0]
-                                if not version.startswith("v"):
-                                    version = f"v{version}"
-                            else:
+
+                            if Path(f"{os.path.sep}{url}").is_file():
+                                # Using a local dependency
                                 version = "local"
+                            else:
+                                # Check for GitHub-style dependency
+                                version_match = re.match(r".*/releases/tag/(v?[\d|.]+)", str(url))
+                                if version_match:
+                                    version = version_match.groups()[0]
+                                    if not version.startswith("v"):
+                                        version = f"v{version}"
+                                else:
+                                    raise CompilerError(
+                                        f"Unable to discern dependency type '{url}'."
+                                    )
 
                             # Find matching package
                             for package in packages_dir.iterdir():
@@ -178,35 +171,35 @@ class SolidityCompiler(CompilerAPI):
                                     dependency_name = str(package.name)
                                     break
 
-                            package_id = Path(dependency_name) / version
                             dependency_path = (
                                 self.config_manager.packages_folder
-                                / package_id
+                                / Path(dependency_name)
+                                / version
                                 / f"{dependency_name}.json"
                             )
                             if dependency_path.is_file():
                                 raw_manifest = json.loads(dependency_path.read_text())
-
-                                cache_dir_suffix = os.path.sep.join(
-                                    str(cache_dir).split(os.path.sep)[-2:]
-                                )
-                                if cache_dir_suffix != f"{dependency_name}{os.path.sep}{version}":
-                                    make_dirs(
+                                dep_id = Path(dependency_name) / version
+                                if dep_id not in dependencies_added:
+                                    add_dependencies(
                                         raw_manifest,
-                                        contracts_cache / dependency_name / version,
+                                        contracts_cache / dep_id,
+                                        [*dependencies_added, dep_id],
                                     )
 
-                        # Add dependency remappings that may be needed.
-                        for compiler in manifest.get("compilers") or []:
+                        # Add dependency remapping that may be needed.
+                        for compiler in manifest_data.get("compilers") or []:
                             settings = compiler.get("settings") or {}
-                            _remappings = [
-                                ImportRemapping(entry=x) for x in settings.get("remappings") or []
+                            settings_map = settings.get("remappings") or []
+                            remapping_list = [
+                                ImportRemapping(entry=x, packages_cache=packages_cache)
+                                for x in settings_map
                             ]
-                            for remapping in _remappings:
+                            for remapping in remapping_list:
                                 builder.add_entry(remapping)
 
                     manifest = json.loads(cached_manifest_file.read_text())
-                    make_dirs(manifest, sub_contracts_cache)
+                    add_dependencies(manifest, sub_contracts_cache, [])
 
             builder.add_entry(remapping_obj)
 

@@ -25,6 +25,7 @@ class Extension(Enum):
 
 class ImportRemapping(BaseModel):
     entry: str
+    packages_cache: Path
 
     @validator("entry")
     def validate_entry(cls, value):
@@ -49,6 +50,7 @@ class ImportRemapping(BaseModel):
     @property
     def package_id(self) -> Path:
         suffix = Path(self._parts[1])
+        data_folder_cache = self.packages_cache / suffix
 
         try:
             _Version(suffix.name)
@@ -56,7 +58,24 @@ class ImportRemapping(BaseModel):
                 suffix = suffix.parent / f"v{suffix.name}"
 
         except InvalidVersion:
-            pass
+            # The user did not specify a version_id suffix in their mapping.
+            # We try to smartly figure one out, else error.
+            if len(Path(suffix).parents) == 1 and data_folder_cache.is_dir():
+                version_ids = [d.name for d in data_folder_cache.iterdir()]
+                if len(version_ids) == 1:
+                    # Use only version ID available.
+                    suffix = suffix / version_ids[0]
+
+                elif not version_ids:
+                    raise CompilerError(f"Missing dependency '{suffix}'.")
+
+                else:
+                    options_str = ", ".join(version_ids)
+                    raise CompilerError(
+                        "Ambiguous version reference. "
+                        f"Please set import remapping value to {suffix}/{{version_id}} "
+                        f"where 'version_id' is one of '{options_str}'."
+                    )
 
         return suffix
 

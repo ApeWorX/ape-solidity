@@ -5,4 +5,4 @@ compiler:
   solc:
     version: 0.8.12
     remappings:
-      - "@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.5.0"
+      - "@oz=OpenZeppelin/openzeppelin-contracts@4.5.0"
