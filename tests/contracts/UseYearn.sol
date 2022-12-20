@@ -5,5 +5,5 @@ import {VaultAPI} from "@vault/BaseStrategy.sol";
 
 
 interface ApeWorXVault is VaultAPI {
-    function name() external view returns (string calldata);
+    function name() override external view returns (string calldata);
 }

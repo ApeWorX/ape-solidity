@@ -81,8 +81,10 @@ class ImportRemapping(BaseModel):
 
 
 class ImportRemappingBuilder:
-    def __init__(self):
+    def __init__(self, contracts_cache: Path):
         self.import_map: Dict[str, str] = {}
+        self.dependencies_added: Set[Path] = set()
+        self.contracts_cache = contracts_cache
 
     def add_entry(self, remapping: ImportRemapping):
         path = remapping.package_id
@@ -97,6 +99,8 @@ def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
 
     for filepath in source_paths:
         import_set = set()
+        if not filepath.is_file():
+            continue
         source_lines = filepath.read_text().splitlines()
         num_lines = len(source_lines)
         for line_number, ln in enumerate(source_lines):
