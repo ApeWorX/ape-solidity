@@ -1,4 +1,3 @@
-import json
 import os
 import re
 from copy import copy
@@ -11,6 +10,7 @@ from ape.exceptions import CompilerError
 from ape.logging import logger
 from ape.types import ContractType
 from ape.utils import cached_property, get_relative_path
+from ethpm_types import PackageManifest
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
@@ -123,7 +123,7 @@ class SolidityCompiler(CompilerAPI):
                     logger.debug(f"Unable to find dependency '{package_id}'.")
 
                 else:
-                    manifest = json.loads(cached_manifest_file.read_text())
+                    manifest = PackageManifest.parse_file(cached_manifest_file)
                     self._add_dependencies(manifest, sub_contracts_cache, builder)
 
         # Update cache and hash
@@ -133,12 +133,12 @@ class SolidityCompiler(CompilerAPI):
         return builder.import_map
 
     def _add_dependencies(
-        self, manifest_data: Dict, cache_dir: Path, builder: ImportRemappingBuilder
+        self, manifest: PackageManifest, cache_dir: Path, builder: ImportRemappingBuilder
     ):
         if not cache_dir.is_dir():
             cache_dir.mkdir(parents=True)
 
-        sources = manifest_data.get("sources") or {}
+        sources = manifest.sources or {}
 
         for source_name, src in sources.items():
             cached_source = cache_dir / source_name
@@ -149,13 +149,13 @@ class SolidityCompiler(CompilerAPI):
 
             # NOTE: Cached source may included sub-directories.
             cached_source.parent.mkdir(parents=True, exist_ok=True)
-            if "content" in src:
+            if src.content:
                 cached_source.touch()
-                cached_source.write_text(src.get("content") or "")
+                cached_source.write_text(src.content or "")
 
         # Add dependency remapping that may be needed.
-        for compiler in manifest_data.get("compilers") or []:
-            settings = compiler.get("settings") or {}
+        for compiler in manifest.compilers or []:
+            settings = compiler.settings or {}
             settings_map = settings.get("remappings") or []
             remapping_list = [
                 ImportRemapping(entry=x, packages_cache=self.config_manager.packages_folder)
@@ -165,7 +165,7 @@ class SolidityCompiler(CompilerAPI):
                 builder.add_entry(remapping)
 
         # Locate the dependency in the .ape packages cache
-        dependencies = manifest_data.get("buildDependencies") or {}
+        dependencies = manifest.dependencies or {}
         packages_dir = self.config_manager.packages_folder
         for dependency_package_name, uri in dependencies.items():
             uri_str = str(uri)
@@ -199,12 +199,12 @@ class SolidityCompiler(CompilerAPI):
                 / f"{dependency_name}.json"
             )
             if dependency_path.is_file():
-                raw_manifest = json.loads(dependency_path.read_text())
+                sub_manifest = PackageManifest.parse_file(dependency_path)
                 dep_id = Path(dependency_name) / version
                 if dep_id not in builder.dependencies_added:
                     builder.dependencies_added.add(dep_id)
                     self._add_dependencies(
-                        raw_manifest,
+                        sub_manifest,
                         builder.contracts_cache / dep_id,
                         builder,
                     )
