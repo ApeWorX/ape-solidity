@@ -167,21 +167,24 @@ class SolidityCompiler(CompilerAPI):
         # Locate the dependency in the .ape packages cache
         dependencies = manifest_data.get("buildDependencies") or {}
         packages_dir = self.config_manager.packages_folder
-        for dependency_package_name, url in dependencies.items():
-            url = "://".join(url.split("://")[1:])  # strip off scheme
+        for dependency_package_name, uri in dependencies.items():
+            uri_str = str(uri)
+            if "://" in uri_str:
+                uri_str = "://".join(uri_str.split("://")[1:])  # strip off scheme
+
             dependency_name = str(dependency_package_name)
-            if str(self.config_manager.packages_folder) in url:
+            if str(self.config_manager.packages_folder) in uri_str:
                 # Using a local dependency
                 version = "local"
             else:
                 # Check for GitHub-style dependency
-                version_match = re.match(r".*/releases/tag/(v?[\d|.]+)", str(url))
+                version_match = re.match(r".*/releases/tag/(v?[\d|.]+)", str(uri_str))
                 if version_match:
                     version = version_match.groups()[0]
                     if not version.startswith("v"):
                         version = f"v{version}"
                 else:
-                    raise CompilerError(f"Unable to discern dependency type '{url}'.")
+                    raise CompilerError(f"Unable to discern dependency type '{uri_str}'.")
 
             # Find matching package
             for package in packages_dir.iterdir():

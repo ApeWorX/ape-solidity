@@ -134,6 +134,9 @@ def test_get_import_remapping(compiler, project, config):
         "@remapping_2": ".cache/TestDependency/local",
         "@remapping/contracts": ".cache/TestDependency/local",
         "@styleofbrownie": ".cache/BrownieStyleDependency/local",
+        "@openzeppelin/contracts": ".cache/OpenZeppelin/v3.1.0",
+        "@oz/contracts": ".cache/OpenZeppelin/v4.5.0",
+        "@vault": ".cache/vault/v0.4.3",
     }
 
     with config.using_project(project.path / "ProjectWithinProject") as proj:
@@ -238,9 +241,11 @@ def test_compiler_data_in_manifest(project):
     assert (
         "remappings" not in compiler_0812.settings
     ), f"Remappings found: {compiler_0812.settings['remappings']}"
-    assert (
-        "remappings" not in compiler_0612.settings
-    ), f"Remappings found: {compiler_0612.settings['remappings']}"
+
+    assert compiler_0612.settings["remappings"] == [
+        "@openzeppelin/contracts=.cache/OpenZeppelin/v3.1.0",
+        "@vault=.cache/vault/v0.4.3",
+    ]
 
     common_suffix = ".cache/TestDependency/local"
     expected_remappings = (
@@ -275,7 +280,7 @@ def test_compiler_data_in_manifest(project):
         "CompilesOnce",
         "IndirectlyImportingMoreConstrainedVersionCompanionImport",
     }
-    assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion"}
+    assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion", "UseYearn"}
     assert set(compiler_0426.contractTypes) == {
         "ExperimentalABIEncoderV2",
         "SpacesInPragma",
