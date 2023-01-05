@@ -16,6 +16,9 @@ extras_require = {
         "types-setuptools",  # Needed due to mypy typeshed
         "flake8>=5.0.4",  # Style linter
         "isort>=5.10.1",  # Import sorting linter
+        "mdformat>=0.7.16",  # Auto-formatter for markdown
+        "mdformat-gfm>=0.3.5",  # Needed for formatting GitHub-flavored markdown
+        "mdformat-frontmatter>=0.4.1",  # Needed for frontmatters-style headers in issue templates
     ],
     "doc": [
         "Sphinx>=3.4.3,<4",  # Documentation generator
@@ -62,7 +65,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "py-solc-x>=1.1.0,<2",
-        "eth-ape>=0.5.7,<0.6",
+        "eth-ape>=0.5.9,<0.6",
         "ethpm-types",  # Use the version ape requires
         "packaging",  # Use the version ape requires
         "requests",

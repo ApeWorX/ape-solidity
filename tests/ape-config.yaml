@@ -12,9 +12,10 @@ dependencies:
   - name: BrownieStyleDependency
     local: ./BrownieStyleDependency
 
-  # NOTE: Currently have to specify dependencies of dependencies
-  - name: TestDependencyOfDependency
-    local: ./DependencyOfDependency
+  # Ensure we can build a realistic-brownie project with dependencies.
+  - name: vault
+    github: yearn/yearn-vaults
+    version: 0.4.3
 
 solidity:
   import_remapping:
@@ -26,8 +27,9 @@ solidity:
     # (provided the _single_ contract type compiles in the project).
     - "@styleofbrownie=BrownieStyleDependency"
 
-    # NOTE: Currently have to specify dependency-remappings of dependencies
-    - "@dependency_remapping=TestDependencyOfDependency/local"
+    # Ensure yearn-vaults works as a remapping
+    - "@vault=vault/v0.4.3"
+
 
   # Using evm_version compatible with older and newer solidity versions.
   evm_version: constantinople

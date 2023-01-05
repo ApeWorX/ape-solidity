@@ -1,4 +1,5 @@
 import os
+import re
 from copy import copy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
@@ -10,8 +11,6 @@ from ape.logging import logger
 from ape.types import ContractType
 from ape.utils import cached_property, get_relative_path
 from ethpm_types import PackageManifest
-from packaging.version import InvalidVersion
-from packaging.version import Version as _Version
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
@@ -19,6 +18,8 @@ from solcx.install import get_executable  # type: ignore
 
 from ape_solidity._utils import (
     Extension,
+    ImportRemapping,
+    ImportRemappingBuilder,
     get_import_lines,
     get_pragma_spec,
     get_version_with_commit_hash,
@@ -80,24 +81,22 @@ class SolidityCompiler(CompilerAPI):
         e.g. ``'@import_name=path/to/dependency'``.
         """
         base_path = base_path or self.project_manager.contracts_folder
-        import_map: Dict[str, str] = {}
         remappings = self.config.import_remapping
-
         if not remappings:
-            return import_map
+            return {}
 
         elif not isinstance(remappings, (list, tuple)) or not isinstance(remappings[0], str):
             raise IncorrectMappingFormatError()
 
         contracts_cache = base_path / ".cache"
+        builder = ImportRemappingBuilder(contracts_cache)
 
         # Convert to tuple for hashing, check if there's been a change
         remappings_tuple = tuple(remappings)
+
         if all(
             (
-                self._cached_project_path,
                 self._import_remapping_hash,
-                self._cached_project_path == self.project_manager.path,
                 self._import_remapping_hash == hash(remappings_tuple),
                 contracts_cache.is_dir(),
             )
@@ -111,76 +110,104 @@ class SolidityCompiler(CompilerAPI):
         _ = self.project_manager.dependencies
 
         for item in remappings:
-            item_parts = item.split("=")
-            if len(item_parts) != 2:
-                raise IncorrectMappingFormatError()
-
-            suffix_str = item_parts[1]
-            name = suffix_str.split(os.path.sep)[0]
-            suffix = Path(suffix_str)
-
-            try:
-                _Version(suffix.name)
-                if not suffix.name.startswith("v"):
-                    suffix = suffix.parent / f"v{suffix.name}"
-
-            except InvalidVersion:
-                pass
-
-            data_folder_cache = packages_cache / suffix
-
-            if len(suffix.parents) == 1 and data_folder_cache.is_dir():
-                # The user did not specify a version_id suffix in their mapping.
-                # We try to smartly figure one out, else error.
-                version_ids = [d.name for d in data_folder_cache.iterdir()]
-                if len(version_ids) == 1:
-                    # Use only version ID available.
-                    suffix = suffix / version_ids[0]
-                    data_folder_cache = packages_cache / suffix
-                elif not version_ids:
-                    raise CompilerError(f"Missing dependency '{suffix}'.")
-                else:
-                    options_str = ", ".join(version_ids)
-                    raise CompilerError(
-                        "Ambiguous version reference. "
-                        f"Please set import remapping value to {suffix}/{{version_id}} "
-                        f"where 'version_id' is one of '{options_str}'."
-                    )
+            remapping_obj = ImportRemapping(entry=item, packages_cache=packages_cache)
+            builder.add_entry(remapping_obj)
+            package_id = remapping_obj.package_id
+            data_folder_cache = packages_cache / package_id
 
             # Re-build a downloaded dependency manifest into the .cache directory for imports.
-            sub_contracts_cache = contracts_cache / suffix
+            sub_contracts_cache = contracts_cache / package_id
             if not sub_contracts_cache.is_dir() or not list(sub_contracts_cache.iterdir()):
-                cached_manifest_file = data_folder_cache / f"{name}.json"
+                cached_manifest_file = data_folder_cache / f"{remapping_obj.name}.json"
                 if not cached_manifest_file.is_file():
-                    logger.debug(f"Unable to find dependency '{suffix}'.")
+                    logger.debug(f"Unable to find dependency '{package_id}'.")
 
                 else:
                     manifest = PackageManifest.parse_file(cached_manifest_file)
-                    sub_contracts_cache.mkdir(parents=True)
-                    sources = manifest.sources or {}
-                    for source_name, src in sources.items():
-                        cached_source = sub_contracts_cache / source_name
-
-                        # NOTE: Cached source may included sub-directories.
-                        cached_source.parent.mkdir(parents=True, exist_ok=True)
-
-                        if src.content:
-                            cached_source.touch()
-                            cached_source.write_text(src.content)
-
-            sub_contracts_cache = (
-                get_relative_path(sub_contracts_cache, base_path)
-                if base_path
-                else sub_contracts_cache
-            )
-            import_map[item_parts[0]] = str(sub_contracts_cache)
+                    self._add_dependencies(manifest, sub_contracts_cache, builder)
 
         # Update cache and hash
         self._cached_project_path = self.project_manager.path
-        self._cached_import_map = import_map
+        self._cached_import_map = builder.import_map
         self._import_remapping_hash = hash(remappings_tuple)
+        return builder.import_map
 
-        return import_map
+    def _add_dependencies(
+        self, manifest: PackageManifest, cache_dir: Path, builder: ImportRemappingBuilder
+    ):
+        if not cache_dir.is_dir():
+            cache_dir.mkdir(parents=True)
+
+        sources = manifest.sources or {}
+
+        for source_name, src in sources.items():
+            cached_source = cache_dir / source_name
+
+            if cached_source.is_file():
+                # Source already present
+                continue
+
+            # NOTE: Cached source may included sub-directories.
+            cached_source.parent.mkdir(parents=True, exist_ok=True)
+            if src.content:
+                cached_source.touch()
+                cached_source.write_text(src.content or "")
+
+        # Add dependency remapping that may be needed.
+        for compiler in manifest.compilers or []:
+            settings = compiler.settings or {}
+            settings_map = settings.get("remappings") or []
+            remapping_list = [
+                ImportRemapping(entry=x, packages_cache=self.config_manager.packages_folder)
+                for x in settings_map
+            ]
+            for remapping in remapping_list:
+                builder.add_entry(remapping)
+
+        # Locate the dependency in the .ape packages cache
+        dependencies = manifest.dependencies or {}
+        packages_dir = self.config_manager.packages_folder
+        for dependency_package_name, uri in dependencies.items():
+            uri_str = str(uri)
+            if "://" in uri_str:
+                uri_str = "://".join(uri_str.split("://")[1:])  # strip off scheme
+
+            dependency_name = str(dependency_package_name)
+            if str(self.config_manager.packages_folder) in uri_str:
+                # Using a local dependency
+                version = "local"
+            else:
+                # Check for GitHub-style dependency
+                version_match = re.match(r".*/releases/tag/(v?[\d|.]+)", str(uri_str))
+                if version_match:
+                    version = version_match.groups()[0]
+                    if not version.startswith("v"):
+                        version = f"v{version}"
+                else:
+                    raise CompilerError(f"Unable to discern dependency type '{uri_str}'.")
+
+            # Find matching package
+            for package in packages_dir.iterdir():
+                if package.name.replace("_", "-").lower() == dependency_name:
+                    dependency_name = str(package.name)
+                    break
+
+            dependency_path = (
+                self.config_manager.packages_folder
+                / Path(dependency_name)
+                / version
+                / f"{dependency_name}.json"
+            )
+            if dependency_path.is_file():
+                sub_manifest = PackageManifest.parse_file(dependency_path)
+                dep_id = Path(dependency_name) / version
+                if dep_id not in builder.dependencies_added:
+                    builder.dependencies_added.add(dep_id)
+                    self._add_dependencies(
+                        sub_manifest,
+                        builder.contracts_cache / dep_id,
+                        builder,
+                    )
 
     def get_compiler_settings(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
@@ -237,13 +264,13 @@ class SolidityCompiler(CompilerAPI):
             "evm_version": self.config.evm_version,
         }
         arguments_map = {}
-        global_import_remappings = self.get_import_remapping(base_path=base_path)
+        global_import_remapping_list = self.get_import_remapping(base_path=base_path)
         for solc_version, sources in version_map.items():
             cleaned_version = solc_version.truncate()
-            import_remappings = copy(global_import_remappings)
-            remappings_kept = set()
-            if import_remappings:
-                # Filter out unused import remappings
+            import_remapping_list = copy(global_import_remapping_list)
+            remapping_kept_list = set()
+            if import_remapping_list:
+                # Filter out unused import remapping
                 resolved_remapped_sources = set(
                     [
                         x
@@ -254,8 +281,10 @@ class SolidityCompiler(CompilerAPI):
                 )
                 for source in resolved_remapped_sources:
                     parent_key = os.path.sep.join(source.split(os.path.sep)[:3])
-                    for k, v in [(k, v) for k, v in import_remappings.items() if parent_key in v]:
-                        remappings_kept.add(f"{k}={v}")
+                    for k, v in [
+                        (k, v) for k, v in import_remapping_list.items() if parent_key in v
+                    ]:
+                        remapping_kept_list.add(f"{k}={v}")
 
             arguments = {
                 **base_arguments,
@@ -267,11 +296,11 @@ class SolidityCompiler(CompilerAPI):
                 arguments["base_path"] = base_path
             else:
                 # Append base_path to remappings
-                parts = [x.split("=") for x in remappings_kept]
-                remappings_kept = {f"{p[0]}={base_path / p[1]}" for p in parts}
+                parts = [x.split("=") for x in remapping_kept_list]
+                remapping_kept_list = {f"{p[0]}={base_path / p[1]}" for p in parts}
 
-            if remappings_kept:
-                arguments["import_remappings"] = remappings_kept
+            if remapping_kept_list:
+                arguments["import_remappings"] = remapping_kept_list
 
             arguments_map[solc_version] = arguments
 

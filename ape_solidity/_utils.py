@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import subprocess
 from enum import Enum
@@ -7,14 +8,90 @@ from typing import Dict, List, Optional, Set, Union
 
 from ape.exceptions import CompilerError
 from ape.logging import logger
+from packaging.version import InvalidVersion
+from packaging.version import Version as _Version
+from pydantic import BaseModel, validator
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
 from solcx.wrapper import VERSION_REGEX  # type: ignore
 
+from ape_solidity.exceptions import IncorrectMappingFormatError
+
 
 class Extension(Enum):
     SOL = ".sol"
+
+
+class ImportRemapping(BaseModel):
+    entry: str
+    packages_cache: Path
+
+    @validator("entry")
+    def validate_entry(cls, value):
+        if len((value or "").split("=")) != 2:
+            raise IncorrectMappingFormatError()
+
+        return value
+
+    @property
+    def _parts(self) -> List[str]:
+        return self.entry.split("=")
+
+    @property
+    def key(self) -> str:
+        return self._parts[0]
+
+    @property
+    def name(self) -> str:
+        suffix_str = self._parts[1]
+        return suffix_str.split(os.path.sep)[0]
+
+    @property
+    def package_id(self) -> Path:
+        suffix = Path(self._parts[1])
+        data_folder_cache = self.packages_cache / suffix
+
+        try:
+            _Version(suffix.name)
+            if not suffix.name.startswith("v"):
+                suffix = suffix.parent / f"v{suffix.name}"
+
+        except InvalidVersion:
+            # The user did not specify a version_id suffix in their mapping.
+            # We try to smartly figure one out, else error.
+            if len(Path(suffix).parents) == 1 and data_folder_cache.is_dir():
+                version_ids = [d.name for d in data_folder_cache.iterdir()]
+                if len(version_ids) == 1:
+                    # Use only version ID available.
+                    suffix = suffix / version_ids[0]
+
+                elif not version_ids:
+                    raise CompilerError(f"Missing dependency '{suffix}'.")
+
+                else:
+                    options_str = ", ".join(version_ids)
+                    raise CompilerError(
+                        "Ambiguous version reference. "
+                        f"Please set import remapping value to {suffix}/{{version_id}} "
+                        f"where 'version_id' is one of '{options_str}'."
+                    )
+
+        return suffix
+
+
+class ImportRemappingBuilder:
+    def __init__(self, contracts_cache: Path):
+        self.import_map: Dict[str, str] = {}
+        self.dependencies_added: Set[Path] = set()
+        self.contracts_cache = contracts_cache
+
+    def add_entry(self, remapping: ImportRemapping):
+        path = remapping.package_id
+        if not str(path).startswith(f".cache{os.path.sep}"):
+            path = Path(".cache") / path
+
+        self.import_map[remapping.key] = str(path)
 
 
 def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
@@ -22,6 +99,9 @@ def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
 
     for filepath in source_paths:
         import_set = set()
+        if not filepath.is_file():
+            continue
+
         source_lines = filepath.read_text().splitlines()
         num_lines = len(source_lines)
         for line_number, ln in enumerate(source_lines):

@@ -35,7 +35,8 @@ DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
 
 
 @pytest.mark.parametrize(
-    "contract", [c for c in TEST_CONTRACTS if all(n not in str(c) for n in normal_test_skips)]
+    "contract",
+    [c for c in TEST_CONTRACTS if all(n not in str(c) for n in normal_test_skips)],
 )
 def test_compile(project, contract):
     assert contract in project.contracts, ", ".join([n for n in project.contracts.keys()])
@@ -133,6 +134,9 @@ def test_get_import_remapping(compiler, project, config):
         "@remapping_2": ".cache/TestDependency/local",
         "@remapping/contracts": ".cache/TestDependency/local",
         "@styleofbrownie": ".cache/BrownieStyleDependency/local",
+        "@openzeppelin/contracts": ".cache/OpenZeppelin/v3.1.0",
+        "@oz/contracts": ".cache/OpenZeppelin/v4.5.0",
+        "@vault": ".cache/vault/v0.4.3",
     }
 
     with config.using_project(project.path / "ProjectWithinProject") as proj:
@@ -150,6 +154,9 @@ def test_brownie_project(compiler, config):
     brownie_project_path = Path(__file__).parent / "BrownieProject"
     with config.using_project(brownie_project_path) as project:
         assert type(project.BrownieContract) == ContractContainer
+
+        # Ensure can access twice (to make sure caching does not break anything).
+        _ = project.BrownieContract
 
 
 def test_compile_single_source_with_no_imports(compiler, config):
@@ -231,8 +238,14 @@ def test_compiler_data_in_manifest(project):
         assert compiler.settings["evmVersion"] == "constantinople"
 
     # No remappings for sources in the following compilers
-    assert "remappings" not in compiler_0812.settings
-    assert "remappings" not in compiler_0612.settings
+    assert (
+        "remappings" not in compiler_0812.settings
+    ), f"Remappings found: {compiler_0812.settings['remappings']}"
+
+    assert compiler_0612.settings["remappings"] == [
+        "@openzeppelin/contracts=.cache/OpenZeppelin/v3.1.0",
+        "@vault=.cache/vault/v0.4.3",
+    ]
 
     common_suffix = ".cache/TestDependency/local"
     expected_remappings = (
@@ -267,7 +280,7 @@ def test_compiler_data_in_manifest(project):
         "CompilesOnce",
         "IndirectlyImportingMoreConstrainedVersionCompanionImport",
     }
-    assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion"}
+    assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion", "UseYearn"}
     assert set(compiler_0426.contractTypes) == {
         "ExperimentalABIEncoderV2",
         "SpacesInPragma",
