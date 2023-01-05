@@ -101,6 +101,7 @@ def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
         import_set = set()
         if not filepath.is_file():
             continue
+
         source_lines = filepath.read_text().splitlines()
         num_lines = len(source_lines)
         for line_number, ln in enumerate(source_lines):
