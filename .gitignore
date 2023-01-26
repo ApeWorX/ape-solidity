@@ -1,5 +1,3 @@
-.DS_Store
-*.swp
 tests/BrownieProject/ape-config.yaml
 
 # Byte-compiled / optimized / DLL files
@@ -123,3 +121,7 @@ version.py
 
 # Ape stuff
 .build/
+
+**/.DS_Store
+*.swp
+*.swo
