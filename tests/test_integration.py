@@ -35,7 +35,7 @@ def test_compile_using_cli(ape_cli, runner):
 def test_compile_specified_contracts(ape_cli, runner, contract_path):
     result = runner.invoke(ape_cli, ["compile", contract_path, "--force"], catch_exceptions=False)
     assert result.exit_code == 0, result.output
-    assert "Compiling 'CompilesOnce.sol'" in result.output
+    assert "Compiling 'CompilesOnce.sol'" in result.output, f"Failed to compile {contract_path}."
 
 
 def test_force_recompile(ape_cli, runner):

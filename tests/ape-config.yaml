@@ -15,7 +15,7 @@ dependencies:
   # Ensure we can build a realistic-brownie project with dependencies.
   - name: vault
     github: yearn/yearn-vaults
-    version: 0.4.3
+    version: 0.4.5
 
 solidity:
   import_remapping:
@@ -28,7 +28,7 @@ solidity:
     - "@styleofbrownie=BrownieStyleDependency"
 
     # Ensure yearn-vaults works as a remapping
-    - "@vault=vault/v0.4.3"
+    - "@vault=vault/v0.4.5"
 
 
   # Using evm_version compatible with older and newer solidity versions.

@@ -10,7 +10,7 @@ extras_require = {
         "hypothesis>=6.2.0,<7.0",  # Strategy-based fuzzer
     ],
     "lint": [
-        "black>=22.10.0",  # auto-formatter and linter
+        "black>=22.12.0",  # auto-formatter and linter
         "mypy>=0.991",  # Static type analyzer
         "types-requests",  # Needed due to mypy typeshed
         "types-setuptools",  # Needed due to mypy typeshed
@@ -65,7 +65,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "py-solc-x>=1.1.0,<2",
-        "eth-ape>=0.5.9,<0.6",
+        "eth-ape>=0.6.0,<0.7",
         "ethpm-types",  # Use the version ape requires
         "packaging",  # Use the version ape requires
         "requests",

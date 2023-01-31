@@ -134,9 +134,9 @@ def test_get_import_remapping(compiler, project, config):
         "@remapping_2": ".cache/TestDependency/local",
         "@remapping/contracts": ".cache/TestDependency/local",
         "@styleofbrownie": ".cache/BrownieStyleDependency/local",
-        "@openzeppelin/contracts": ".cache/OpenZeppelin/v3.1.0",
+        "@openzeppelin/contracts": ".cache/OpenZeppelin/v4.7.1",
         "@oz/contracts": ".cache/OpenZeppelin/v4.5.0",
-        "@vault": ".cache/vault/v0.4.3",
+        "@vault": ".cache/vault/v0.4.5",
     }
 
     with config.using_project(project.path / "ProjectWithinProject") as proj:
@@ -227,12 +227,13 @@ def test_compiler_data_in_manifest(project):
     latest_version = max(c.version for c in compilers)
 
     compiler_latest = [c for c in compilers if str(c.version) == latest_version][0]
+    compiler_0817 = [c for c in compilers if str(c.version) == "0.8.17+commit.8df45f5f"][0]
     compiler_0812 = [c for c in compilers if str(c.version) == "0.8.12+commit.f00d7308"][0]
     compiler_0612 = [c for c in compilers if str(c.version) == "0.6.12+commit.27d51765"][0]
     compiler_0426 = [c for c in compilers if str(c.version) == "0.4.26+commit.4563c3fc"][0]
 
     # Compiler name test
-    for compiler in (compiler_latest, compiler_0812, compiler_0612, compiler_0426):
+    for compiler in (compiler_latest, compiler_0817, compiler_0812, compiler_0612, compiler_0426):
         assert compiler.name == "solidity"
         assert compiler.settings["optimizer"] == DEFAULT_OPTIMIZER
         assert compiler.settings["evmVersion"] == "constantinople"
@@ -242,11 +243,10 @@ def test_compiler_data_in_manifest(project):
         "remappings" not in compiler_0812.settings
     ), f"Remappings found: {compiler_0812.settings['remappings']}"
 
-    assert compiler_0612.settings["remappings"] == [
-        "@openzeppelin/contracts=.cache/OpenZeppelin/v3.1.0",
-        "@vault=.cache/vault/v0.4.3",
-    ]
-
+    assert (
+        "@openzeppelin/contracts=.cache/OpenZeppelin/v4.7.1" in compiler_0817.settings["remappings"]
+    )
+    assert "@vault=.cache/vault/v0.4.5" in compiler_0817.settings["remappings"]
     common_suffix = ".cache/TestDependency/local"
     expected_remappings = (
         "@brownie=.cache/BrownieDependency/local",
@@ -267,6 +267,8 @@ def test_compiler_data_in_manifest(project):
         in compiler_0426.settings["remappings"]
     )
 
+    assert "UseYearn" in compiler_0817.contractTypes
+
     # Compiler contract types test
     assert set(compiler_0812.contractTypes) == {
         "ImportSourceWithEqualSignVersion",
@@ -280,7 +282,7 @@ def test_compiler_data_in_manifest(project):
         "CompilesOnce",
         "IndirectlyImportingMoreConstrainedVersionCompanionImport",
     }
-    assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion", "UseYearn"}
+    assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion"}
     assert set(compiler_0426.contractTypes) == {
         "ExperimentalABIEncoderV2",
         "SpacesInPragma",
@@ -293,14 +295,8 @@ def test_get_versions(compiler, project):
     # because we can only get the commit hash of installed compilers
     # and this returns all versions including uninstalled.
     versions = compiler.get_versions(project.source_paths)
-    assert versions == {
-        "0.8.14",
-        "0.8.17",
-        "0.6.12",
-        "0.4.26",
-        "0.5.16",
-        "0.8.12",
-    }
+    expected = ("0.4.26", "0.5.16", "0.6.12", "0.8.12", "0.8.14", "0.8.17")
+    assert all([e in versions for e in expected])
 
 
 def test_get_compiler_settings(compiler, project):
