@@ -259,6 +259,7 @@ class SolidityCompiler(CompilerAPI):
                 "bin-runtime",
                 "devdoc",
                 "userdoc",
+                "srcmap",
             ],
             "optimize": self.config.optimize,
             "evm_version": self.config.evm_version,
@@ -372,6 +373,7 @@ class SolidityCompiler(CompilerAPI):
                 contract_type["runtimeBytecode"] = {"bytecode": runtime_bytecode}
                 contract_type["userdoc"] = load_dict(contract_type["userdoc"])
                 contract_type["devdoc"] = load_dict(contract_type["devdoc"])
+                contract_type["sourcemap"] = contract_type["srcmap"]
                 contract_type_obj = ContractType.parse_obj(contract_type)
                 contract_types.append(contract_type_obj)
                 solc_versions_by_contract_name[contract_name] = solc_version
