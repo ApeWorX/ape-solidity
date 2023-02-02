@@ -299,13 +299,7 @@ def test_get_versions(compiler, project):
 
     # The "latest" version will always be in this list, but avoid
     # asserting on it directly to handle new "latest"'s coming out.
-    expected = (
-        "0.4.26",
-        "0.5.16",
-        "0.6.12",
-        "0.8.12",
-        "0.8.14",
-    )
+    expected = ("0.4.26", "0.5.16", "0.6.12", "0.8.12", "0.8.14")
     assert all([e in versions for e in expected])
 
 
