@@ -30,6 +30,7 @@ DEFAULT_OUTPUT_SELECTION = (
     "bin-runtime",
     "devdoc",
     "userdoc",
+    "srcmap",
 )
 DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
 
@@ -227,13 +228,12 @@ def test_compiler_data_in_manifest(project):
     latest_version = max(c.version for c in compilers)
 
     compiler_latest = [c for c in compilers if str(c.version) == latest_version][0]
-    compiler_0817 = [c for c in compilers if str(c.version) == "0.8.17+commit.8df45f5f"][0]
     compiler_0812 = [c for c in compilers if str(c.version) == "0.8.12+commit.f00d7308"][0]
     compiler_0612 = [c for c in compilers if str(c.version) == "0.6.12+commit.27d51765"][0]
     compiler_0426 = [c for c in compilers if str(c.version) == "0.4.26+commit.4563c3fc"][0]
 
     # Compiler name test
-    for compiler in (compiler_latest, compiler_0817, compiler_0812, compiler_0612, compiler_0426):
+    for compiler in (compiler_latest, compiler_0812, compiler_0612, compiler_0426):
         assert compiler.name == "solidity"
         assert compiler.settings["optimizer"] == DEFAULT_OPTIMIZER
         assert compiler.settings["evmVersion"] == "constantinople"
@@ -244,9 +244,10 @@ def test_compiler_data_in_manifest(project):
     ), f"Remappings found: {compiler_0812.settings['remappings']}"
 
     assert (
-        "@openzeppelin/contracts=.cache/OpenZeppelin/v4.7.1" in compiler_0817.settings["remappings"]
+        "@openzeppelin/contracts=.cache/OpenZeppelin/v4.7.1"
+        in compiler_latest.settings["remappings"]
     )
-    assert "@vault=.cache/vault/v0.4.5" in compiler_0817.settings["remappings"]
+    assert "@vault=.cache/vault/v0.4.5" in compiler_latest.settings["remappings"]
     common_suffix = ".cache/TestDependency/local"
     expected_remappings = (
         "@brownie=.cache/BrownieDependency/local",
@@ -267,7 +268,7 @@ def test_compiler_data_in_manifest(project):
         in compiler_0426.settings["remappings"]
     )
 
-    assert "UseYearn" in compiler_0817.contractTypes
+    assert "UseYearn" in compiler_latest.contractTypes
 
     # Compiler contract types test
     assert set(compiler_0812.contractTypes) == {
@@ -295,7 +296,16 @@ def test_get_versions(compiler, project):
     # because we can only get the commit hash of installed compilers
     # and this returns all versions including uninstalled.
     versions = compiler.get_versions(project.source_paths)
-    expected = ("0.4.26", "0.5.16", "0.6.12", "0.8.12", "0.8.14", "0.8.17")
+
+    # The "latest" version will always be in this list, but avoid
+    # asserting on it directly to handle new "latest"'s coming out.
+    expected = (
+        "0.4.26",
+        "0.5.16",
+        "0.6.12",
+        "0.8.12",
+        "0.8.14",
+    )
     assert all([e in versions for e in expected])
 
 
@@ -308,7 +318,7 @@ def test_get_compiler_settings(compiler, project):
     file_paths = [project.contracts_folder / x for x in (source_a, source_b, source_c, source_d)]
     actual = compiler.get_compiler_settings(file_paths)
     v812 = Version("0.8.12+commit.f00d7308")
-    v817 = Version("0.8.17+commit.8df45f5f")
+    latest = max(list(actual.keys()))
     expected_remappings = (
         "@brownie=.cache/BrownieDependency/local",
         "@dependency_remapping=.cache/TestDependencyOfDependency/local",
@@ -317,7 +327,7 @@ def test_get_compiler_settings(compiler, project):
         "@styleofbrownie=.cache/BrownieStyleDependency/local",
     )
     expected_v812_contracts = (source_a, source_b, source_c, indirect_source)
-    expected_v817_contracts = (
+    expected_latest_contracts = (
         "BrownieContract.sol",
         "CompilesOnce.sol",
         "Dependency.sol",
@@ -327,8 +337,8 @@ def test_get_compiler_settings(compiler, project):
     )
 
     # Shared compiler defaults tests
-    expected_source_lists = (expected_v812_contracts, expected_v817_contracts)
-    for version, expected_sources in zip((v812, v817), expected_source_lists):
+    expected_source_lists = (expected_v812_contracts, expected_latest_contracts)
+    for version, expected_sources in zip((v812, latest), expected_source_lists):
         output_selection = actual[version]["outputSelection"]
         assert actual[version]["optimizer"] == DEFAULT_OPTIMIZER
         for source_key, item_selections in output_selection.items():
@@ -341,7 +351,7 @@ def test_get_compiler_settings(compiler, project):
             assert expected_source_id in actual_sources
 
     # Remappings test
-    actual_remappings = actual[v817]["remappings"]
+    actual_remappings = actual[latest]["remappings"]
     assert isinstance(actual_remappings, list)
     assert len(actual_remappings) == len(expected_remappings)
     assert all(e in actual_remappings for e in expected_remappings)
@@ -357,3 +367,9 @@ def test_get_compiler_settings(compiler, project):
 
 def test_evm_version(compiler):
     assert compiler.config.evm_version == "constantinople"
+
+
+def test_source_map(project, compiler):
+    source_path = project.contracts_folder / "MultipleDefinitions.sol"
+    result = compiler.compile([source_path])[-1]
+    assert result.sourcemap.__root__ == "124:87:0:-:0;;;;;;;;;;;;;;;;;;;"
