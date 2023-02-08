@@ -82,7 +82,22 @@ solidity:
 **WARNING**: If your library address changes across networks, you have to edit your config to use the new address and force re-compile.
 Additionally, if you first had to compile and deploy your library, you will have to add the configuration and force a re-compile.
 
-When using libraries in local projects, you may want to create a fixture that deploys your libraries and re-compiles your contracts:
+When using libraries in local projects, make sure to deploy and add your libraries using the `set_library()` method:
+
+```python
+import pytest
+
+
+@pytest.fixture
+def contract(accounts, project):
+    account = accounts[0]
+    library = project.Set.deploy(sender=account)
+    solidity = project.compiler_manager.registered_compilers[".sol"]
+    solidity.set_library(library)
+    
+    # Would not work without first deploying / adding the library it needs.
+    return project.C.deploy(sender=account)
+```
 
 ### Compiler Settings
 
