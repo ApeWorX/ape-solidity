@@ -22,7 +22,12 @@ PATTERN_REQUIRING_COMMIT_HASH = re.compile(r"\d+\.\d+\.\d+\+commit\.[\d|a-f]+")
 EXPECTED_NON_SOLIDITY_ERR_MSG = "Unable to compile 'RandomVyperFile.vy' using Solidity compiler."
 
 # These are tested elsewhere, not in `test_compile`.
-normal_test_skips = ("DifferentNameThanFile", "MultipleDefinitions", "RandomVyperFile")
+normal_test_skips = (
+    "DifferentNameThanFile",
+    "MultipleDefinitions",
+    "RandomVyperFile",
+    "LibraryFun",
+)
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
 DEFAULT_OUTPUT_SELECTION = (
     "abi",
