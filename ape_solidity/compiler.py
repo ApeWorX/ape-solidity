@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
+from ape.contracts import ContractInstance
 from ape.exceptions import CompilerError
 from ape.logging import logger
 from ape.types import AddressType, ContractType
@@ -73,30 +74,40 @@ class SolidityCompiler(CompilerAPI):
     def installed_versions(self) -> List[Version]:
         return solcx.get_installed_solc_versions()
 
-    def set_library(self, contract_type: ContractType, address: AddressType):
+    def set_library(self, contract: ContractInstance):
         """
         Set a library contract type address. This is useful when deploying a library
         in a local network and then adding the address afterward. Now, when
         compiling again, it will use the new address.
 
         Args:
-            contract_type (``ContractType``): The library's contract type.
-            address (``AddressType``): The address of the deployed library.
+            contract (``ContractInstance``): The deployed library contract.
         """
 
-        source_id = contract_type.source_id
+        source_id = contract.contract_type.source_id
         if not source_id:
             raise CompilerError("Missing source ID.")
 
-        name = contract_type.name
+        name = contract.contract_type.name
         if not name:
             raise CompilerError("Missing contract type name.")
 
-        self._libraries[source_id] = {name: address}
+        self._libraries[source_id] = {name: contract.address}
 
         if self._contracts_needing_libraries:
             # Attempt to re-compile contracts that needed libraries.
-            self.compile(list(self._contracts_needing_libraries))
+            try:
+                self.project_manager.load_contracts(
+                    [
+                        self.config_manager.contracts_folder / s
+                        for s in self._contracts_needing_libraries
+                    ],
+                    use_cache=False,
+                )
+            except CompilerError as err:
+                logger.error(
+                    f"Failed when trying to re-compile contracts requiring libraries.\n{err}"
+                )
 
     def get_versions(self, all_paths: List[Path]) -> Set[str]:
         versions = set()

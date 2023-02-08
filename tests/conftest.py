@@ -102,3 +102,14 @@ def compiler():
 @pytest.fixture
 def vyper_source_path(project):
     return project.contracts_folder / "RandomVyperFile.vy"
+
+
+@pytest.fixture
+def account():
+    return ape.accounts.test_accounts[0]
+
+
+@pytest.fixture
+def connection():
+    with ape.networks.ethereum.local.use_provider("test"):
+        yield

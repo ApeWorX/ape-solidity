@@ -367,3 +367,9 @@ def test_source_map(project, compiler):
     source_path = project.contracts_folder / "MultipleDefinitions.sol"
     result = compiler.compile([source_path])[-1]
     assert result.sourcemap.__root__ == "124:87:0:-:0;;;;;;;;;;;;;;;;;;;"
+
+
+def test_library(project, account, compiler, connection):
+    library = project.Set.deploy(sender=account)
+    compiler.set_library(library)
+    assert project.C  # Won't exist without deployed and configured library.
