@@ -15,7 +15,7 @@ from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
-from solcx.main import _compile_combined_json
+from solcx.main import _compile_combined_json  # type: ignore
 
 from ape_solidity._utils import (
     Extension,
