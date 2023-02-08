@@ -70,7 +70,7 @@ import "@openzeppelin/token/ERC721/ERC721.sol";
 
 ### Library Linking
 
-To link libraries, add them to your `ape-config.yaml` file:
+To link known pre-deployed libraries, add them to your `ape-config.yaml` file:
 
 ```yaml
 solidity:
@@ -80,9 +80,8 @@ solidity:
 ```
 
 **WARNING**: If your library address changes across networks, you have to edit your config to use the new address and force re-compile.
-Additionally, if you first had to compile and deploy your library, you will have to add the configuration and force a re-compile.
 
-When using libraries in local projects, make sure to deploy and add your libraries using the `set_library()` method:
+When testing or in an environment where you need to add a library after-the-fact, use the `add_library()` method from the `ape-solidity` compiler class:
 
 ```python
 import pytest
