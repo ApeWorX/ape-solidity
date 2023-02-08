@@ -93,8 +93,8 @@ def contract(accounts, project):
     account = accounts[0]
     library = project.Set.deploy(sender=account)
     solidity = project.compiler_manager.registered_compilers[".sol"]
-    solidity.set_library(library)
-    
+    solidity.add_library(library)
+
     # Would not work without first deploying / adding the library it needs.
     return project.C.deploy(sender=account)
 ```

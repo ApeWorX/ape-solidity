@@ -369,13 +369,13 @@ def test_source_map(project, compiler):
     assert result.sourcemap.__root__ == "124:87:0:-:0;;;;;;;;;;;;;;;;;;;"
 
 
-def test_library(project, account, compiler, connection):
+def test_add_library(project, account, compiler, connection):
     with pytest.raises(AttributeError):
         # Does not exist yet because library is not deployed or known.
         _ = project.C
 
     library = project.Set.deploy(sender=account)
-    compiler.set_library(library)
+    compiler.add_library(library)
 
     # After deploying and adding the library, we can use contracts that need it.
     assert project.C

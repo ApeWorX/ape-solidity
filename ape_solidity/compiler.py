@@ -74,7 +74,7 @@ class SolidityCompiler(CompilerAPI):
     def installed_versions(self) -> List[Version]:
         return solcx.get_installed_solc_versions()
 
-    def set_library(self, contract: ContractInstance):
+    def add_library(self, contract: ContractInstance):
         """
         Set a library contract type address. This is useful when deploying a library
         in a local network and then adding the address afterward. Now, when
