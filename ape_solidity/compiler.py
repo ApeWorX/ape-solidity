@@ -109,6 +109,8 @@ class SolidityCompiler(CompilerAPI):
                     f"Failed when trying to re-compile contracts requiring libraries.\n{err}"
                 )
 
+            self._contracts_needing_libraries = set()
+
     def get_versions(self, all_paths: List[Path]) -> Set[str]:
         versions = set()
         for path in all_paths:
