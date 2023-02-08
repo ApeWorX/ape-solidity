@@ -68,6 +68,20 @@ Once you have your dependencies configured, you can import packages using your i
 import "@openzeppelin/token/ERC721/ERC721.sol";
 ```
 
+### Library Linking
+
+To link libraries, add them to your `ape-config.yaml` file:
+
+```yaml
+solidity:
+  libraries:
+    subfolder/MySolidityFile.sol:
+      MyLibrary: "0x3387FE7316B9418152F338E5A90D3a2C2888a1FF"
+```
+
+**WARNING**: If your library address changes across networks, you have to edit your config to use the new address and force re-compile.
+Additionally, if you first had to compile and deploy your library, you will have to add the configuration and force a re-compile.
+
 ### Compiler Settings
 
 When using `ape-solidity`, your project's manifest's compiler settings will include standard JSON output.
