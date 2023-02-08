@@ -309,11 +309,18 @@ class SolidityCompiler(CompilerAPI):
             if remapping_kept_list:
                 arguments["import_remappings"] = remapping_kept_list
 
-            arguments_map[solc_version] = arguments
+            # TODO: Filter out libraries that are not used for this version.
+            libs = self.libraries
+            if libs:
+                arguments["libraries"] = ",".join(
+                    [
+                        ":".join((sid, cn, addr))
+                        for sid, lib_dict in libs.items()
+                        for cn, addr in lib_dict.items()
+                    ]
+                )
 
-        libs = self.libraries
-        if libs:
-            arguments_map["libraries"] = libs
+            arguments_map[solc_version] = arguments
 
         return arguments_map
 
@@ -363,7 +370,7 @@ class SolidityCompiler(CompilerAPI):
 
                 # Skip library linking.
                 if "__$" in deployment_bytecode or "__$" in runtime_bytecode:
-                    logger.warning("Libraries must be deployed and configured separately.")
+                    logger.warning(f"Unable to compile {contract_name} - missing libraries.")
                     continue
 
                 previously_compiled_version = solc_versions_by_contract_name.get(contract_name)
