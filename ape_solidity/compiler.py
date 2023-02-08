@@ -44,6 +44,8 @@ class SolidityCompiler(CompilerAPI):
     _import_remapping_hash: Optional[int] = None
     _cached_project_path: Optional[Path] = None
     _cached_import_map: Dict[str, str] = {}
+    _libraries: Dict[str, Dict[str, AddressType]] = {}
+    _contracts_needing_libraries: Set[Path] = set()
 
     @property
     def name(self) -> str:
@@ -55,7 +57,7 @@ class SolidityCompiler(CompilerAPI):
 
     @property
     def libraries(self) -> Dict[str, Dict[str, AddressType]]:
-        return self.config.libraries
+        return {**self.config.libraries, **self._libraries}
 
     @cached_property
     def available_versions(self) -> List[Version]:
@@ -70,6 +72,31 @@ class SolidityCompiler(CompilerAPI):
     @property
     def installed_versions(self) -> List[Version]:
         return solcx.get_installed_solc_versions()
+
+    def set_library(self, contract_type: ContractType, address: AddressType):
+        """
+        Set a library contract type address. This is useful when deploying a library
+        in a local network and then adding the address afterward. Now, when
+        compiling again, it will use the new address.
+
+        Args:
+            contract_type (``ContractType``): The library's contract type.
+            address (``AddressType``): The address of the deployed library.
+        """
+
+        source_id = contract_type.source_id
+        if not source_id:
+            raise CompilerError("Missing source ID.")
+
+        name = contract_type.name
+        if not name:
+            raise CompilerError("Missing contract type name.")
+
+        self._libraries[source_id] = {name: address}
+
+        if self._contracts_needing_libraries:
+            # Attempt to re-compile contracts that needed libraries.
+            self.compile(list(self._contracts_needing_libraries))
 
     def get_versions(self, all_paths: List[Path]) -> Set[str]:
         versions = set()
@@ -370,7 +397,11 @@ class SolidityCompiler(CompilerAPI):
 
                 # Skip library linking.
                 if "__$" in deployment_bytecode or "__$" in runtime_bytecode:
-                    logger.warning(f"Unable to compile {contract_name} - missing libraries.")
+                    logger.warning(
+                        f"Unable to compile {contract_name} - missing libraries. "
+                        "Call `set_library()` with the necessary libraries"
+                    )
+                    self._contracts_needing_libraries.add(contract_path)
                     continue
 
                 previously_compiled_version = solc_versions_by_contract_name.get(contract_name)
