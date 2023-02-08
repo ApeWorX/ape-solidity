@@ -8,13 +8,14 @@ import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
 from ape.exceptions import CompilerError
 from ape.logging import logger
-from ape.types import ContractType
+from ape.types import AddressType, ContractType
 from ape.utils import cached_property, get_relative_path
 from ethpm_types import PackageManifest
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
+from solcx.main import _compile_combined_json
 
 from ape_solidity._utils import (
     Extension,
@@ -36,6 +37,7 @@ class SolidityConfig(PluginConfig):
     optimize: bool = True
     version: Optional[str] = None
     evm_version: Optional[str] = None
+    libraries: Dict[str, Dict[str, AddressType]] = {}
 
 
 class SolidityCompiler(CompilerAPI):
@@ -50,6 +52,10 @@ class SolidityCompiler(CompilerAPI):
     @property
     def config(self) -> SolidityConfig:
         return cast(SolidityConfig, self.config_manager.get_config(self.name))
+
+    @property
+    def libraries(self) -> Dict[str, Dict[str, AddressType]]:
+        return self.config.libraries
 
     @cached_property
     def available_versions(self) -> List[Version]:
@@ -305,6 +311,10 @@ class SolidityCompiler(CompilerAPI):
 
             arguments_map[solc_version] = arguments
 
+        libs = self.libraries
+        if libs:
+            arguments_map["libraries"] = libs
+
         return arguments_map
 
     def compile(
@@ -325,7 +335,7 @@ class SolidityCompiler(CompilerAPI):
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
 
             try:
-                output = solcx.compile_files(files, **arguments)
+                output = _compile_combined_json(source_files=files, **arguments)
             except SolcError as err:
                 raise CompilerError(str(err)) from err
 
