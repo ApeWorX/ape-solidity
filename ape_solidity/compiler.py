@@ -6,15 +6,17 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
+from ape.contracts import ContractInstance
 from ape.exceptions import CompilerError
 from ape.logging import logger
-from ape.types import ContractType
+from ape.types import AddressType, ContractType
 from ape.utils import cached_property, get_relative_path
 from ethpm_types import PackageManifest
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
+from solcx.main import _compile_combined_json  # type: ignore
 
 from ape_solidity._utils import (
     Extension,
@@ -42,6 +44,8 @@ class SolidityCompiler(CompilerAPI):
     _import_remapping_hash: Optional[int] = None
     _cached_project_path: Optional[Path] = None
     _cached_import_map: Dict[str, str] = {}
+    _libraries: Dict[str, Dict[str, AddressType]] = {}
+    _contracts_needing_libraries: Set[Path] = set()
 
     @property
     def name(self) -> str:
@@ -50,6 +54,10 @@ class SolidityCompiler(CompilerAPI):
     @property
     def config(self) -> SolidityConfig:
         return cast(SolidityConfig, self.config_manager.get_config(self.name))
+
+    @property
+    def libraries(self) -> Dict[str, Dict[str, AddressType]]:
+        return self._libraries
 
     @cached_property
     def available_versions(self) -> List[Version]:
@@ -64,6 +72,45 @@ class SolidityCompiler(CompilerAPI):
     @property
     def installed_versions(self) -> List[Version]:
         return solcx.get_installed_solc_versions()
+
+    def add_library(self, *contracts: ContractInstance):
+        """
+        Set a library contract type address. This is useful when deploying a library
+        in a local network and then adding the address afterward. Now, when
+        compiling again, it will use the new address.
+
+        Args:
+            contracts (``ContractInstance``): The deployed library contract(s).
+        """
+
+        for contract in contracts:
+            source_id = contract.contract_type.source_id
+            if not source_id:
+                raise CompilerError("Missing source ID.")
+
+            name = contract.contract_type.name
+            if not name:
+                raise CompilerError("Missing contract type name.")
+
+            self._libraries[source_id] = {name: contract.address}
+
+        if self._contracts_needing_libraries:
+            # TODO: Only attempt to re-compile contacts that use the given libraries.
+            # Attempt to re-compile contracts that needed libraries.
+            try:
+                self.project_manager.load_contracts(
+                    [
+                        self.config_manager.contracts_folder / s
+                        for s in self._contracts_needing_libraries
+                    ],
+                    use_cache=False,
+                )
+            except CompilerError as err:
+                logger.error(
+                    f"Failed when trying to re-compile contracts requiring libraries.\n{err}"
+                )
+
+            self._contracts_needing_libraries = set()
 
     def get_versions(self, all_paths: List[Path]) -> Set[str]:
         versions = set()
@@ -303,6 +350,17 @@ class SolidityCompiler(CompilerAPI):
             if remapping_kept_list:
                 arguments["import_remappings"] = remapping_kept_list
 
+            # TODO: Filter out libraries that are not used for this version.
+            libs = self.libraries
+            if libs:
+                arguments["libraries"] = ",".join(
+                    [
+                        ":".join((sid, cn, addr))
+                        for sid, lib_dict in libs.items()
+                        for cn, addr in lib_dict.items()
+                    ]
+                )
+
             arguments_map[solc_version] = arguments
 
         return arguments_map
@@ -325,7 +383,7 @@ class SolidityCompiler(CompilerAPI):
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
 
             try:
-                output = solcx.compile_files(files, **arguments)
+                output = _compile_combined_json(source_files=files, **arguments)
             except SolcError as err:
                 raise CompilerError(str(err)) from err
 
@@ -353,7 +411,11 @@ class SolidityCompiler(CompilerAPI):
 
                 # Skip library linking.
                 if "__$" in deployment_bytecode or "__$" in runtime_bytecode:
-                    logger.warning("Libraries must be deployed and configured separately.")
+                    logger.warning(
+                        f"Unable to compile {contract_name} - missing libraries. "
+                        f"Call `{self.add_library.__name__}` with the necessary libraries"
+                    )
+                    self._contracts_needing_libraries.add(contract_path)
                     continue
 
                 previously_compiled_version = solc_versions_by_contract_name.get(contract_name)

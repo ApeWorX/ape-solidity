@@ -68,6 +68,35 @@ Once you have your dependencies configured, you can import packages using your i
 import "@openzeppelin/token/ERC721/ERC721.sol";
 ```
 
+### Library Linking
+
+To compile contracts that use libraries, you need to add the libraries first.
+Use the `add_library()` method from the `ape-solidity` compiler class to add the library.
+A typical flow is:
+
+1. Deploy the library.
+2. Call `add_library()` using the Solidity compiler plugin, which will also re-compile contracts that need the library.
+3. Deploy and use contracts that require the library.
+
+For example:
+
+```python
+import pytest
+
+
+@pytest.fixture
+def contract(accounts, project, compilers):
+    # Deploy the library.
+    account = accounts[0]
+    library = project.Set.deploy(sender=account)
+    
+    # Add the library to Solidity (re-compiles contracts that use the library).
+    compilers.solidity.add_library(library)
+
+    # Deploy the contract that uses the library.
+    return project.C.deploy(sender=account)
+```
+
 ### Compiler Settings
 
 When using `ape-solidity`, your project's manifest's compiler settings will include standard JSON output.
