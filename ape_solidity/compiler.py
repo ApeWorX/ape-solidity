@@ -96,6 +96,7 @@ class SolidityCompiler(CompilerAPI):
             self._libraries[source_id] = {name: contract.address}
 
         if self._contracts_needing_libraries:
+            # TODO: Only attempt to re-compile contacts that use the given libraries.
             # Attempt to re-compile contracts that needed libraries.
             try:
                 self.project_manager.load_contracts(
