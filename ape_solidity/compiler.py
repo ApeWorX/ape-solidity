@@ -74,25 +74,26 @@ class SolidityCompiler(CompilerAPI):
     def installed_versions(self) -> List[Version]:
         return solcx.get_installed_solc_versions()
 
-    def add_library(self, contract: ContractInstance):
+    def add_library(self, *contracts: ContractInstance):
         """
         Set a library contract type address. This is useful when deploying a library
         in a local network and then adding the address afterward. Now, when
         compiling again, it will use the new address.
 
         Args:
-            contract (``ContractInstance``): The deployed library contract.
+            contracts (``ContractInstance``): The deployed library contract(s).
         """
 
-        source_id = contract.contract_type.source_id
-        if not source_id:
-            raise CompilerError("Missing source ID.")
+        for contract in contracts:
+            source_id = contract.contract_type.source_id
+            if not source_id:
+                raise CompilerError("Missing source ID.")
 
-        name = contract.contract_type.name
-        if not name:
-            raise CompilerError("Missing contract type name.")
+            name = contract.contract_type.name
+            if not name:
+                raise CompilerError("Missing contract type name.")
 
-        self._libraries[source_id] = {name: contract.address}
+            self._libraries[source_id] = {name: contract.address}
 
         if self._contracts_needing_libraries:
             # Attempt to re-compile contracts that needed libraries.
