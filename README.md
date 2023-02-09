@@ -85,14 +85,13 @@ import pytest
 
 
 @pytest.fixture
-def contract(accounts, project):
+def contract(accounts, project, compilers):
     # Deploy the library.
     account = accounts[0]
     library = project.Set.deploy(sender=account)
     
     # Add the library to Solidity (re-compiles contracts that use the library).
-    solidity = project.compiler_manager.registered_compilers[".sol"]
-    solidity.add_library(library)
+    compilers.solidity.add_library(library)
 
     # Deploy the contract that uses the library.
     return project.C.deploy(sender=account)
