@@ -38,7 +38,6 @@ class SolidityConfig(PluginConfig):
     optimize: bool = True
     version: Optional[str] = None
     evm_version: Optional[str] = None
-    libraries: Dict[str, Dict[str, AddressType]] = {}
 
 
 class SolidityCompiler(CompilerAPI):
@@ -58,7 +57,7 @@ class SolidityCompiler(CompilerAPI):
 
     @property
     def libraries(self) -> Dict[str, Dict[str, AddressType]]:
-        return {**self.config.libraries, **self._libraries}
+        return self._libraries
 
     @cached_property
     def available_versions(self) -> List[Version]:

@@ -70,18 +70,15 @@ import "@openzeppelin/token/ERC721/ERC721.sol";
 
 ### Library Linking
 
-To link known pre-deployed libraries, add them to your `ape-config.yaml` file:
+To compile contracts that use libraries, you need to add the libraries first.
+Use the `add_library()` method from the `ape-solidity` compiler class to add the library.
+A typical flow is:
 
-```yaml
-solidity:
-  libraries:
-    subfolder/MySolidityFile.sol:
-      MyLibrary: "0x3387FE7316B9418152F338E5A90D3a2C2888a1FF"
-```
+1. Deploy the library.
+2. Call `add_library()` using the Solidity compiler plugin, which will also re-compile contracts that need the library.
+3. Deploy and use contracts that require the library.
 
-**WARNING**: If your library address changes across networks, you have to edit your config to use the new address and force re-compile.
-
-When testing or in an environment where you need to add a library after-the-fact, use the `add_library()` method from the `ape-solidity` compiler class:
+For example:
 
 ```python
 import pytest
@@ -89,12 +86,15 @@ import pytest
 
 @pytest.fixture
 def contract(accounts, project):
+    # Deploy the library.
     account = accounts[0]
     library = project.Set.deploy(sender=account)
+    
+    # Add the library to Solidity (re-compiles contracts that use the library).
     solidity = project.compiler_manager.registered_compilers[".sol"]
     solidity.add_library(library)
 
-    # Would not work without first deploying / adding the library it needs.
+    # Deploy the contract that uses the library.
     return project.C.deploy(sender=account)
 ```
 
