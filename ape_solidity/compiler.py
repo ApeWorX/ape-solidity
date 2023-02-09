@@ -412,7 +412,7 @@ class SolidityCompiler(CompilerAPI):
                 if "__$" in deployment_bytecode or "__$" in runtime_bytecode:
                     logger.warning(
                         f"Unable to compile {contract_name} - missing libraries. "
-                        "Call `set_library()` with the necessary libraries"
+                        f"Call `{self.add_library.__name__}` with the necessary libraries"
                     )
                     self._contracts_needing_libraries.add(contract_path)
                     continue
