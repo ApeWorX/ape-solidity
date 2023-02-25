@@ -16,7 +16,7 @@ from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
-from solcx.main import _compile_combined_json  # type: ignore
+from solcx.main import compile_standard
 
 from ape_solidity._utils import (
     Extension,
@@ -259,7 +259,6 @@ class SolidityCompiler(CompilerAPI):
     def get_compiler_settings(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> Dict[Version, Dict]:
-
         # Currently needed because of a bug in Ape core 0.5.5.
         only_files = []
         for path in contract_filepaths:
@@ -368,24 +367,38 @@ class SolidityCompiler(CompilerAPI):
     def compile(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> List[ContractType]:
-        base_path = base_path or self.config_manager.contracts_folder
-        files_by_solc_version = self.get_version_map(contract_filepaths, base_path=base_path)
-        compiler_arguments = self._get_compiler_arguments(
-            files_by_solc_version, base_path=base_path
-        )
         contract_types: List[ContractType] = []
+        base_path = base_path or self.config_manager.contracts_folder
+        version_map = self.get_version_map(contract_filepaths, base_path=base_path)
+        compiler_arguments = self._get_compiler_arguments(version_map, base_path=base_path)
+        all_settings = self.get_compiler_settings(contract_filepaths, base_path=base_path)
+
         solc_versions_by_contract_name: Dict[str, Version] = {}
-        for solc_version, arguments in compiler_arguments.items():
-            files = list(files_by_solc_version[solc_version])
-            if not files:
-                continue
+
+        for solc_version, arguments in version_map.items():
+            settings = all_settings.get(solc_version, {})
+            path_args = {
+                str(get_relative_path(p.absolute(), base_path)): p for p in contract_filepaths
+            }
+            input_json = {
+                "language": "Solidity",
+                "settings": settings,
+                "sources": {s: {"content": p.read_text()} for s, p in path_args.items()},
+            }
 
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
 
             try:
-                output = _compile_combined_json(source_files=files, **arguments)
+                result = compile_standard(
+                    input_json,
+                    base_path=base_path,
+                    solc_version=solc_version,
+                    solc_binary=compiler_arguments[solc_version]["solc_binary"],
+                )
             except SolcError as err:
                 raise CompilerError(str(err)) from err
+
+            breakpoint()
 
             def parse_contract_name(value: str) -> Tuple[Path, str]:
                 parts = value.split(":")
