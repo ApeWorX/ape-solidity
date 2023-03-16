@@ -477,7 +477,7 @@ class SolidityCompiler(CompilerAPI):
                 return source_id_value
 
             # Convert remapping list back to source using longest match (most exact).
-            key, value = max(matches, key=lambda x: x[0])
+            key, value = max(matches, key=lambda x: len(x[0]))
             sections = [s for s in source_id_value.split(key) if s]
             depth = len(sections) - 1
             source_id_value = ""
