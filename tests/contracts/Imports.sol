@@ -8,7 +8,7 @@ import
 import { MyStruct } from "CompilesOnce.sol";
 import "./subfolder/Relativecontract.sol";
 import "@remapping_2/Dependency.sol" as Depend2;
-import "@brownie/BrownieContract.sol";
+import "@remapping_2_brownie/BrownieContract.sol";
 import {
     Struct0,
     Struct1,
