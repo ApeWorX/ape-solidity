@@ -135,7 +135,7 @@ def test_get_imports_raises_when_non_solidity_files(compiler, vyper_source_path)
 def test_get_import_remapping(compiler, project, config):
     import_remapping = compiler.get_import_remapping()
     assert import_remapping == {
-        "@brownie": ".cache/BrownieDependency/local",
+        "@remapping_2_brownie": ".cache/BrownieDependency/local",
         "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
         "@remapping_2": ".cache/TestDependency/local",
         "@remapping/contracts": ".cache/TestDependency/local",
@@ -255,7 +255,7 @@ def test_compiler_data_in_manifest(project):
     assert "@vault=.cache/vault/v0.4.5" in compiler_latest.settings["remappings"]
     common_suffix = ".cache/TestDependency/local"
     expected_remappings = (
-        "@brownie=.cache/BrownieDependency/local",
+        "@remapping_2_brownie=.cache/BrownieDependency/local",
         "@dependency_remapping=.cache/TestDependencyOfDependency/local",
         f"@remapping_2={common_suffix}",
         f"@remapping/contracts={common_suffix}",
@@ -319,7 +319,7 @@ def test_get_compiler_settings(compiler, project):
     v812 = Version("0.8.12+commit.f00d7308")
     latest = max(list(actual.keys()))
     expected_remappings = (
-        "@brownie=.cache/BrownieDependency/local",
+        "@remapping_2_brownie=.cache/BrownieDependency/local",
         "@dependency_remapping=.cache/TestDependencyOfDependency/local",
         "@remapping_2=.cache/TestDependency/local",
         "@remapping/contracts=.cache/TestDependency/local",
