@@ -465,26 +465,32 @@ class SolidityCompiler(CompilerAPI):
             path = (source_path.parent / import_str_value).resolve()
             source_id_value = str(get_relative_path(path, contracts_path))
 
-            # Convert remapping list back to source
+            # Get all matches.
+            matches: List[Tuple[str, str]] = []
             for key, value in import_remapping.items():
                 if key not in source_id_value:
                     continue
 
-                sections = [s for s in source_id_value.split(key) if s]
-                depth = len(sections) - 1
-                source_id_value = ""
+                matches.append((key, value))
 
-                index = 0
-                for section in sections:
-                    if index == depth:
-                        source_id_value += value
-                        source_id_value += section
-                    elif index >= depth:
-                        source_id_value += section
+            if not matches:
+                return source_id_value
 
-                    index += 1
+            # Convert remapping list back to source using longest match (most exact).
+            key, value = max(matches, key=lambda x: x[0])
+            sections = [s for s in source_id_value.split(key) if s]
+            depth = len(sections) - 1
+            source_id_value = ""
 
-                break
+            index = 0
+            for section in sections:
+                if index == depth:
+                    source_id_value += value
+                    source_id_value += section
+                elif index >= depth:
+                    source_id_value += section
+
+                index += 1
 
             return source_id_value
 
