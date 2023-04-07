@@ -689,4 +689,6 @@ class SolidityCompiler(CompilerAPI):
             logger.warning("No connected to a provider. Defaulting to `ape-ethereum`.")
             ecosystem = self.network_manager.ethereum
 
-        return ecosystem.decode_error(abi, input_data)
+        return ecosystem.decode_error(
+            abi, input_data, txn=err.txn, trace=err.trace, contract_address=err.contract_address
+        )
