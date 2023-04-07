@@ -8,6 +8,8 @@ from tempfile import mkdtemp
 import ape
 import pytest
 import solcx  # type: ignore
+from ape.exceptions import ContractLogicError
+from ape_ethereum.transactions import DynamicFeeTransaction
 
 from ape_solidity.compiler import Extension
 
@@ -113,3 +115,27 @@ def account():
 def connection():
     with ape.networks.ethereum.local.use_provider("test"):
         yield
+
+
+@pytest.fixture
+def contract_logic_error():
+    txn_data = {
+        "chainId": 131277322940537,
+        "to": "0x274b028b03A250cA03644E6c578D81f019eE1323",
+        "from": "0xc89D42189f0450C2b2c3c61f58Ec5d628176A1E7",
+        "gas": 30029122,
+        "nonce": 0,
+        "value": 0,
+        "data": b"<\xcf\xd6\x0b",
+        "type": 2,
+        "maxFeePerGas": 875000000,
+        "maxPriorityFeePerGas": 0,
+        "accessList": [],
+    }
+    txn = DynamicFeeTransaction.parse_obj(txn_data)
+    message = (
+        "0xda472023"  # Unauthorized
+        "000000000000000000000000c89d42189f0450c2b2c3c61f58ec5d628176a1e7"  # addr
+        "000000000000000000000000000000000000000000000000000000000000007b"  # counter
+    )
+    return ContractLogicError(message, txn=txn)
