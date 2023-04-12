@@ -39,6 +39,7 @@ class SolidityConfig(PluginConfig):
     optimize: bool = True
     version: Optional[str] = None
     evm_version: Optional[str] = None
+    via_ir: bool = False
 
 
 class SolidityCompiler(CompilerAPI):
@@ -346,6 +347,9 @@ class SolidityCompiler(CompilerAPI):
                 # Append base_path to remappings
                 parts = [x.split("=") for x in remapping_kept_list]
                 remapping_kept_list = {f"{p[0]}={base_path / p[1]}" for p in parts}
+
+            if solc_version >= Version("0.8.13"):
+                arguments["via_ir"] = self.config.via_ir
 
             if remapping_kept_list:
                 arguments["import_remappings"] = remapping_kept_list
