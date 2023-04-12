@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import solcx  # type: ignore
 from ape.contracts import ContractContainer
-from ape.exceptions import CompilerError, ContractLogicError
+from ape.exceptions import CompilerError, CustomError
 from semantic_version import Version  # type: ignore
 
 from ape_solidity import Extension
@@ -393,9 +393,9 @@ def test_enrich_error(compiler, contract_logic_error, project, account, connecti
     account.deploy(project.HasError)
 
     actual = compiler.enrich_error(contract_logic_error)
-    assert isinstance(actual, ContractLogicError)
+    assert isinstance(actual, CustomError)
     assert actual.__class__.__name__ == "Unauthorized"
-    assert actual.input_data == {
+    assert actual.inputs == {
         "addr": "0xc89D42189f0450C2b2c3c61f58Ec5d628176A1E7",
         "counter": 123,
     }

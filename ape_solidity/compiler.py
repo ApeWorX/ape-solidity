@@ -672,23 +672,22 @@ class SolidityCompiler(CompilerAPI):
         if not address:
             return err
 
-        contract = self.chain_manager.contracts.get(address)
-        if not contract or not contract.source_id:
+        if not self.network_manager.active_provider:
+            # Connection required.
             return err
 
-        if selector not in contract.errors:
+        contract = self.chain_manager.contracts.instance_at(address)
+        if not contract:
+            return err
+
+        if selector not in contract.contract_type.errors:
             # Not an ErrorABI selector.
             return err
 
-        abi = contract.errors[selector]
-
-        if self.network_manager.active_provider:
-            ecosystem = self.provider.network.ecosystem
-        else:
-            # Connection required.
-            logger.warning("No connected to a provider. Defaulting to `ape-ethereum`.")
-            ecosystem = self.network_manager.ethereum
-
-        return ecosystem.decode_error(
-            abi, input_data, txn=err.txn, trace=err.trace, contract_address=err.contract_address
+        ecosystem = self.provider.network.ecosystem
+        abi = contract.contract_type.errors[selector]
+        inputs = ecosystem.decode_calldata(abi, input_data)
+        error_class = contract.get_error_by_signature(abi.signature)
+        return error_class(
+            abi, inputs, txn=err.txn, trace=err.trace, contract_address=err.contract_address
         )
