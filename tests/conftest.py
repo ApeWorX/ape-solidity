@@ -110,6 +110,16 @@ def account():
 
 
 @pytest.fixture
+def owner():
+    return ape.accounts.test_accounts[1]
+
+
+@pytest.fixture
+def not_owner():
+    return ape.accounts.test_accounts[2]
+
+
+@pytest.fixture
 def connection():
     with ape.networks.ethereum.local.use_provider("test"):
         yield

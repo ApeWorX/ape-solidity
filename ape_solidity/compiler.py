@@ -7,11 +7,12 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
 from ape.contracts import ContractInstance
-from ape.exceptions import CompilerError
+from ape.exceptions import CompilerError, ContractLogicError
 from ape.logging import logger
 from ape.types import AddressType, ContractType
 from ape.utils import cached_property, get_relative_path
-from ethpm_types import PackageManifest
+from eth_utils import is_0x_prefixed
+from ethpm_types import HexBytes, PackageManifest
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
@@ -259,7 +260,6 @@ class SolidityCompiler(CompilerAPI):
     def get_compiler_settings(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> Dict[Version, Dict]:
-
         # Currently needed because of a bug in Ape core 0.5.5.
         only_files = []
         for path in contract_filepaths:
@@ -658,4 +658,36 @@ class SolidityCompiler(CompilerAPI):
             pragma_spec.select(self.installed_versions)
             if pragma_spec
             else max(self.installed_versions)
+        )
+
+    def enrich_error(self, err: ContractLogicError) -> ContractLogicError:
+        if not is_0x_prefixed(err.revert_message):
+            return err
+
+        # Check for ErrorABI.
+        bytes_message = HexBytes(err.revert_message)
+        selector = bytes_message[:4]
+        input_data = bytes_message[4:]
+        address = err.contract_address or getattr(err.txn, "receiver", None)
+        if not address:
+            return err
+
+        if not self.network_manager.active_provider:
+            # Connection required.
+            return err
+
+        contract = self.chain_manager.contracts.instance_at(address)
+        if not contract:
+            return err
+
+        if selector not in contract.contract_type.errors:
+            # Not an ErrorABI selector.
+            return err
+
+        ecosystem = self.provider.network.ecosystem
+        abi = contract.contract_type.errors[selector]
+        inputs = ecosystem.decode_calldata(abi, input_data)
+        error_class = contract.get_error_by_signature(abi.signature)
+        return error_class(
+            abi, inputs, txn=err.txn, trace=err.trace, contract_address=err.contract_address
         )

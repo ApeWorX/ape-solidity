@@ -384,3 +384,14 @@ def test_add_library(project, account, compiler, connection):
 
     # After deploying and adding the library, we can use contracts that need it.
     assert project.C
+
+
+def test_enrich_error(compiler, project, owner, not_owner, connection):
+    compiler.compile((project.contracts_folder / "HasError.sol",))
+
+    # Deploy so Ape know about contract type.
+    contract = owner.deploy(project.HasError)
+    with pytest.raises(contract.Unauthorized) as err:
+        contract.withdraw(sender=not_owner)
+
+    assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
