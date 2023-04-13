@@ -386,15 +386,12 @@ def test_add_library(project, account, compiler, connection):
     assert project.C
 
 
-def test_enrich_error(compiler, contract_logic_error, project, account, connection):
+def test_enrich_error(compiler, project, owner, not_owner, connection):
     compiler.compile((project.contracts_folder / "HasError.sol",))
 
     # Deploy so Ape know about contract type.
-    contract = account.deploy(project.HasError)
+    contract = owner.deploy(project.HasError)
+    with pytest.raises(contract.Unauthorized) as err:
+        contract.withdraw(sender=not_owner)
 
-    actual = compiler.enrich_error(contract_logic_error)
-    assert isinstance(actual, contract.Unauthorized)
-    assert actual.inputs == {
-        "addr": "0xc89D42189f0450C2b2c3c61f58Ec5d628176A1E7",
-        "counter": 123,
-    }
+    assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
