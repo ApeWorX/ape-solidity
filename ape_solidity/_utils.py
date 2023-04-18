@@ -91,7 +91,9 @@ class ImportRemappingBuilder:
         if not str(path).startswith(f".cache{os.path.sep}"):
             path = Path(".cache") / path
 
-        self.import_map[remapping.key] = str(path)
+        # path normalization needed in case delimiter in remapping key and
+        # system path delimiter are different (Windows as an example)
+        self.import_map[os.path.normpath(remapping.key)] = str(path)
 
 
 def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
