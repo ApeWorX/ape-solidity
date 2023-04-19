@@ -38,13 +38,15 @@ class ImportRemapping(BaseModel):
     def _parts(self) -> List[str]:
         return self.entry.split("=")
 
+    # path normalization needed in case delimiter in remapping key/value
+    # and system path delimiter are different (Windows as an example)
     @property
     def key(self) -> str:
-        return self._parts[0]
+        return os.path.normpath(self._parts[0])
 
     @property
     def name(self) -> str:
-        suffix_str = self._parts[1]
+        suffix_str = os.path.normpath(self._parts[1])
         return suffix_str.split(os.path.sep)[0]
 
     @property
@@ -91,9 +93,7 @@ class ImportRemappingBuilder:
         if not str(path).startswith(f".cache{os.path.sep}"):
             path = Path(".cache") / path
 
-        # path normalization needed in case delimiter in remapping key and
-        # system path delimiter are different (Windows as an example)
-        self.import_map[os.path.normpath(remapping.key)] = str(path)
+        self.import_map[remapping.key] = str(path)
 
 
 def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
