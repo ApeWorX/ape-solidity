@@ -12,7 +12,8 @@ import solcx  # type: ignore
 from ape_solidity.compiler import Extension
 
 # NOTE: Ensure that we don't use local paths for these
-ape.config.DATA_FOLDER = Path(mkdtemp()).resolve()
+DATA_FOLDER = Path(mkdtemp()).resolve()
+ape.config.DATA_FOLDER = DATA_FOLDER
 ape.config.PROJECT_FOLDER = Path(mkdtemp()).resolve()
 
 
@@ -60,6 +61,13 @@ def temp_solcx_path(monkeypatch):
     """
     with _tmp_solcx_path(monkeypatch) as path:
         yield path
+
+
+@pytest.fixture(autouse=True, scope="session")
+def data_folder():
+    base_path = Path(__file__).parent / "data"
+    copy_tree(base_path.as_posix(), DATA_FOLDER.as_posix())
+    return DATA_FOLDER
 
 
 @pytest.fixture
