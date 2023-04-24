@@ -13,8 +13,9 @@ from ape_solidity.compiler import Extension
 
 # NOTE: Ensure that we don't use local paths for these
 DATA_FOLDER = Path(mkdtemp()).resolve()
+PROJECT_FOLDER = Path(mkdtemp()).resolve()
 ape.config.DATA_FOLDER = DATA_FOLDER
-ape.config.PROJECT_FOLDER = Path(mkdtemp()).resolve()
+ape.config.PROJECT_FOLDER = PROJECT_FOLDER
 
 
 @contextmanager
@@ -63,7 +64,7 @@ def temp_solcx_path(monkeypatch):
         yield path
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True)
 def data_folder():
     base_path = Path(__file__).parent / "data"
     copy_tree(base_path.as_posix(), DATA_FOLDER.as_posix())
@@ -76,9 +77,10 @@ def config():
 
 
 @pytest.fixture(autouse=True)
-def project(config):
+def project(data_folder, config):
+    _ = data_folder  # Ensure happens first.
     project_source_dir = Path(__file__).parent
-    project_dest_dir = config.PROJECT_FOLDER / project_source_dir.name
+    project_dest_dir = PROJECT_FOLDER / project_source_dir.name
 
     # Delete build / .cache that may exist pre-copy
     project_path = Path(__file__).parent
