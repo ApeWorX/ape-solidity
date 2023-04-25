@@ -17,6 +17,11 @@ dependencies:
     github: yearn/yearn-vaults
     version: 0.4.5
 
+  # Ensure dependencies using GitHub references work.
+  - name: vault
+    github: yearn/yearn-vaults
+    ref: master
+
 solidity:
   import_remapping:
     - "@remapping/contracts=TestDependency"
@@ -29,6 +34,7 @@ solidity:
 
     # Ensure yearn-vaults works as a remapping
     - "@vault=vault/v0.4.5"
+    - "@vaultmain=vault/master"
 
 
   # Using evm_version compatible with older and newer solidity versions.

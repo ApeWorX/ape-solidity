@@ -2,6 +2,7 @@
 pragma solidity >=0.8.17;
 
 import {VaultAPI} from "@vault/BaseStrategy.sol";
+import {VaultAPI as VaultMain} from "@vaultmain/BaseStrategy.sol";
 
 
 interface UseYearn is VaultAPI {

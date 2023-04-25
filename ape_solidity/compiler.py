@@ -226,13 +226,19 @@ class SolidityCompiler(CompilerAPI):
                 version = "local"
             else:
                 # Check for GitHub-style dependency
-                version_match = re.match(r".*/releases/tag/(v?[\d|.]+)", str(uri_str))
-                if version_match:
-                    version = version_match.groups()[0]
-                    if not version.startswith("v"):
-                        version = f"v{version}"
-                else:
-                    raise CompilerError(f"Unable to discern dependency type '{uri_str}'.")
+                match_checks = (r".*/releases/tag/(v?[\d|.]+)", r".*/tree/(v?[\w|.|\d]+)")
+                version = None
+                for check in match_checks:
+                    version_match = re.match(check, str(uri_str))
+                    if version_match:
+                        version = version_match.groups()[0]
+                        if not version.startswith("v") and version[0].isnumeric():
+                            version = f"v{version}"
+
+                        break
+
+            if version is None:
+                raise CompilerError(f"Unable to discern dependency type '{uri_str}'.")
 
             # Find matching package
             for package in packages_dir.iterdir():

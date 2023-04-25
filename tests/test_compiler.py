@@ -143,6 +143,7 @@ def test_get_import_remapping(compiler, project, config):
         "@openzeppelin/contracts": ".cache/OpenZeppelin/v4.7.1",
         "@oz/contracts": ".cache/OpenZeppelin/v4.5.0",
         "@vault": ".cache/vault/v0.4.5",
+        "@vaultmain": ".cache/vault/master",
     }
 
     with config.using_project(project.path / "ProjectWithinProject") as proj:
@@ -253,6 +254,7 @@ def test_compiler_data_in_manifest(project):
         in compiler_latest.settings["remappings"]
     )
     assert "@vault=.cache/vault/v0.4.5" in compiler_latest.settings["remappings"]
+    assert "@vaultmain=.cache/vault/master" in compiler_latest.settings["remappings"]
     common_suffix = ".cache/TestDependency/local"
     expected_remappings = (
         "@remapping_2_brownie=.cache/BrownieDependency/local",
