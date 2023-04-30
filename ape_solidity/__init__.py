@@ -1,6 +1,7 @@
 from ape import plugins
 
 from .compiler import Extension, SolidityCompiler, SolidityConfig
+from ._utils import StandardErrors
 
 
 @plugins.register(plugins.Config)
