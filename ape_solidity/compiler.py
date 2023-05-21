@@ -200,7 +200,7 @@ class SolidityCompiler(CompilerAPI):
             if src.content:
                 cached_source.touch()
                 cached_source.write_text(
-                    src.content if isinstance(src.content, str) else f"{src.content}"
+                    src.content if isinstance(src.content, str) else str(src.content)
                 )
 
         # Add dependency remapping that may be needed.
