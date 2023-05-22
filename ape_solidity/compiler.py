@@ -199,7 +199,9 @@ class SolidityCompiler(CompilerAPI):
             cached_source.parent.mkdir(parents=True, exist_ok=True)
             if src.content:
                 cached_source.touch()
-                cached_source.write_text(src.content or "")
+                cached_source.write_text(
+                    src.content if isinstance(src.content, str) else str(src.content)
+                )
 
         # Add dependency remapping that may be needed.
         for compiler in manifest.compilers or []:
