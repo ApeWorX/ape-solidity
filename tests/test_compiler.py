@@ -10,6 +10,7 @@ from ape.exceptions import CompilerError
 from semantic_version import Version  # type: ignore
 
 from ape_solidity import Extension
+from ape_solidity._utils import OUTPUT_SELECTION
 
 BASE_PATH = Path(__file__).parent / "contracts"
 TEST_CONTRACT_PATHS = [
@@ -29,14 +30,6 @@ normal_test_skips = (
     "LibraryFun",
 )
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
-DEFAULT_OUTPUT_SELECTION = (
-    "abi",
-    "bin",
-    "bin-runtime",
-    "devdoc",
-    "userdoc",
-    "srcmap",
-)
 DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
 
 
@@ -342,10 +335,9 @@ def test_get_compiler_settings(compiler, project):
     for version, expected_sources in zip((v812, latest), expected_source_lists):
         output_selection = actual[version]["outputSelection"]
         assert actual[version]["optimizer"] == DEFAULT_OPTIMIZER
-        for source_key, item_selections in output_selection.items():
-            for item, selections in item_selections.items():
-                assert len(selections) == len(DEFAULT_OUTPUT_SELECTION)
-                assert all(x in selections for x in DEFAULT_OUTPUT_SELECTION)
+        for _, item_selection in output_selection.items():
+            for _, selection in item_selection.items():
+                assert selection == OUTPUT_SELECTION
 
         actual_sources = [x for x in output_selection.keys()]
         for expected_source_id in expected_sources:

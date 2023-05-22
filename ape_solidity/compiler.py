@@ -1,6 +1,5 @@
 import os
 import re
-from copy import copy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
@@ -17,9 +16,10 @@ from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
-from solcx.main import _compile_combined_json  # type: ignore
+from solcx.main import compile_standard  # type: ignore
 
 from ape_solidity._utils import (
+    OUTPUT_SELECTION,
     Extension,
     ImportRemapping,
     ImportRemappingBuilder,
@@ -268,64 +268,22 @@ class SolidityCompiler(CompilerAPI):
     def get_compiler_settings(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
     ) -> Dict[Version, Dict]:
-        # Currently needed because of a bug in Ape core 0.5.5.
-        only_files = []
-        for path in contract_filepaths:
-            if path.is_dir():
-                logger.error(
-                    f"Unable to get compiler settings for directory '{path.name}'. Skipping."
-                )
-            else:
-                only_files.append(path)
-
         base_path = base_path or self.config_manager.contracts_folder
-        files_by_solc_version = self.get_version_map(only_files, base_path=base_path)
+        files_by_solc_version = self.get_version_map(contract_filepaths, base_path=base_path)
         if not files_by_solc_version:
             return {}
 
-        compiler_args: Dict = self._get_compiler_arguments(files_by_solc_version, base_path)
+        import_remappings = self.get_import_remapping(base_path=base_path)
         settings: Dict = {}
-        for solc_version, arguments in compiler_args.items():
-            sources = files_by_solc_version[solc_version]
+        for solc_version, sources in files_by_solc_version.items():
             version_settings: Dict[str, Union[Any, List[Any]]] = {
-                "optimizer": {"enabled": arguments.get("optimize", False), "runs": 200},
+                "optimizer": {"enabled": self.config.optimize, "runs": 200},
                 "outputSelection": {
-                    p.name: {p.stem: arguments.get("output_values", [])} for p in sources
+                    str(get_relative_path(p, base_path)): {"*": OUTPUT_SELECTION} for p in sources
                 },
             }
-            remappings: List[str] = arguments.get("import_remappings", [])
-            if remappings:
-                # Standard JSON input requires remappings to be sorted.
-                version_settings["remappings"] = sorted(list(remappings))
-
-            evm_version = arguments.get("evm_version")
-            if evm_version:
-                version_settings["evmVersion"] = evm_version
-
-            settings[solc_version] = version_settings
-
-        return settings
-
-    def _get_compiler_arguments(self, version_map: Dict, base_path: Path) -> Dict[Version, Dict]:
-        base_arguments = {
-            "output_values": [
-                "abi",
-                "bin",
-                "bin-runtime",
-                "devdoc",
-                "userdoc",
-                "srcmap",
-            ],
-            "optimize": self.config.optimize,
-            "evm_version": self.config.evm_version,
-        }
-        arguments_map = {}
-        global_import_remapping_list = self.get_import_remapping(base_path=base_path)
-        for solc_version, sources in version_map.items():
-            cleaned_version = solc_version.truncate()
-            import_remapping_list = copy(global_import_remapping_list)
-            remapping_kept_list = set()
-            if import_remapping_list:
+            remappings_used = set()
+            if import_remappings:
                 # Filter out unused import remapping
                 resolved_remapped_sources = set(
                     [
@@ -337,116 +295,132 @@ class SolidityCompiler(CompilerAPI):
                 )
                 for source in resolved_remapped_sources:
                     parent_key = os.path.sep.join(source.split(os.path.sep)[:3])
-                    for k, v in [
-                        (k, v) for k, v in import_remapping_list.items() if parent_key in v
-                    ]:
-                        remapping_kept_list.add(f"{k}={v}")
+                    for k, v in [(k, v) for k, v in import_remappings.items() if parent_key in v]:
+                        if solc_version < Version("0.6.9"):
+                            # Prefix the base path since the argument is not supported.
+                            v_str = str(base_path / v)
+                        else:
+                            v_str = str(v)
 
-            arguments = {
-                **base_arguments,
-                "solc_binary": get_executable(cleaned_version),
-                "solc_version": cleaned_version,
-            }
+                        remappings_used.add(f"{k}={v_str}")
 
-            if solc_version >= Version("0.6.9"):
-                arguments["base_path"] = base_path
-            else:
-                # Append base_path to remappings
-                parts = [x.split("=") for x in remapping_kept_list]
-                remapping_kept_list = {f"{p[0]}={base_path / p[1]}" for p in parts}
+            if remappings_used:
+                # Standard JSON input requires remappings to be sorted.
+                version_settings["remappings"] = sorted(list(remappings_used))
 
-            if remapping_kept_list:
-                arguments["import_remappings"] = remapping_kept_list
+            evm_version = self.config.evm_version
+            if evm_version:
+                version_settings["evmVersion"] = evm_version
 
-            # TODO: Filter out libraries that are not used for this version.
-            libs = self.libraries
-            if libs:
-                arguments["libraries"] = ",".join(
-                    [
-                        ":".join((sid, cn, addr))
-                        for sid, lib_dict in libs.items()
-                        for cn, addr in lib_dict.items()
-                    ]
-                )
+            settings[solc_version] = version_settings
 
-            arguments_map[solc_version] = arguments
+        return settings
 
-        return arguments_map
-
-    def compile(
+    def get_standard_input_json(
         self, contract_filepaths: List[Path], base_path: Optional[Path] = None
-    ) -> List[ContractType]:
+    ) -> Dict[Version, Dict]:
         base_path = base_path or self.config_manager.contracts_folder
         files_by_solc_version = self.get_version_map(contract_filepaths, base_path=base_path)
-        compiler_arguments = self._get_compiler_arguments(
-            files_by_solc_version, base_path=base_path
-        )
-        contract_types: List[ContractType] = []
-        solc_versions_by_contract_name: Dict[str, Version] = {}
-        for solc_version, arguments in compiler_arguments.items():
+        settings = self.get_compiler_settings(contract_filepaths, base_path)
+        input_jsons = {}
+        for solc_version, vers_settings in settings.items():
             files = list(files_by_solc_version[solc_version])
             if not files:
                 continue
 
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
+            cleaned_version = solc_version.truncate()
+            solc_binary = get_executable(cleaned_version)
+            arguments = {"solc_binary": solc_binary, "solc_version": cleaned_version}
+
+            if solc_version >= Version("0.6.9"):
+                arguments["base_path"] = base_path
+
+            sources = {
+                x: {"content": (base_path / x).read_text()}
+                for x in vers_settings["outputSelection"]
+            }
+            input_jsons[solc_version] = {
+                "sources": sources,
+                "settings": vers_settings,
+                "language": "Solidity",
+            }
+
+        return input_jsons
+
+    def compile(
+        self, contract_filepaths: List[Path], base_path: Optional[Path] = None
+    ) -> List[ContractType]:
+        base_path = base_path or self.config_manager.contracts_folder
+        solc_versions_by_contract_name: Dict[str, Version] = {}
+        contract_types: List[ContractType] = []
+        input_jsons = self.get_standard_input_json(contract_filepaths, base_path=base_path)
+        for solc_version, input_json in input_jsons.items():
+            logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
+            cleaned_version = solc_version.truncate()
+            solc_binary = get_executable(cleaned_version)
+            arguments = {"solc_binary": solc_binary, "solc_version": cleaned_version}
+
+            if solc_version >= Version("0.6.9"):
+                arguments["base_path"] = base_path
 
             try:
-                output = _compile_combined_json(source_files=files, **arguments)
+                output = compile_standard(input_json, **arguments)
             except SolcError as err:
                 raise CompilerError(str(err)) from err
 
-            def parse_contract_name(value: str) -> Tuple[Path, str]:
-                parts = value.split(":")
-                return Path(parts[0]), parts[1]
-
-            # Filter source files that the user did not ask for, such as
-            # imported relative files that are not part of the input.
             input_contract_names: List[str] = []
-            for contract_id in output.keys():
-                path, name = parse_contract_name(contract_id)
-                for input_file_path in contract_filepaths:
-                    if str(path) in str(input_file_path):
-                        input_contract_names.append(name)
+            for source_id, contracts_out in output["contracts"].items():
+                for name, _ in contracts_out.items():
+                    # Filter source files that the user did not ask for, such as
+                    # imported relative files that are not part of the input.
+                    for input_file_path in contract_filepaths:
+                        if source_id in str(input_file_path):
+                            input_contract_names.append(name)
 
-            for contract_name, contract_type in output.items():
-                contract_path, contract_name = parse_contract_name(contract_name)
-                if contract_name not in input_contract_names:
-                    # Only return ContractTypes explicitly asked for.
-                    continue
+            for source_id, contracts_out in output["contracts"].items():
+                for contract_name, contract_type in contracts_out.items():
+                    contract_path = base_path / source_id
 
-                deployment_bytecode = contract_type["bin"]
-                runtime_bytecode = contract_type["bin"]
-
-                # Skip library linking.
-                if "__$" in deployment_bytecode or "__$" in runtime_bytecode:
-                    logger.warning(
-                        f"Unable to compile {contract_name} - missing libraries. "
-                        f"Call `{self.add_library.__name__}` with the necessary libraries"
-                    )
-                    self._contracts_needing_libraries.add(contract_path)
-                    continue
-
-                previously_compiled_version = solc_versions_by_contract_name.get(contract_name)
-                if previously_compiled_version:
-                    # Don't add previously compiled contract type unless it was compiled
-                    # using a greater Solidity version.
-                    if previously_compiled_version >= solc_version:
+                    if contract_name not in input_contract_names:
+                        # Only return ContractTypes explicitly asked for.
                         continue
-                    else:
-                        contract_types = [ct for ct in contract_types if ct.name != contract_name]
 
-                contract_type["contractName"] = contract_name
-                contract_type["sourceId"] = str(
-                    get_relative_path(base_path / contract_path, base_path)
-                )
-                contract_type["deploymentBytecode"] = {"bytecode": deployment_bytecode}
-                contract_type["runtimeBytecode"] = {"bytecode": runtime_bytecode}
-                contract_type["userdoc"] = load_dict(contract_type["userdoc"])
-                contract_type["devdoc"] = load_dict(contract_type["devdoc"])
-                contract_type["sourcemap"] = contract_type["srcmap"]
-                contract_type_obj = ContractType.parse_obj(contract_type)
-                contract_types.append(contract_type_obj)
-                solc_versions_by_contract_name[contract_name] = solc_version
+                    deployment_bytecode = contract_type["evm"]["deployedBytecode"]["object"]
+                    runtime_bytecode = contract_type["evm"]["bytecode"]["object"]
+
+                    # Skip library linking.
+                    if "__$" in deployment_bytecode or "__$" in runtime_bytecode:
+                        logger.warning(
+                            f"Unable to compile {contract_name} - missing libraries. "
+                            f"Call `{self.add_library.__name__}` with the necessary libraries"
+                        )
+                        self._contracts_needing_libraries.add(contract_path)
+                        continue
+
+                    previously_compiled_version = solc_versions_by_contract_name.get(contract_name)
+                    if previously_compiled_version:
+                        # Don't add previously compiled contract type unless it was compiled
+                        # using a greater Solidity version.
+                        if previously_compiled_version >= solc_version:
+                            continue
+                        else:
+                            contract_types = [
+                                ct for ct in contract_types if ct.name != contract_name
+                            ]
+
+                    contract_type["contractName"] = contract_name
+                    contract_type["sourceId"] = str(
+                        get_relative_path(base_path / contract_path, base_path)
+                    )
+                    contract_type["deploymentBytecode"] = {"bytecode": deployment_bytecode}
+                    contract_type["runtimeBytecode"] = {"bytecode": runtime_bytecode}
+                    contract_type["userdoc"] = load_dict(contract_type["userdoc"])
+                    contract_type["devdoc"] = load_dict(contract_type["devdoc"])
+                    contract_type["sourcemap"] = contract_type["evm"]["bytecode"]["sourceMap"]
+                    contract_type_obj = ContractType.parse_obj(contract_type)
+                    contract_types.append(contract_type_obj)
+                    solc_versions_by_contract_name[contract_name] = solc_version
 
         return contract_types
 
