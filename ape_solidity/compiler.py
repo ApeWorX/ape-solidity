@@ -10,7 +10,7 @@ from ape.exceptions import CompilerError, ContractLogicError
 from ape.logging import logger
 from ape.types import AddressType, ContractType
 from ape.utils import cached_property, get_relative_path
-from eth_utils import is_0x_prefixed
+from eth_utils import add_0x_prefix, is_0x_prefixed
 from ethpm_types import HexBytes, PackageManifest
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
@@ -296,13 +296,7 @@ class SolidityCompiler(CompilerAPI):
                 for source in resolved_remapped_sources:
                     parent_key = os.path.sep.join(source.split(os.path.sep)[:3])
                     for k, v in [(k, v) for k, v in import_remappings.items() if parent_key in v]:
-                        if solc_version < Version("0.6.9"):
-                            # Prefix the base path since the argument is not supported.
-                            v_str = str(base_path / v)
-                        else:
-                            v_str = str(v)
-
-                        remappings_used.add(f"{k}={v_str}")
+                        remappings_used.add(f"{k}={v}")
 
             if remappings_used:
                 # Standard JSON input requires remappings to be sorted.
@@ -313,6 +307,11 @@ class SolidityCompiler(CompilerAPI):
                 version_settings["evmVersion"] = evm_version
 
             settings[solc_version] = version_settings
+
+            # TODO: Filter out libraries that are not used for this version.
+            libs = self.libraries
+            if libs:
+                version_settings["libraries"] = libs
 
         return settings
 
@@ -386,8 +385,13 @@ class SolidityCompiler(CompilerAPI):
                         # Only return ContractTypes explicitly asked for.
                         continue
 
-                    deployment_bytecode = contract_type["evm"]["deployedBytecode"]["object"]
-                    runtime_bytecode = contract_type["evm"]["bytecode"]["object"]
+                    evm_data = contract_type["evm"]
+
+                    # NOTE: This sounds backwards, but it isn't...
+                    #  The "deployment_bytecode" is the same as the "bytecode",
+                    #  and the "deployedBytecode" is the same as the "runtimeBytecode".
+                    deployment_bytecode = add_0x_prefix(evm_data["bytecode"]["object"])
+                    runtime_bytecode = add_0x_prefix(evm_data["deployedBytecode"]["object"])
 
                     # Skip library linking.
                     if "__$" in deployment_bytecode or "__$" in runtime_bytecode:
@@ -417,7 +421,7 @@ class SolidityCompiler(CompilerAPI):
                     contract_type["runtimeBytecode"] = {"bytecode": runtime_bytecode}
                     contract_type["userdoc"] = load_dict(contract_type["userdoc"])
                     contract_type["devdoc"] = load_dict(contract_type["devdoc"])
-                    contract_type["sourcemap"] = contract_type["evm"]["bytecode"]["sourceMap"]
+                    contract_type["sourcemap"] = evm_data["bytecode"]["sourceMap"]
                     contract_type_obj = ContractType.parse_obj(contract_type)
                     contract_types.append(contract_type_obj)
                     solc_versions_by_contract_name[contract_name] = solc_version

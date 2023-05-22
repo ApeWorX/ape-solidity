@@ -261,13 +261,7 @@ def test_compiler_data_in_manifest(project):
     assert all(
         b >= a for a, b in zip(actual_remappings, actual_remappings[1:])
     ), "Import remappings should be sorted"
-
-    # 0.4.26 should have absolute paths here due to lack of base_path
-    assert (
-        f"@remapping/contracts={project.contracts_folder}/{common_suffix}"
-        in compiler_0426.settings["remappings"]
-    )
-
+    assert f"@remapping/contracts={common_suffix}" in compiler_0426.settings["remappings"]
     assert "UseYearn" in compiler_latest.contractTypes
 
     # Compiler contract types test
@@ -322,12 +316,12 @@ def test_get_compiler_settings(compiler, project):
     )
     expected_v812_contracts = (source_a, source_b, source_c, indirect_source)
     expected_latest_contracts = (
-        "BrownieContract.sol",
+        ".cache/BrownieDependency/local/BrownieContract.sol",
         "CompilesOnce.sol",
-        "Dependency.sol",
-        "DependencyOfDependency.sol",
+        ".cache/TestDependency/local/Dependency.sol",
+        ".cache/TestDependencyOfDependency/local/DependencyOfDependency.sol",
         source_d,
-        "Relativecontract.sol",
+        "subfolder/Relativecontract.sol",
     )
 
     # Shared compiler defaults tests
@@ -341,7 +335,9 @@ def test_get_compiler_settings(compiler, project):
 
         actual_sources = [x for x in output_selection.keys()]
         for expected_source_id in expected_sources:
-            assert expected_source_id in actual_sources
+            assert (
+                expected_source_id in actual_sources
+            ), f"{expected_source_id} not one of {', '.join(actual_sources)}"
 
     # Remappings test
     actual_remappings = actual[latest]["remappings"]
