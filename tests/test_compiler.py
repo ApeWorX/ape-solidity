@@ -10,6 +10,7 @@ from ape.exceptions import CompilerError
 from semantic_version import Version  # type: ignore
 
 from ape_solidity import Extension
+from ape_solidity._utils import OUTPUT_SELECTION
 
 BASE_PATH = Path(__file__).parent / "contracts"
 TEST_CONTRACT_PATHS = [
@@ -29,14 +30,6 @@ normal_test_skips = (
     "LibraryFun",
 )
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
-DEFAULT_OUTPUT_SELECTION = (
-    "abi",
-    "bin",
-    "bin-runtime",
-    "devdoc",
-    "userdoc",
-    "srcmap",
-)
 DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
 
 
@@ -268,13 +261,7 @@ def test_compiler_data_in_manifest(project):
     assert all(
         b >= a for a, b in zip(actual_remappings, actual_remappings[1:])
     ), "Import remappings should be sorted"
-
-    # 0.4.26 should have absolute paths here due to lack of base_path
-    assert (
-        f"@remapping/contracts={project.contracts_folder}/{common_suffix}"
-        in compiler_0426.settings["remappings"]
-    )
-
+    assert f"@remapping/contracts={common_suffix}" in compiler_0426.settings["remappings"]
     assert "UseYearn" in compiler_latest.contractTypes
 
     # Compiler contract types test
@@ -329,12 +316,12 @@ def test_get_compiler_settings(compiler, project):
     )
     expected_v812_contracts = (source_a, source_b, source_c, indirect_source)
     expected_latest_contracts = (
-        "BrownieContract.sol",
+        ".cache/BrownieDependency/local/BrownieContract.sol",
         "CompilesOnce.sol",
-        "Dependency.sol",
-        "DependencyOfDependency.sol",
+        ".cache/TestDependency/local/Dependency.sol",
+        ".cache/TestDependencyOfDependency/local/DependencyOfDependency.sol",
         source_d,
-        "Relativecontract.sol",
+        "subfolder/Relativecontract.sol",
     )
 
     # Shared compiler defaults tests
@@ -342,14 +329,15 @@ def test_get_compiler_settings(compiler, project):
     for version, expected_sources in zip((v812, latest), expected_source_lists):
         output_selection = actual[version]["outputSelection"]
         assert actual[version]["optimizer"] == DEFAULT_OPTIMIZER
-        for source_key, item_selections in output_selection.items():
-            for item, selections in item_selections.items():
-                assert len(selections) == len(DEFAULT_OUTPUT_SELECTION)
-                assert all(x in selections for x in DEFAULT_OUTPUT_SELECTION)
+        for _, item_selection in output_selection.items():
+            for _, selection in item_selection.items():
+                assert selection == OUTPUT_SELECTION
 
         actual_sources = [x for x in output_selection.keys()]
         for expected_source_id in expected_sources:
-            assert expected_source_id in actual_sources
+            assert (
+                expected_source_id in actual_sources
+            ), f"{expected_source_id} not one of {', '.join(actual_sources)}"
 
     # Remappings test
     actual_remappings = actual[latest]["remappings"]

@@ -18,6 +18,17 @@ from solcx.wrapper import VERSION_REGEX  # type: ignore
 
 from ape_solidity.exceptions import IncorrectMappingFormatError
 
+OUTPUT_SELECTION = [
+    "abi",
+    "ast",
+    "bin-runtime",
+    "devdoc",
+    "userdoc",
+    "evm.bytecode.object",
+    "evm.bytecode.sourceMap",
+    "evm.deployedBytecode.object",
+]
+
 
 class Extension(Enum):
     SOL = ".sol"
