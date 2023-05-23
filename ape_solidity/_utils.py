@@ -20,7 +20,6 @@ from ape_solidity.exceptions import IncorrectMappingFormatError
 
 OUTPUT_SELECTION = [
     "abi",
-    "ast",
     "bin-runtime",
     "devdoc",
     "userdoc",
