@@ -7,6 +7,7 @@ import pytest
 import solcx  # type: ignore
 from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
+from ethpm_types.ast import ASTClassification
 from semantic_version import Version  # type: ignore
 
 from ape_solidity import Extension
@@ -330,8 +331,11 @@ def test_get_compiler_settings(compiler, project):
         output_selection = actual[version]["outputSelection"]
         assert actual[version]["optimizer"] == DEFAULT_OPTIMIZER
         for _, item_selection in output_selection.items():
-            for _, selection in item_selection.items():
-                assert selection == OUTPUT_SELECTION
+            for key, selection in item_selection.items():
+                if key == "*":  # All contracts
+                    assert selection == OUTPUT_SELECTION
+                elif key == "":  # All sources
+                    assert selection == ["ast"]
 
         actual_sources = [x for x in output_selection.keys()]
         for expected_source_id in expected_sources:
@@ -385,3 +389,11 @@ def test_enrich_error(compiler, project, owner, not_owner, connection):
         contract.withdraw(sender=not_owner)
 
     assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
+
+
+def test_ast(project, compiler):
+    source_path = project.contracts_folder / "MultipleDefinitions.sol"
+    actual = compiler.compile([source_path])[-1].ast
+    fn_node = actual.children[1].children[0]
+    assert actual.ast_type == "SourceUnit"
+    assert fn_node.classification == ASTClassification.FUNCTION
