@@ -380,7 +380,7 @@ def test_add_library(project, account, compiler, connection):
     assert project.C
 
 
-def test_enrich_error(compiler, project, owner, not_owner, connection):
+def test_enrich_error_when_custom(compiler, project, owner, not_owner, connection):
     compiler.compile((project.contracts_folder / "HasError.sol",))
 
     # Deploy so Ape know about contract type.
@@ -389,6 +389,11 @@ def test_enrich_error(compiler, project, owner, not_owner, connection):
         contract.withdraw(sender=not_owner)
 
     assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
+
+
+def test_enrich_error_when_builtin(project, owner, connection):
+    contract = project.BuiltinErrorChecker.deploy(sender=owner)
+    contract.checkIndexOutOfBounds(sender=owner)
 
 
 def test_ast(project, compiler):

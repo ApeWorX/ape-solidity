@@ -30,7 +30,7 @@ from ape_solidity._utils import (
     load_dict,
     verify_contract_filepaths,
 )
-from ape_solidity.exceptions import IncorrectMappingFormatError
+from ape_solidity.exceptions import RUNTIME_ERROR_MAP, IncorrectMappingFormatError, RuntimeErrorType
 
 
 class SolidityConfig(PluginConfig):
@@ -664,6 +664,19 @@ class SolidityCompiler(CompilerAPI):
         if not is_0x_prefixed(err.revert_message):
             return err
 
+        # ape-hardhat will deliver panic codes directly (no tracing needed)
+        revert_int = int(err.revert_message, 16)
+        if revert_int in [t.value for t in RuntimeErrorType]:
+            error_type = RuntimeErrorType(revert_int)
+            error_cls = RUNTIME_ERROR_MAP[error_type]
+            return error_cls(
+                base_err=err.base_err,
+                contract_address=err.contract_address,
+                source_traceback=err.source_traceback,
+                trace=err.trace,
+                txn=err.txn,
+            )
+
         # Check for ErrorABI.
         bytes_message = HexBytes(err.revert_message)
         selector = bytes_message[:4]
@@ -689,5 +702,10 @@ class SolidityCompiler(CompilerAPI):
         inputs = ecosystem.decode_calldata(abi, input_data)
         error_class = contract.get_error_by_signature(abi.signature)
         return error_class(
-            abi, inputs, txn=err.txn, trace=err.trace, contract_address=err.contract_address
+            abi,
+            inputs,
+            txn=err.txn,
+            trace=err.trace,
+            contract_address=err.contract_address,
+            source_traceback=err.source_traceback,
         )

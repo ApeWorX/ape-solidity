@@ -13,23 +13,15 @@ class IncorrectMappingFormatError(ConfigError, ValueError):
 
 
 class RuntimeErrorType(Enum):
-    ASSERTION_ERROR = "0x4e487b710000000000000000000000000000000000000000000000000000000000000001"
-    ARITHMETIC_ERROR = "0x4e487b710000000000000000000000000000000000000000000000000000000000000011"
-    DIVISION_ERROR = "0x4e487b710000000000000000000000000000000000000000000000000000000000000012"
-    ENUM_CONVERSION_ERROR = (
-        "0x4e487b710000000000000000000000000000000000000000000000000000000000000021"
-    )
-    ENCODE_STORAGE_ERROR = (
-        "0x4e487b710000000000000000000000000000000000000000000000000000000000000022"
-    )
-    POP_ERROR = "0x4e487b710000000000000000000000000000000000000000000000000000000000000031"
-    INDEX_OUT_OF_BOUNDS_ERROR = (
-        "0x4e487b710000000000000000000000000000000000000000000000000000000000000032"
-    )
-    MEMORY_OVERFLOW_ERROR = (
-        "0x4e487b710000000000000000000000000000000000000000000000000000000000000041"
-    )
-    ZERO_VAR_ERROR = "0x4e487b710000000000000000000000000000000000000000000000000000000000000051"
+    ASSERTION_ERROR = 1  # 0x1
+    ARITHMETIC_UNDER_OR_OVERFLOW = 17  # 0x11
+    DIVISION_BY_ZERO_ERROR = 18  # 0x12
+    ENUM_CONVERSION_OUT_OF_BOUNDS = 33  # 0x21
+    INCORRECTLY_ENCODED_STORAGE_BYTE_ARRAY = 34  # 0x22
+    POP_ON_EMPTY_ARRAY = 49  # 0x31
+    INDEX_OUT_OF_BOUNDS_ERROR = 50  # 0x32
+    MEMORY_OVERFLOW_ERROR = 65  # 0x41
+    ZERO_INITIALIZED_VARIABLE = 81  # 0x51
 
 
 class SolidityRuntimeError(ContractLogicError):
@@ -44,7 +36,8 @@ class SolidityArithmeticError(SolidityRuntimeError, ArithmeticError):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(RuntimeErrorType.ARITHMETIC_ERROR, **kwargs)
+        message = "Arithmetic operation underflowed or overflowed outside of an unchecked block."
+        super().__init__(RuntimeErrorType.ARITHMETIC_UNDER_OR_OVERFLOW, message, **kwargs)
 
 
 class SolidityAssertionError(SolidityRuntimeError, AssertionError):
@@ -55,16 +48,18 @@ class SolidityAssertionError(SolidityRuntimeError, AssertionError):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(RuntimeErrorType.ASSERTION_ERROR, **kwargs)
+        message = "Assertion error."
+        super().__init__(RuntimeErrorType.ASSERTION_ERROR, message, **kwargs)
 
 
-class DivisionError(SolidityRuntimeError):
+class DivisionByZeroError(SolidityRuntimeError, ZeroDivisionError):
     """
     Raised when dividing goes wrong (such as using a 0 denominator).
     """
 
     def __init__(self, **kwargs):
-        super().__init__(RuntimeErrorType.DIVISION_ERROR, **kwargs)
+        message = "Division or modulo division by zero"
+        super().__init__(RuntimeErrorType.DIVISION_BY_ZERO_ERROR, message, **kwargs)
 
 
 class EnumConversionError(SolidityRuntimeError):
@@ -73,7 +68,8 @@ class EnumConversionError(SolidityRuntimeError):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(RuntimeErrorType.ENUM_CONVERSION_ERROR, **kwargs)
+        message = "Tried to convert a value into an enum, but the value was too big or negative."
+        super().__init__(RuntimeErrorType.ENUM_CONVERSION_OUT_OF_BOUNDS, message, **kwargs)
 
 
 class EncodeStorageError(SolidityRuntimeError):
@@ -82,7 +78,8 @@ class EncodeStorageError(SolidityRuntimeError):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(RuntimeErrorType.ENCODE_STORAGE_ERROR, **kwargs)
+        message = "Incorrectly encoded storage byte array."
+        super().__init__(RuntimeErrorType.INCORRECTLY_ENCODED_STORAGE_BYTE_ARRAY, message, **kwargs)
 
 
 class IndexOutOfBoundsError(SolidityRuntimeError, IndexError):
@@ -91,7 +88,8 @@ class IndexOutOfBoundsError(SolidityRuntimeError, IndexError):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(RuntimeErrorType.INDEX_OUT_OF_BOUNDS_ERROR, **kwargs)
+        message = "Array accessed at an out-of-bounds or negative index."
+        super().__init__(RuntimeErrorType.INDEX_OUT_OF_BOUNDS_ERROR, message, **kwargs)
 
 
 class MemoryOverflowError(SolidityRuntimeError, OverflowError):
@@ -101,46 +99,50 @@ class MemoryOverflowError(SolidityRuntimeError, OverflowError):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(RuntimeErrorType.MEMORY_OVERFLOW_ERROR, **kwargs)
+        message = "Too much memory was allocated, or an array was created that is too large."
+        super().__init__(RuntimeErrorType.MEMORY_OVERFLOW_ERROR, message, **kwargs)
 
 
-class PopError(SolidityRuntimeError):
+class PopOnEmptyArrayError(SolidityRuntimeError):
     """
     Raised when popping from a data-structure fails in your contract.
     """
 
     def __init__(self, **kwargs):
-        super().__init__(RuntimeErrorType.POP_ERROR, **kwargs)
+        message = ".pop() was called on an empty array."
+        super().__init__(RuntimeErrorType.POP_ON_EMPTY_ARRAY, message, **kwargs)
 
 
-class ZeroVarError(SolidityRuntimeError):
+class ZeroInitializedVariableError(SolidityRuntimeError):
     """
-    TODO (wtf is this)
+    Raised when calling a zero-initialized variable of internal function type.
     """
 
     def __init__(self, **kwargs):
-        super().__init__(RuntimeErrorType.ZERO_VAR_ERROR, **kwargs)
+        message = "Called a zero-initialized variable of internal function type."
+        super().__init__(RuntimeErrorType.ZERO_INITIALIZED_VARIABLE, message, **kwargs)
 
 
+RUNTIME_ERROR_CODE_PREFIX = "0x4e487b71"
 RuntimeErrorUnion = Union[
     SolidityArithmeticError,
     SolidityAssertionError,
-    DivisionError,
+    DivisionByZeroError,
     EnumConversionError,
     EncodeStorageError,
     IndexOutOfBoundsError,
     MemoryOverflowError,
-    PopError,
-    ZeroVarError,
+    PopOnEmptyArrayError,
+    ZeroInitializedVariableError,
 ]
 RUNTIME_ERROR_MAP: Dict[RuntimeErrorType, Type[RuntimeErrorUnion]] = {
     RuntimeErrorType.ASSERTION_ERROR: SolidityAssertionError,
-    RuntimeErrorType.ARITHMETIC_ERROR: SolidityArithmeticError,
-    RuntimeErrorType.DIVISION_ERROR: DivisionError,
-    RuntimeErrorType.ENUM_CONVERSION_ERROR: EnumConversionError,
-    RuntimeErrorType.ENCODE_STORAGE_ERROR: EncodeStorageError,
+    RuntimeErrorType.ARITHMETIC_UNDER_OR_OVERFLOW: SolidityArithmeticError,
+    RuntimeErrorType.DIVISION_BY_ZERO_ERROR: DivisionByZeroError,
+    RuntimeErrorType.ENUM_CONVERSION_OUT_OF_BOUNDS: EnumConversionError,
+    RuntimeErrorType.INCORRECTLY_ENCODED_STORAGE_BYTE_ARRAY: EncodeStorageError,
     RuntimeErrorType.INDEX_OUT_OF_BOUNDS_ERROR: IndexOutOfBoundsError,
     RuntimeErrorType.MEMORY_OVERFLOW_ERROR: MemoryOverflowError,
-    RuntimeErrorType.POP_ERROR: PopError,
-    RuntimeErrorType.ZERO_VAR_ERROR: ZeroVarError,
+    RuntimeErrorType.POP_ON_EMPTY_ARRAY: PopOnEmptyArrayError,
+    RuntimeErrorType.ZERO_INITIALIZED_VARIABLE: ZeroInitializedVariableError,
 }
