@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
@@ -13,6 +13,7 @@ from ape.utils import cached_property, get_relative_path
 from eth_utils import add_0x_prefix, is_0x_prefixed
 from ethpm_types import ASTNode, HexBytes, PackageManifest
 from ethpm_types.ast import ASTClassification
+from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx import compile_standard  # type: ignore
@@ -30,7 +31,13 @@ from ape_solidity._utils import (
     load_dict,
     verify_contract_filepaths,
 )
-from ape_solidity.exceptions import IncorrectMappingFormatError
+from ape_solidity.exceptions import (
+    RUNTIME_ERROR_CODE_PREFIX,
+    RUNTIME_ERROR_MAP,
+    IncorrectMappingFormatError,
+    RuntimeErrorType,
+    RuntimeErrorUnion,
+)
 
 
 class SolidityConfig(PluginConfig):
@@ -74,6 +81,10 @@ class SolidityCompiler(CompilerAPI):
     @property
     def installed_versions(self) -> List[Version]:
         return solcx.get_installed_solc_versions()
+
+    @cached_property
+    def _ape_version(self) -> Version:
+        return Version(get_distribution("eth-ape").version.split(".dev")[0].strip())
 
     def add_library(self, *contracts: ContractInstance):
         """
@@ -664,6 +675,25 @@ class SolidityCompiler(CompilerAPI):
         if not is_0x_prefixed(err.revert_message):
             return err
 
+        if panic_cls := _get_sol_panic(err.revert_message):
+            # Is from a Solidity panic code, like a builtin Solidity revert.
+
+            if self._ape_version <= Version("0.6.10"):
+                return panic_cls(
+                    contract_address=err.contract_address,
+                    trace=err.trace,
+                    txn=err.txn,
+                )
+            else:
+                # TODO: Bump to next ape version and remove conditional.
+                return panic_cls(
+                    base_err=err.base_err,
+                    contract_address=err.contract_address,
+                    source_traceback=err.source_traceback,
+                    trace=err.trace,
+                    txn=err.txn,
+                )
+
         # Check for ErrorABI.
         bytes_message = HexBytes(err.revert_message)
         selector = bytes_message[:4]
@@ -688,6 +718,38 @@ class SolidityCompiler(CompilerAPI):
         abi = contract.contract_type.errors[selector]
         inputs = ecosystem.decode_calldata(abi, input_data)
         error_class = contract.get_error_by_signature(abi.signature)
-        return error_class(
-            abi, inputs, txn=err.txn, trace=err.trace, contract_address=err.contract_address
+        if self._ape_version <= Version("0.6.10"):
+            return error_class(
+                abi,
+                inputs,
+                txn=err.txn,
+                trace=err.trace,
+                contract_address=err.contract_address,
+            )
+        else:
+            # TODO Bump Ape on next release and remove this conditional
+            return error_class(
+                abi,
+                inputs,
+                base_err=err.base_err,
+                contract_address=err.contract_address,  # type: ignore[call-arg]
+                source_traceback=err.source_traceback,  # type: ignore[call-arg]
+                trace=err.trace,
+                txn=err.txn,
+            )
+
+
+def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
+    if revert_message.startswith(RUNTIME_ERROR_CODE_PREFIX):
+        # ape-geth (style) plugins show the hex with the Panic ABI prefix.
+        error_type_val = int(
+            f"0x{revert_message.replace(RUNTIME_ERROR_CODE_PREFIX, '').lstrip('0')}", 16
         )
+    else:
+        # Some plugins, like ape-hardhat, will deliver panic codes directly (no Panic ABI prefix)
+        error_type_val = int(revert_message, 16)
+
+    if error_type_val in [x.value for x in RuntimeErrorType]:
+        return RUNTIME_ERROR_MAP[RuntimeErrorType(error_type_val)]
+
+    return None
