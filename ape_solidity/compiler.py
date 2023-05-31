@@ -671,7 +671,7 @@ class SolidityCompiler(CompilerAPI):
             return err
 
         if panic_cls := _get_sol_panic(err.revert_message):
-            # Use from a Solidity panic code.
+            # Is from a Solidity panic code, like a builtin Solidity revert.
             return panic_cls(
                 base_err=err.base_err,
                 contract_address=err.contract_address,
