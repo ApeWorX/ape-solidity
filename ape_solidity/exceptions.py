@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import IntEnum
 from typing import Dict, Type, Union
 
 from ape.exceptions import ConfigError, ContractLogicError
@@ -12,7 +12,7 @@ class IncorrectMappingFormatError(ConfigError, ValueError):
         )
 
 
-class RuntimeErrorType(Enum):
+class RuntimeErrorType(IntEnum):
     ASSERTION_ERROR = 0x1
     ARITHMETIC_UNDER_OR_OVERFLOW = 0x11
     DIVISION_BY_ZERO_ERROR = 0x12

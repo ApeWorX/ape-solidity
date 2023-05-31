@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
@@ -30,7 +30,13 @@ from ape_solidity._utils import (
     load_dict,
     verify_contract_filepaths,
 )
-from ape_solidity.exceptions import RUNTIME_ERROR_MAP, IncorrectMappingFormatError, RuntimeErrorType
+from ape_solidity.exceptions import (
+    RUNTIME_ERROR_CODE_PREFIX,
+    RUNTIME_ERROR_MAP,
+    IncorrectMappingFormatError,
+    RuntimeErrorType,
+    RuntimeErrorUnion,
+)
 
 
 class SolidityConfig(PluginConfig):
@@ -664,12 +670,9 @@ class SolidityCompiler(CompilerAPI):
         if not is_0x_prefixed(err.revert_message):
             return err
 
-        # ape-hardhat will deliver panic codes directly (no tracing needed)
-        revert_int = int(err.revert_message, 16)
-        if revert_int in [t.value for t in RuntimeErrorType]:
-            error_type = RuntimeErrorType(revert_int)
-            error_cls = RUNTIME_ERROR_MAP[error_type]
-            return error_cls(
+        if panic_cls := _get_sol_panic(err.revert_message):
+            # Use from a Solidity panic code.
+            return panic_cls(
                 base_err=err.base_err,
                 contract_address=err.contract_address,
                 source_traceback=err.source_traceback,
@@ -709,3 +712,19 @@ class SolidityCompiler(CompilerAPI):
             contract_address=err.contract_address,
             source_traceback=err.source_traceback,
         )
+
+
+def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
+    if revert_message.startswith(RUNTIME_ERROR_CODE_PREFIX):
+        # ape-geth (style) plugins show the hex with the Panic ABI prefix.
+        error_type_val = int(
+            f"0x{revert_message.replace(RUNTIME_ERROR_CODE_PREFIX, '').lstrip('0')}", 16
+        )
+    else:
+        # Some plugins, like ape-hardhat, will deliver panic codes directly (no Panic ABI prefix)
+        error_type_val = int(revert_message, 16)
+
+    if error_type_val in [x.value for x in RuntimeErrorType]:
+        return RUNTIME_ERROR_MAP[RuntimeErrorType(error_type_val)]
+
+    return None
