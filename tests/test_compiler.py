@@ -8,14 +8,12 @@ import solcx  # type: ignore
 from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
 from ethpm_types.ast import ASTClassification
-from pkg_resources import get_distribution
 from semantic_version import Version  # type: ignore
 
 from ape_solidity import Extension
 from ape_solidity._utils import OUTPUT_SELECTION
 from ape_solidity.exceptions import IndexOutOfBoundsError
 
-APE_VERSION = Version(get_distribution("eth-ape").version.split(".dev")[0].strip())
 BASE_PATH = Path(__file__).parent / "contracts"
 TEST_CONTRACT_PATHS = [
     p
@@ -394,7 +392,6 @@ def test_enrich_error_when_custom(compiler, project, owner, not_owner, connectio
     assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
 
 
-@pytest.mark.skipif(APE_VERSION <= Version("0.6.10"), reason="0.6.11 not released yet.")
 def test_enrich_error_when_builtin(project, owner, connection):
     contract = project.BuiltinErrorChecker.deploy(sender=owner)
 
