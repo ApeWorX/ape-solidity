@@ -296,8 +296,11 @@ class SolidityCompiler(CompilerAPI):
                     str(get_relative_path(p, base_path)): {"*": OUTPUT_SELECTION, "": ["ast"]}
                     for p in sources
                 },
-                "viaIR": self.config.via_ir,
             }
+
+            if solc_version >= Version("0.7.5"):
+                version_settings["viaIR"] = self.config.via_ir
+
             remappings_used = set()
             if import_remappings:
                 # Filter out unused import remapping
