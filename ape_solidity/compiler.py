@@ -45,6 +45,8 @@ class SolidityConfig(PluginConfig):
     # e.g. '@import_name=path/to/dependency'
     import_remapping: List[str] = []
     optimize: bool = True
+    runs: int = 200
+    via_ir: bool = False
     version: Optional[str] = None
     evm_version: Optional[str] = None
 
@@ -289,11 +291,12 @@ class SolidityCompiler(CompilerAPI):
         settings: Dict = {}
         for solc_version, sources in files_by_solc_version.items():
             version_settings: Dict[str, Union[Any, List[Any]]] = {
-                "optimizer": {"enabled": self.config.optimize, "runs": 200},
+                "optimizer": {"enabled": self.config.optimize, "runs": self.config.runs},
                 "outputSelection": {
                     str(get_relative_path(p, base_path)): {"*": OUTPUT_SELECTION, "": ["ast"]}
                     for p in sources
                 },
+                "viaIR": self.config.via_ir,
             }
             remappings_used = set()
             if import_remappings:
