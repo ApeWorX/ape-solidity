@@ -2,6 +2,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
+from ethpm_types.source import Content
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
@@ -737,6 +738,34 @@ class SolidityCompiler(CompilerAPI):
                 trace=err.trace,
                 txn=err.txn,
             )
+
+    def _flatten_source(self, path: Path, base_path=None) -> str:
+        base_path = base_path or path.parent
+        imports = self.get_imports([path])
+        source = ""
+        for import_list in imports.values():
+            if not import_list:
+                continue
+            for import_path in import_list:
+                source += self._flatten_source(base_path / import_path, base_path=base_path)
+        source += path.read_text()
+        return source
+
+
+    def flatten_contract(self, path: Path, **kwargs) -> Content:
+        """Flatten a contract.
+
+        Args:
+            path: Path to contract file.
+            **kwargs: Keyword arguments
+
+        Returns:
+            Content of flattened contract.
+        """
+        source = self._flatten_source(path)
+        lines = source.splitlines()
+        line_dict = {i+1: line for i, line in enumerate(lines)}
+        return Content(__root__=line_dict)
 
 
 def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
