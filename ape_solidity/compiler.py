@@ -2,7 +2,6 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
-from ethpm_types.source import Content
 
 import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
@@ -14,6 +13,7 @@ from ape.utils import cached_property, get_relative_path
 from eth_utils import add_0x_prefix, is_0x_prefixed
 from ethpm_types import ASTNode, HexBytes, PackageManifest
 from ethpm_types.ast import ASTClassification
+from ethpm_types.source import Content
 from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
