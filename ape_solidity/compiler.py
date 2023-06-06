@@ -751,7 +751,6 @@ class SolidityCompiler(CompilerAPI):
         source += path.read_text()
         return source
 
-
     def flatten_contract(self, path: Path, **kwargs) -> Content:
         """Flatten a contract.
 
@@ -764,7 +763,7 @@ class SolidityCompiler(CompilerAPI):
         """
         source = self._flatten_source(path)
         lines = source.splitlines()
-        line_dict = {i+1: line for i, line in enumerate(lines)}
+        line_dict = {i + 1: line for i, line in enumerate(lines)}
         return Content(__root__=line_dict)
 
 
