@@ -118,6 +118,7 @@ def test_get_imports(project, compiler):
         "MissingPragma.sol",
         "NumerousDefinitions.sol",
         "subfolder/Relativecontract.sol",
+        ".cache/mock-contract/v4.0.0/ComplexInterface.sol",
     }
     assert set(contract_imports) == expected
 
@@ -139,6 +140,7 @@ def test_get_import_remapping(compiler, project, config):
         "@oz/contracts": ".cache/OpenZeppelin/v4.5.0",
         "@vault": ".cache/vault/v0.4.5",
         "@vaultmain": ".cache/vault/master",
+        "@gnosis.pm/mock-contract/contracts": ".cache/mock-contract/v4.0.0",
     }
 
     with config.using_project(project.path / "ProjectWithinProject") as proj:
@@ -202,7 +204,7 @@ def test_get_version_map(project, compiler):
     assert all([f in version_map[expected_version] for f in file_paths[:-1]])
 
     latest_version_sources = version_map[latest_version]
-    assert len(latest_version_sources) == 9, "Did the import remappings load correctly?"
+    assert len(latest_version_sources) == 10, "Did the import remappings load correctly?"
     assert file_paths[-1] in latest_version_sources
 
     # Will fail if the import remappings have not loaded yet.
@@ -265,6 +267,10 @@ def test_compiler_data_in_manifest(project):
     ), "Import remappings should be sorted"
     assert f"@remapping/contracts={common_suffix}" in compiler_0426.settings["remappings"]
     assert "UseYearn" in compiler_latest.contractTypes
+    assert (
+        "@gnosis.pm/mock-contract/contracts=.cache/mock-contract/v4.0.0"
+        in compiler_latest.settings["remappings"]
+    )
 
     # Compiler contract types test
     assert set(compiler_0812.contractTypes) == {
@@ -315,6 +321,7 @@ def test_get_compiler_settings(compiler, project):
         "@remapping_2=.cache/TestDependency/local",
         "@remapping/contracts=.cache/TestDependency/local",
         "@styleofbrownie=.cache/BrownieStyleDependency/local",
+        "@gnosis.pm/mock-contract/contracts=.cache/mock-contract/v4.0.0",
     )
     expected_v812_contracts = (source_a, source_b, source_c, indirect_source)
     expected_latest_contracts = (
@@ -324,6 +331,7 @@ def test_get_compiler_settings(compiler, project):
         ".cache/TestDependencyOfDependency/local/DependencyOfDependency.sol",
         source_d,
         "subfolder/Relativecontract.sol",
+        ".cache/mock-contract/v4.0.0/ComplexInterface.sol",
     )
 
     # Shared compiler defaults tests
@@ -405,9 +413,3 @@ def test_ast(project, compiler):
     fn_node = actual.children[1].children[0]
     assert actual.ast_type == "SourceUnit"
     assert fn_node.classification == ASTClassification.FUNCTION
-
-
-def test_npm_project(compiler, config):
-    npm_project_path = Path(__file__).parent / "NpmDependency"
-    with config.using_project(npm_project_path) as project:
-        assert type(project.UseNpm) == ContractContainer

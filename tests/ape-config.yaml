@@ -22,6 +22,11 @@ dependencies:
     github: yearn/yearn-vaults
     ref: master
 
+  # Ensure dependencies using NPM dependencies
+  - name: mock-contract
+    npm: "@gnosis.pm/mock-contract"
+    version: 4.0.0
+
 solidity:
   import_remapping:
     - "@remapping/contracts=TestDependency"
@@ -35,6 +40,9 @@ solidity:
     # Ensure yearn-vaults works as a remapping
     - "@vault=vault/v0.4.5"
     - "@vaultmain=vault/master"
+
+    # Ensure that npm dependencies work as a remapping
+    - "@gnosis.pm/mock-contract/contracts=mock-contract/v4.0.0"
 
 
   # Using evm_version compatible with older and newer solidity versions.
