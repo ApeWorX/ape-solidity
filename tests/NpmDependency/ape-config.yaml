@@ -1,0 +1,10 @@
+dependencies:
+  # Ensure that dependencies work with npm packages.
+  - name: mock-contract
+    npm: "@gnosis.pm/mock-contract"
+    version: 4.0.0
+
+solidity:
+  import_remapping:
+    # Ensure that npm dependencies work as a remapping
+    - "@gnosis/mock-contract=mock-contract/v4.0.0"

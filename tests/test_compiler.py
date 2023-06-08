@@ -405,3 +405,9 @@ def test_ast(project, compiler):
     fn_node = actual.children[1].children[0]
     assert actual.ast_type == "SourceUnit"
     assert fn_node.classification == ASTClassification.FUNCTION
+
+
+def test_npm_project(compiler, config):
+    npm_project_path = Path(__file__).parent / "NpmDependency"
+    with config.using_project(npm_project_path) as project:
+        assert type(project.UseNpm) == ContractContainer

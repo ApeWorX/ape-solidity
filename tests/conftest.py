@@ -92,6 +92,7 @@ def project(data_folder, config):
         project_path / "DependencyOfDependency",
         project_path / "ProjectWithinProject",
         project_path / "VersionSpecifiedInConfig",
+        project_path / "NpmDependency",
     ):
         for cache in (path / ".build", path / "contracts" / ".cache"):
             if cache.is_dir():
