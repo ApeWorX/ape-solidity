@@ -652,8 +652,11 @@ class SolidityCompiler(CompilerAPI):
             return None
 
         # Check if we need to install specified compiler version
-        if pragma_spec is pragma_spec.select(self.installed_versions):
-            return pragma_spec
+        # match with oldest version available for maximum compatibility
+        for version in self.installed_versions[::-1]:
+            if pragma_spec.match(version):
+                logger.debug("compiling %s (%s) with %s", path, pragma_spec, version)
+                return pragma_spec
 
         compiler_version = pragma_spec.select(self.available_versions)
         if compiler_version:
