@@ -23,9 +23,9 @@ dependencies:
     ref: master
 
   # Ensure dependencies using NPM dependencies
-  - name: mock-contract
-    npm: "@gnosis.pm/mock-contract"
-    version: 4.0.0
+  - name: gnosis
+    npm: "@gnosis.pm/safe-contracts"
+    version: 1.3.0
 
 solidity:
   import_remapping:
@@ -42,7 +42,7 @@ solidity:
     - "@vaultmain=vault/master"
 
     # Ensure that npm dependencies work as a remapping
-    - "@gnosis.pm/mock-contract/contracts=mock-contract/v4.0.0"
+    - "@gnosis=@gnosis.pm/safe-contracts/contracts"
 
 
   # Using evm_version compatible with older and newer solidity versions.

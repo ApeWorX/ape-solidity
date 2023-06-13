@@ -114,11 +114,11 @@ def test_get_imports(project, compiler):
         ".cache/BrownieDependency/local/BrownieContract.sol",
         ".cache/BrownieStyleDependency/local/BrownieStyleDependency.sol",
         ".cache/TestDependency/local/Dependency.sol",
+        ".cache/gnosis/v1.3.0/GnosisSafe.sol",
         "CompilesOnce.sol",
         "MissingPragma.sol",
         "NumerousDefinitions.sol",
         "subfolder/Relativecontract.sol",
-        ".cache/mock-contract/v4.0.0/ComplexInterface.sol",
     }
     assert set(contract_imports) == expected
 
@@ -267,10 +267,7 @@ def test_compiler_data_in_manifest(project):
     ), "Import remappings should be sorted"
     assert f"@remapping/contracts={common_suffix}" in compiler_0426.settings["remappings"]
     assert "UseYearn" in compiler_latest.contractTypes
-    assert (
-        "@gnosis.pm/mock-contract/contracts=.cache/mock-contract/v4.0.0"
-        in compiler_latest.settings["remappings"]
-    )
+    assert "@gnosis=@gnosis.pm/safe-contracts/contracts" in compiler_latest.settings["remappings"]
 
     # Compiler contract types test
     assert set(compiler_0812.contractTypes) == {
@@ -321,7 +318,7 @@ def test_get_compiler_settings(compiler, project):
         "@remapping_2=.cache/TestDependency/local",
         "@remapping/contracts=.cache/TestDependency/local",
         "@styleofbrownie=.cache/BrownieStyleDependency/local",
-        "@gnosis.pm/mock-contract/contracts=.cache/mock-contract/v4.0.0",
+        "@gnosis=@gnosis.pm/safe-contracts/contracts",
     )
     expected_v812_contracts = (source_a, source_b, source_c, indirect_source)
     expected_latest_contracts = (
@@ -331,7 +328,7 @@ def test_get_compiler_settings(compiler, project):
         ".cache/TestDependencyOfDependency/local/DependencyOfDependency.sol",
         source_d,
         "subfolder/Relativecontract.sol",
-        ".cache/mock-contract/v4.0.0/ComplexInterface.sol",
+        ".cache/safe-contracts/v1.3.0/GnosisSafe.sol",
     )
 
     # Shared compiler defaults tests

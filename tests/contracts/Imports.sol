@@ -18,7 +18,7 @@ import {
     Struct5
 } from "./NumerousDefinitions.sol";
 import "@styleofbrownie/BrownieStyleDependency.sol";
-import "@gnosis.pm/mock-contract/contracts/ComplexInterface.sol";
+import "@gnosis/GnosisSafe.sol";
 contract Imports {
     function foo() pure public returns(bool) {
         return true;
