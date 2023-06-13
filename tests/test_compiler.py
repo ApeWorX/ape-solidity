@@ -140,7 +140,7 @@ def test_get_import_remapping(compiler, project, config):
         "@oz/contracts": ".cache/OpenZeppelin/v4.5.0",
         "@vault": ".cache/vault/v0.4.5",
         "@vaultmain": ".cache/vault/master",
-        "@gnosis.pm/mock-contract/contracts": ".cache/mock-contract/v4.0.0",
+        "@gnosis": ".cache/gnosis/v1.3.0",
     }
 
     with config.using_project(project.path / "ProjectWithinProject") as proj:
@@ -267,7 +267,7 @@ def test_compiler_data_in_manifest(project):
     ), "Import remappings should be sorted"
     assert f"@remapping/contracts={common_suffix}" in compiler_0426.settings["remappings"]
     assert "UseYearn" in compiler_latest.contractTypes
-    assert "@gnosis=@gnosis.pm/safe-contracts/contracts" in compiler_latest.settings["remappings"]
+    assert "@gnosis=.cache/gnosis/v1.3.0" in compiler_latest.settings["remappings"]
 
     # Compiler contract types test
     assert set(compiler_0812.contractTypes) == {
@@ -318,7 +318,7 @@ def test_get_compiler_settings(compiler, project):
         "@remapping_2=.cache/TestDependency/local",
         "@remapping/contracts=.cache/TestDependency/local",
         "@styleofbrownie=.cache/BrownieStyleDependency/local",
-        "@gnosis=@gnosis.pm/safe-contracts/contracts",
+        "@gnosis=.cache/gnosis/v1.3.0",
     )
     expected_v812_contracts = (source_a, source_b, source_c, indirect_source)
     expected_latest_contracts = (
@@ -328,7 +328,7 @@ def test_get_compiler_settings(compiler, project):
         ".cache/TestDependencyOfDependency/local/DependencyOfDependency.sol",
         source_d,
         "subfolder/Relativecontract.sol",
-        ".cache/safe-contracts/v1.3.0/GnosisSafe.sol",
+        ".cache/gnosis/v1.3.0/common/Enum.sol",
     )
 
     # Shared compiler defaults tests
