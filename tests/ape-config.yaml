@@ -42,8 +42,7 @@ solidity:
     - "@vaultmain=vault/master"
 
     # Ensure that npm dependencies work as a remapping
-    - "@gnosis=@gnosis.pm/safe-contracts/contracts"
-
+    - "@gnosis=gnosis/v0.1.3"
 
   # Using evm_version compatible with older and newer solidity versions.
   evm_version: constantinople
