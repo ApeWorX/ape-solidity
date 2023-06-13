@@ -153,13 +153,10 @@ class SolidityCompiler(CompilerAPI):
 
         # Convert to tuple for hashing, check if there's been a change
         remappings_tuple = tuple(remappings)
-
-        if all(
-            (
-                self._import_remapping_hash,
-                self._import_remapping_hash == hash(remappings_tuple),
-                contracts_cache.is_dir(),
-            )
+        if (
+            self._import_remapping_hash
+            and self._import_remapping_hash == hash(remappings_tuple)
+            and contracts_cache.is_dir()
         ):
             return self._cached_import_map
 
