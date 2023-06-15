@@ -18,6 +18,8 @@ import {
     Struct5
 } from "./NumerousDefinitions.sol";
 import "@styleofbrownie/BrownieStyleDependency.sol";
+// Purposely repeat an import to test how the plugin handles that.
+import "@styleofbrownie/BrownieStyleDependency.sol";
 
 contract Imports {
     function foo() pure public returns(bool) {
