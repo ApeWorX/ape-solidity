@@ -454,63 +454,42 @@ class SolidityCompiler(CompilerAPI):
 
         return contract_types
 
+    def get_imports_with_raw(
+            self, contract_filepaths: List[Path], base_path: Optional[Path] = None,
+    ) -> Dict[str, List[Tuple[str, str]]]:
+        contracts_path = base_path or self.config_manager.contracts_folder
+        import_remapping = self.get_import_remapping(base_path=contracts_path)
+        contract_filepaths_set = verify_contract_filepaths(contract_filepaths)
+
+        imports_dict: Dict[str, List[Tuple[str, str]]] = {}
+        for src_path, import_strs in get_import_lines(contract_filepaths_set).items():
+            import_list = []
+            for import_str in import_strs:
+                raw_import_item = re.search(r'"(.*?)"', import_str).group(1)
+                import_item = import_str_to_source_id(import_str, src_path, contracts_path, import_remapping)
+
+                # Only add to the list if it's not already there, to mimic set behavior
+                if (import_item, raw_import_item) not in import_list:
+                    import_list.append((import_item, raw_import_item))
+
+            source_id = str(get_relative_path(src_path, contracts_path))
+            imports_dict[str(source_id)] = import_list
+
+        return imports_dict
+
     def get_imports(
-        self, contract_filepaths: List[Path], base_path: Optional[Path] = None
+            self, contract_filepaths: List[Path], base_path: Optional[Path] = None,
     ) -> Dict[str, List[str]]:
         # NOTE: Process import remappings _before_ getting the full contract set.
         contracts_path = base_path or self.config_manager.contracts_folder
         import_remapping = self.get_import_remapping(base_path=contracts_path)
         contract_filepaths_set = verify_contract_filepaths(contract_filepaths)
 
-        def import_str_to_source_id(_import_str: str, source_path: Path) -> str:
-            quote = '"' if '"' in _import_str else "'"
-
-            try:
-                end_index = _import_str.index(quote) + 1
-            except ValueError as err:
-                raise CompilerError(
-                    f"Error parsing import statement '{_import_str}' in '{source_path.name}'."
-                ) from err
-
-            import_str_prefix = _import_str[end_index:]
-            import_str_value = import_str_prefix[: import_str_prefix.index(quote)]
-            path = (source_path.parent / import_str_value).resolve()
-            source_id_value = str(get_relative_path(path, contracts_path))
-
-            # Get all matches.
-            matches: List[Tuple[str, str]] = []
-            for key, value in import_remapping.items():
-                if key not in source_id_value:
-                    continue
-
-                matches.append((key, value))
-
-            if not matches:
-                return source_id_value
-
-            # Convert remapping list back to source using longest match (most exact).
-            key, value = max(matches, key=lambda x: len(x[0]))
-            sections = [s for s in source_id_value.split(key) if s]
-            depth = len(sections) - 1
-            source_id_value = ""
-
-            index = 0
-            for section in sections:
-                if index == depth:
-                    source_id_value += value
-                    source_id_value += section
-                elif index >= depth:
-                    source_id_value += section
-
-                index += 1
-
-            return source_id_value
-
         imports_dict: Dict[str, List[str]] = {}
         for src_path, import_strs in get_import_lines(contract_filepaths_set).items():
             import_set = set()
             for import_str in import_strs:
-                import_item = import_str_to_source_id(import_str, src_path)
+                import_item = import_str_to_source_id(import_str, src_path, contracts_path, import_remapping)
                 import_set.add(import_item)
 
             source_id = str(get_relative_path(src_path, contracts_path))
@@ -740,16 +719,20 @@ class SolidityCompiler(CompilerAPI):
             )
 
     def _flatten_source(self, path: Path, base_path=None) -> str:
-        base_path = base_path or path.parent
-        imports = self.get_imports([path])
+        base = base_path or path.parent
+        imports = self.get_imports_with_raw([path])
         source = ""
         for import_list in imports.values():
             if not import_list:
                 continue
-            for import_path in import_list:
-                source += self._flatten_source(base_path / import_path, base_path=base_path)
-        source += path.read_text()
+            for import_path, raw_import_path in import_list:
+                source += f"// File: {raw_import_path}\n\n"
+                source += self._flatten_source(base / import_path, base_path=base)
+        if base_path is None:
+            source += f"\n// File: {path.name}\n\n"
+        source += path.read_text() + "\n"
         return source
+
 
     def flatten_contract(self, path: Path, **kwargs) -> Content:
         """Flatten a contract.
@@ -761,11 +744,23 @@ class SolidityCompiler(CompilerAPI):
         Returns:
             Content of flattened contract.
         """
+        # try compiling in order to validate it works
+        self.compile([path], base_path=self.config_manager.contracts_folder)
         source = self._flatten_source(path)
+        source = remove_imports(source)
         lines = source.splitlines()
         line_dict = {i + 1: line for i, line in enumerate(lines)}
         return Content(__root__=line_dict)
 
+def remove_imports(flattened_contract: str) -> str:
+    # Define a regex pattern that matches import statements
+    # Both single and multi-line imports will be matched
+    pattern = r'import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s'
+
+    # Use re.sub() to remove matched import statements
+    no_imports_contract = re.sub(pattern, '', flattened_contract, flags=re.MULTILINE)
+
+    return no_imports_contract
 
 def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
     if revert_message.startswith(RUNTIME_ERROR_CODE_PREFIX):
@@ -781,3 +776,47 @@ def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
         return RUNTIME_ERROR_MAP[RuntimeErrorType(error_type_val)]
 
     return None
+
+def import_str_to_source_id(_import_str: str, source_path: Path, base_path: Path, import_remapping: Dict[str, str]) -> str:
+    quote = '"' if '"' in _import_str else "'"
+
+    try:
+        end_index = _import_str.index(quote) + 1
+    except ValueError as err:
+        raise CompilerError(
+            f"Error parsing import statement '{_import_str}' in '{source_path.name}'."
+        ) from err
+
+    import_str_prefix = _import_str[end_index:]
+    import_str_value = import_str_prefix[: import_str_prefix.index(quote)]
+    path = (source_path.parent / import_str_value).resolve()
+    source_id_value = str(get_relative_path(path, base_path))
+
+    # Get all matches.
+    matches: List[Tuple[str, str]] = []
+    for key, value in import_remapping.items():
+        if key not in source_id_value:
+            continue
+
+        matches.append((key, value))
+
+    if not matches:
+        return source_id_value
+
+    # Convert remapping list back to source using longest match (most exact).
+    key, value = max(matches, key=lambda x: len(x[0]))
+    sections = [s for s in source_id_value.split(key) if s]
+    depth = len(sections) - 1
+    source_id_value = ""
+
+    index = 0
+    for section in sections:
+        if index == depth:
+            source_id_value += value
+            source_id_value += section
+        elif index >= depth:
+            source_id_value += section
+
+        index += 1
+
+    return source_id_value
