@@ -465,7 +465,10 @@ class SolidityCompiler(CompilerAPI):
         for src_path, import_strs in get_import_lines(contract_filepaths_set).items():
             import_list = []
             for import_str in import_strs:
-                raw_import_item = re.search(r'"(.*?)"', import_str).group(1)
+                raw_import_item_search = re.search(r'"(.*?)"', import_str)
+                if raw_import_item_search is None:
+                    raise CompilerError(f"No target filename found in import {import_str}")
+                raw_import_item = raw_import_item_search.group(1)
                 import_item = import_str_to_source_id(import_str, src_path, contracts_path, import_remapping)
 
                 # Only add to the list if it's not already there, to mimic set behavior
