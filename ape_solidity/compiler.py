@@ -455,7 +455,9 @@ class SolidityCompiler(CompilerAPI):
         return contract_types
 
     def get_imports_with_raw(
-            self, contract_filepaths: List[Path], base_path: Optional[Path] = None,
+        self,
+        contract_filepaths: List[Path],
+        base_path: Optional[Path] = None,
     ) -> Dict[str, List[Tuple[str, str]]]:
         contracts_path = base_path or self.config_manager.contracts_folder
         import_remapping = self.get_import_remapping(base_path=contracts_path)
@@ -469,7 +471,9 @@ class SolidityCompiler(CompilerAPI):
                 if raw_import_item_search is None:
                     raise CompilerError(f"No target filename found in import {import_str}")
                 raw_import_item = raw_import_item_search.group(1)
-                import_item = import_str_to_source_id(import_str, src_path, contracts_path, import_remapping)
+                import_item = import_str_to_source_id(
+                    import_str, src_path, contracts_path, import_remapping
+                )
 
                 # Only add to the list if it's not already there, to mimic set behavior
                 if (import_item, raw_import_item) not in import_list:
@@ -481,7 +485,9 @@ class SolidityCompiler(CompilerAPI):
         return imports_dict
 
     def get_imports(
-            self, contract_filepaths: List[Path], base_path: Optional[Path] = None,
+        self,
+        contract_filepaths: List[Path],
+        base_path: Optional[Path] = None,
     ) -> Dict[str, List[str]]:
         # NOTE: Process import remappings _before_ getting the full contract set.
         contracts_path = base_path or self.config_manager.contracts_folder
@@ -492,7 +498,9 @@ class SolidityCompiler(CompilerAPI):
         for src_path, import_strs in get_import_lines(contract_filepaths_set).items():
             import_set = set()
             for import_str in import_strs:
-                import_item = import_str_to_source_id(import_str, src_path, contracts_path, import_remapping)
+                import_item = import_str_to_source_id(
+                    import_str, src_path, contracts_path, import_remapping
+                )
                 import_set.add(import_item)
 
             source_id = str(get_relative_path(src_path, contracts_path))
@@ -736,7 +744,6 @@ class SolidityCompiler(CompilerAPI):
         source += path.read_text() + "\n"
         return source
 
-
     def flatten_contract(self, path: Path, **kwargs) -> Content:
         """Flatten a contract.
 
@@ -755,15 +762,17 @@ class SolidityCompiler(CompilerAPI):
         line_dict = {i + 1: line for i, line in enumerate(lines)}
         return Content(__root__=line_dict)
 
+
 def remove_imports(flattened_contract: str) -> str:
     # Define a regex pattern that matches import statements
     # Both single and multi-line imports will be matched
-    pattern = r'import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s'
+    pattern = r"import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s"
 
     # Use re.sub() to remove matched import statements
-    no_imports_contract = re.sub(pattern, '', flattened_contract, flags=re.MULTILINE)
+    no_imports_contract = re.sub(pattern, "", flattened_contract, flags=re.MULTILINE)
 
     return no_imports_contract
+
 
 def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
     if revert_message.startswith(RUNTIME_ERROR_CODE_PREFIX):
@@ -780,7 +789,10 @@ def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
 
     return None
 
-def import_str_to_source_id(_import_str: str, source_path: Path, base_path: Path, import_remapping: Dict[str, str]) -> str:
+
+def import_str_to_source_id(
+    _import_str: str, source_path: Path, base_path: Path, import_remapping: Dict[str, str]
+) -> str:
     quote = '"' if '"' in _import_str else "'"
 
     try:
