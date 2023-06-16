@@ -735,7 +735,9 @@ class SolidityCompiler(CompilerAPI):
         source = ""
         for import_list in imports.values():
             for import_path, raw_import_path in import_list:
-                source += self._flatten_source(base_path / import_path, base_path=base_path, raw_import_name=raw_import_path)
+                source += self._flatten_source(
+                    base_path / import_path, base_path=base_path, raw_import_name=raw_import_path
+                )
         if raw_import_name:
             source += f"// File: {raw_import_name}\n"
         else:
@@ -773,10 +775,12 @@ def remove_imports(flattened_contract: str) -> str:
 
     return no_imports_contract
 
+
 def get_licenses(source: str) -> List[str]:
     pattern = r"(// SPDX-License-Identifier:\s*([^\n]*)\s)"
     matches = re.findall(pattern, source)
     return matches
+
 
 def process_licenses(contract: str) -> str:
     # Extract SPDX license identifiers
