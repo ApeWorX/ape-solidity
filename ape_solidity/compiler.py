@@ -729,18 +729,17 @@ class SolidityCompiler(CompilerAPI):
                 txn=err.txn,
             )
 
-    def _flatten_source(self, path: Path, base_path=None) -> str:
-        base = base_path or path.parent
+    def _flatten_source(self, path: Path, base_path=None, raw_import_name=None) -> str:
+        base_path = base_path or self.config_manager.contracts_folder
         imports = self.get_imports_with_raw([path])
         source = ""
         for import_list in imports.values():
-            if not import_list:
-                continue
             for import_path, raw_import_path in import_list:
-                source += f"// File: {raw_import_path}\n\n"
-                source += self._flatten_source(base / import_path, base_path=base)
-        if base_path is None:
-            source += f"\n// File: {path.name}\n\n"
+                source += self._flatten_source(base_path / import_path, base_path=base_path, raw_import_name=raw_import_path)
+        if raw_import_name:
+            source += f"// File: {raw_import_name}\n"
+        else:
+            source += f"// File: {path.name}\n"
         source += path.read_text() + "\n"
         return source
 
@@ -758,6 +757,7 @@ class SolidityCompiler(CompilerAPI):
         self.compile([path], base_path=self.config_manager.contracts_folder)
         source = self._flatten_source(path)
         source = remove_imports(source)
+        source = process_licenses(source)
         lines = source.splitlines()
         line_dict = {i + 1: line for i, line in enumerate(lines)}
         return Content(__root__=line_dict)
@@ -772,6 +772,26 @@ def remove_imports(flattened_contract: str) -> str:
     no_imports_contract = re.sub(pattern, "", flattened_contract, flags=re.MULTILINE)
 
     return no_imports_contract
+
+def get_licenses(source: str) -> List[str]:
+    pattern = r"(// SPDX-License-Identifier:\s*([^\n]*)\s)"
+    matches = re.findall(pattern, source)
+    return matches
+
+def process_licenses(contract: str) -> str:
+    # Extract SPDX license identifiers
+    licenses = get_licenses(contract)
+
+    # Ensure all licenses are identical
+    unique_licenses = {license[1] for license in licenses}
+    if len(unique_licenses) > 1:
+        raise CompilerError(f"Conflicting licenses found: {unique_licenses}")
+
+    contract = contract.replace(licenses[0][0], "")
+
+    contract = f"// SPDX-License-Identifier: {licenses[0][1]}\n\n{contract}"
+
+    return contract
 
 
 def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
