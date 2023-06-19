@@ -454,7 +454,7 @@ class SolidityCompiler(CompilerAPI):
 
         return contract_types
 
-    def get_imports_with_raw(
+    def get_imports_with_raw_name(
         self,
         contract_filepaths: List[Path],
         base_path: Optional[Path] = None,
@@ -731,10 +731,10 @@ class SolidityCompiler(CompilerAPI):
 
     def _flatten_source(self, path: Path, base_path=None, raw_import_name=None) -> str:
         base_path = base_path or self.config_manager.contracts_folder
-        imports = self.get_imports_with_raw([path])
+        imports = self.get_imports_with_raw_name([path])
         source = ""
         for import_list in imports.values():
-            for import_path, raw_import_path in import_list:
+            for import_path, raw_import_path in sorted(import_list):
                 source += self._flatten_source(
                     base_path / import_path, base_path=base_path, raw_import_name=raw_import_path
                 )
