@@ -670,26 +670,17 @@ class SolidityCompiler(CompilerAPI):
 
     def enrich_error(self, err: ContractLogicError) -> ContractLogicError:
         if not is_0x_prefixed(err.revert_message):
+            # Nothing to do.
             return err
 
         if panic_cls := _get_sol_panic(err.revert_message):
-            # Is from a Solidity panic code, like a builtin Solidity revert.
-
-            if self._ape_version <= Version("0.6.10"):
-                return panic_cls(
-                    contract_address=err.contract_address,
-                    trace=err.trace,
-                    txn=err.txn,
-                )
-            else:
-                # TODO: Bump to next ape version and remove conditional.
-                return panic_cls(
-                    base_err=err.base_err,
-                    contract_address=err.contract_address,
-                    source_traceback=err.source_traceback,
-                    trace=err.trace,
-                    txn=err.txn,
-                )
+            return panic_cls(
+                base_err=err.base_err,
+                contract_address=err.contract_address,
+                source_traceback=err.source_traceback,
+                trace=err.trace,
+                txn=err.txn,
+            )
 
         # Check for ErrorABI.
         bytes_message = HexBytes(err.revert_message)

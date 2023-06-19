@@ -9,6 +9,7 @@ from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
 from ethpm_types.ast import ASTClassification
 from semantic_version import Version  # type: ignore
+from web3.exceptions import ContractPanicError
 
 from ape_solidity import Extension
 from ape_solidity._utils import OUTPUT_SELECTION
@@ -398,10 +399,19 @@ def test_enrich_error_when_custom(compiler, project, owner, not_owner, connectio
 
 
 def test_enrich_error_when_builtin(project, owner, connection):
-    contract = project.BuiltinErrorChecker.deploy(sender=owner)
+    # TODO: Any version after eth-ape 0.6.11, you can uncomment this and delete the rest.
+    # contract = project.BuiltinErrorChecker.deploy(sender=owner)
+    # with pytest.raises(IndexOutOfBoundsError):
+    #     contract.checkIndexOutOfBounds(sender=owner)
 
-    with pytest.raises(IndexOutOfBoundsError):
-        contract.checkIndexOutOfBounds(sender=owner)
+    compiler = project.compiler_manager.solidity
+    base_err = ContractPanicError(
+        message="Panic error 0x32: Array index is out of bounds.",
+        data="0x4e487b710000000000000000000000000000000000000000000000000000000000000032",
+    )
+    actual = compiler.enrich_error(base_err)
+    assert isinstance(actual, IndexOutOfBoundsError)
+    assert actual.base_err == base_err
 
 
 def test_ast(project, compiler):
