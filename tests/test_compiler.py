@@ -114,7 +114,7 @@ def test_get_imports(project, compiler):
         ".cache/BrownieDependency/local/BrownieContract.sol",
         ".cache/BrownieStyleDependency/local/BrownieStyleDependency.sol",
         ".cache/TestDependency/local/Dependency.sol",
-        ".cache/gnosis/v1.3.0/GnosisSafe.sol",
+        ".cache/gnosis/v1.3.0/common/Enum.sol",
         "CompilesOnce.sol",
         "MissingPragma.sol",
         "NumerousDefinitions.sol",
