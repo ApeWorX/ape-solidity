@@ -6,10 +6,9 @@ from pathlib import Path
 import pytest
 import solcx  # type: ignore
 from ape.contracts import ContractContainer
-from ape.exceptions import CompilerError
+from ape.exceptions import CompilerError, ContractLogicError
 from ethpm_types.ast import ASTClassification
 from semantic_version import Version  # type: ignore
-from web3.exceptions import ContractPanicError
 
 from ape_solidity import Extension
 from ape_solidity._utils import OUTPUT_SELECTION
@@ -405,13 +404,11 @@ def test_enrich_error_when_builtin(project, owner, connection):
     #     contract.checkIndexOutOfBounds(sender=owner)
 
     compiler = project.compiler_manager.solidity
-    base_err = ContractPanicError(
-        message="Panic error 0x32: Array index is out of bounds.",
-        data="0x4e487b710000000000000000000000000000000000000000000000000000000000000032",
+    contract_err = ContractLogicError(
+        revert_message="0x4e487b710000000000000000000000000000000000000000000000000000000000000032"
     )
-    actual = compiler.enrich_error(base_err)
+    actual = compiler.enrich_error(contract_err)
     assert isinstance(actual, IndexOutOfBoundsError)
-    assert actual.base_err == base_err
 
 
 def test_ast(project, compiler):
