@@ -42,7 +42,9 @@ from ape_solidity.exceptions import (
 
 # Define a regex pattern that matches import statements
 # Both single and multi-line imports will be matched
-IMPORTS_PATTERN = re.compile(r"import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s", flags=re.MULTILINE)
+IMPORTS_PATTERN = re.compile(
+    r"import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s", flags=re.MULTILINE
+)
 
 
 class SolidityConfig(PluginConfig):
@@ -733,7 +735,9 @@ class SolidityCompiler(CompilerAPI):
                 txn=err.txn,
             )
 
-    def _flatten_source(self, path: Path, base_path: Optional[Path] = None, raw_import_name: Optional[str] = None) -> str:
+    def _flatten_source(
+        self, path: Path, base_path: Optional[Path] = None, raw_import_name: Optional[str] = None
+    ) -> str:
         base_path = base_path or self.config_manager.contracts_folder
         imports = self._get_unmapped_imports([path])
         source = ""
@@ -772,6 +776,7 @@ def get_licenses(source: str) -> List[str]:
     matches = re.findall(pattern, source)
     return matches
 
+
 def process_licenses(contract: str) -> str:
     """
     Process the licenses in a contract.
@@ -787,7 +792,9 @@ def process_licenses(contract: str) -> str:
         return contract
 
     # Get the unique license identifiers. We expect that all licenses in a contract are the same.
-    unique_license_identifiers = {license_identifier for _, license_identifier in extracted_licenses}
+    unique_license_identifiers = {
+        license_identifier for _, license_identifier in extracted_licenses
+    }
 
     # If we have more than one unique license identifier, raise an error.
     if len(unique_license_identifiers) > 1:

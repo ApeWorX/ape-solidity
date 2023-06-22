@@ -406,6 +406,7 @@ def test_ast(project, compiler):
     assert actual.ast_type == "SourceUnit"
     assert fn_node.classification == ASTClassification.FUNCTION
 
+
 def test_flatten(project, compiler):
     source_path = project.contracts_folder / "Imports.sol"
     flattened_source_path = project.contracts_folder / "ImportsFlattened.sol"
