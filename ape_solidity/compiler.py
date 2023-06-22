@@ -771,7 +771,7 @@ def remove_imports(flattened_contract: str) -> str:
     return no_imports_contract
 
 
-def get_licenses(source: str) -> List[str]:
+def get_licenses(source: str) -> List[Tuple[str, str]]:
     pattern = r"(// SPDX-License-Identifier:\s*([^\n]*)\s)"
     matches = re.findall(pattern, source)
     return matches
