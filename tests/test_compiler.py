@@ -131,7 +131,7 @@ def test_get_import_remapping(compiler, project, config):
     import_remapping = compiler.get_import_remapping()
     assert import_remapping == {
         "@remapping_2_brownie": ".cache/BrownieDependency/local",
-        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
+        "@dependency_remapping": ".cache/DependencyOfDependency/local",
         "@remapping_2": ".cache/TestDependency/local",
         "@remapping/contracts": ".cache/TestDependency/local",
         "@styleofbrownie": ".cache/BrownieStyleDependency/local",
