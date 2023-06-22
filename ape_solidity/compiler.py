@@ -40,6 +40,10 @@ from ape_solidity.exceptions import (
     RuntimeErrorUnion,
 )
 
+# Define a regex pattern that matches import statements
+# Both single and multi-line imports will be matched
+IMPORTS_PATTERN = re.compile(r"import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s")
+
 
 class SolidityConfig(PluginConfig):
     # Configure re-mappings using a `=` separated-str,
@@ -766,12 +770,8 @@ class SolidityCompiler(CompilerAPI):
 
 
 def remove_imports(flattened_contract: str) -> str:
-    # Define a regex pattern that matches import statements
-    # Both single and multi-line imports will be matched
-    pattern = r"import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s"
-
-    # Use re.sub() to remove matched import statements
-    no_imports_contract = re.sub(pattern, "", flattened_contract, flags=re.MULTILINE)
+    # Use regex.sub() to remove matched import statements
+    no_imports_contract = IMPORTS_PATTERN.sub("", flattened_contract, flags=re.MULTILINE)
 
     return no_imports_contract
 
