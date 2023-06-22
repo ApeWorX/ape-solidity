@@ -42,7 +42,7 @@ from ape_solidity.exceptions import (
 
 # Define a regex pattern that matches import statements
 # Both single and multi-line imports will be matched
-IMPORTS_PATTERN = re.compile(r"import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s")
+IMPORTS_PATTERN = re.compile(r"import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s", flags=re.MULTILINE)
 
 
 class SolidityConfig(PluginConfig):
@@ -750,15 +750,6 @@ class SolidityCompiler(CompilerAPI):
         return source
 
     def flatten_contract(self, path: Path, **kwargs) -> Content:
-        """Flatten a contract.
-
-        Args:
-            path: Path to contract file.
-            **kwargs: Keyword arguments
-
-        Returns:
-            Content of flattened contract.
-        """
         # try compiling in order to validate it works
         self.compile([path], base_path=self.config_manager.contracts_folder)
         source = self._flatten_source(path)
@@ -771,7 +762,7 @@ class SolidityCompiler(CompilerAPI):
 
 def remove_imports(flattened_contract: str) -> str:
     # Use regex.sub() to remove matched import statements
-    no_imports_contract = IMPORTS_PATTERN.sub("", flattened_contract, flags=re.MULTILINE)
+    no_imports_contract = IMPORTS_PATTERN.sub("", flattened_contract)
 
     return no_imports_contract
 
