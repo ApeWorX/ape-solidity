@@ -409,7 +409,7 @@ def test_ast(project, compiler):
 
 def test_flatten(project, compiler):
     source_path = project.contracts_folder / "Imports.sol"
-    flattened_source_path = project.contracts_folder / "ImportsFlattened.sol"
+    flattened_source_path = project.contracts_folder / "ImportsFlattened.sol.txt"
     flattened_source = compiler.flatten_contract(source_path)
 
     assert str(flattened_source) == str(flattened_source_path.read_text())
