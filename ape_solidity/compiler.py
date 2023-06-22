@@ -772,21 +772,37 @@ def get_licenses(source: str) -> List[str]:
     matches = re.findall(pattern, source)
     return matches
 
-
 def process_licenses(contract: str) -> str:
-    # Extract SPDX license identifiers
-    licenses = get_licenses(contract)
+    """
+    Process the licenses in a contract.
+    Ensure that all licenses are identical, and if not, raise an error.
+    The contract is returned with a single license identifier line at its top.
+    """
 
-    # Ensure all licenses are identical
-    unique_licenses = {license[1] for license in licenses}
-    if len(unique_licenses) > 1:
-        raise CompilerError(f"Conflicting licenses found: {unique_licenses}")
+    # Extract SPDX license identifiers from the contract.
+    extracted_licenses = get_licenses(contract)
 
-    contract = contract.replace(licenses[0][0], "")
+    # Return early if no licenses are present in the contract.
+    if not extracted_licenses:
+        return contract
 
-    contract = f"// SPDX-License-Identifier: {licenses[0][1]}\n\n{contract}"
+    # Get the unique license identifiers. We expect that all licenses in a contract are the same.
+    unique_license_identifiers = {license_identifier for _, license_identifier in extracted_licenses}
 
-    return contract
+    # If we have more than one unique license identifier, raise an error.
+    if len(unique_license_identifiers) > 1:
+        raise CompilerError(f"Conflicting licenses found: {unique_license_identifiers}")
+
+    # Get the first license line and identifier.
+    license_line, _ = extracted_licenses[0]
+
+    # Remove all of the license lines from the contract.
+    contract_without_licenses = contract.replace(license_line, "")
+
+    # Prepend the contract with only one license line.
+    contract_with_single_license = f"{license_line}\n\n{contract_without_licenses}"
+
+    return contract_with_single_license
 
 
 def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
