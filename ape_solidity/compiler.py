@@ -475,7 +475,7 @@ class SolidityCompiler(CompilerAPI):
                 if raw_import_item_search is None:
                     raise CompilerError(f"No target filename found in import {import_str}")
                 raw_import_item = raw_import_item_search.group(1)
-                import_item = import_str_to_source_id(
+                import_item = _import_str_to_source_id(
                     import_str, src_path, contracts_path, import_remapping
                 )
 
@@ -502,7 +502,7 @@ class SolidityCompiler(CompilerAPI):
         for src_path, import_strs in get_import_lines(contract_filepaths_set).items():
             import_set = set()
             for import_str in import_strs:
-                import_item = import_str_to_source_id(
+                import_item = _import_str_to_source_id(
                     import_str, src_path, contracts_path, import_remapping
                 )
                 import_set.add(import_item)
@@ -821,7 +821,7 @@ def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
     return None
 
 
-def import_str_to_source_id(
+def _import_str_to_source_id(
     _import_str: str, source_path: Path, base_path: Path, import_remapping: Dict[str, str]
 ) -> str:
     quote = '"' if '"' in _import_str else "'"
