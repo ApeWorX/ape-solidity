@@ -729,7 +729,7 @@ class SolidityCompiler(CompilerAPI):
                 txn=err.txn,
             )
 
-    def _flatten_source(self, path: Path, base_path=None, raw_import_name=None) -> str:
+    def _flatten_source(self, path: Path, base_path: Optional[Path] = None, raw_import_name: Optional[str] = None) -> str:
         base_path = base_path or self.config_manager.contracts_folder
         imports = self.get_imports_with_raw_name([path])
         source = ""
