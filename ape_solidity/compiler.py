@@ -807,7 +807,7 @@ def process_licenses(contract: str) -> str:
     contract_without_licenses = contract.replace(license_line, "")
 
     # Prepend the contract with only one license line.
-    contract_with_single_license = f"{license_line}\n\n{contract_without_licenses}"
+    contract_with_single_license = f"{license_line}\n{contract_without_licenses}"
 
     return contract_with_single_license
 
