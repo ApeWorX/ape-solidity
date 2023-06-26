@@ -22,6 +22,11 @@ dependencies:
     github: yearn/yearn-vaults
     ref: master
 
+  # Ensure dependencies using NPM dependencies
+  - name: gnosis
+    npm: "@gnosis.pm/safe-contracts"
+    version: 1.3.0
+
 solidity:
   import_remapping:
     - "@remapping/contracts=TestDependency"
@@ -36,6 +41,11 @@ solidity:
     - "@vault=vault/v0.4.5"
     - "@vaultmain=vault/master"
 
+    # Ensure that npm dependencies work as a remapping
+    - "@gnosis=gnosis/v1.3.0"
+
+    # Needed for Vault
+    - "@openzeppelin/contracts=OpenZeppelin/v4.7.1"
 
   # Using evm_version compatible with older and newer solidity versions.
   evm_version: constantinople
