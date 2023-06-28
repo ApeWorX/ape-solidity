@@ -30,6 +30,7 @@ normal_test_skips = (
     "MultipleDefinitions",
     "RandomVyperFile",
     "LibraryFun",
+    "JustAStruct",
 )
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
 DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
