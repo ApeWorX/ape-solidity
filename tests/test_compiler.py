@@ -30,6 +30,7 @@ normal_test_skips = (
     "MultipleDefinitions",
     "RandomVyperFile",
     "LibraryFun",
+    "JustAStruct",
 )
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
 DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
@@ -100,6 +101,15 @@ def test_compile_only_returns_contract_types_for_inputs(compiler, project):
 def test_compile_vyper_contract(compiler, vyper_source_path):
     with raises_because_not_sol:
         compiler.compile([vyper_source_path])
+
+
+def test_compile_just_a_struct(compiler, project):
+    """
+    Before, you would get a nasty index error, even though this is valid Solidity.
+    The fix involved using nicer access to "contracts" in the standard output JSON.
+    """
+    contract_types = compiler.compile([project.contracts_folder / "JustAStruct.sol"])
+    assert len(contract_types) == 0
 
 
 def test_get_imports(project, compiler):
