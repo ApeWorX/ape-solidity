@@ -2,6 +2,7 @@ import json
 import re
 import shutil
 from pathlib import Path
+from typing import Any
 
 import pytest
 import solcx  # type: ignore
@@ -421,7 +422,10 @@ def test_ast(project, compiler):
 
 def test_flatten(project, compiler, data_folder):
     source_path = project.contracts_folder / "Imports.sol"
-    flattened_source_path = data_folder / "ImportsFlattened.sol.txt"
-    flattened_source = compiler.flatten_contract(source_path)
+    with pytest.raises(CompilerError):
+        compiler.flatten_contract(source_path)
 
+    source_path = project.contracts_folder / "ImportingLessConstrainedVersion.sol"
+    flattened_source = compiler.flatten_contract(source_path)
+    flattened_source_path = data_folder / "ImportingLessConstrainedVersionFlat.sol"
     assert str(flattened_source) == str(flattened_source_path.read_text())
