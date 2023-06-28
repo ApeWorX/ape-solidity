@@ -378,8 +378,9 @@ class SolidityCompiler(CompilerAPI):
             except SolcError as err:
                 raise CompilerError(str(err)) from err
 
+            contracts = output.get("contracts", {})
             input_contract_names: List[str] = []
-            for source_id, contracts_out in output["contracts"].items():
+            for source_id, contracts_out in contracts.items():
                 for name, _ in contracts_out.items():
                     # Filter source files that the user did not ask for, such as
                     # imported relative files that are not part of the input.
@@ -394,7 +395,7 @@ class SolidityCompiler(CompilerAPI):
                 for child in _node.children:
                     classify_ast(child)
 
-            for source_id, contracts_out in output["contracts"].items():
+            for source_id, contracts_out in contracts.items():
                 ast_data = output["sources"][source_id]["ast"]
                 ast = ASTNode.parse_obj(ast_data)
                 classify_ast(ast)
