@@ -104,8 +104,8 @@ def test_compile_vyper_contract(compiler, vyper_source_path):
 
 def test_compile_just_a_struct(compiler, project):
     """
-    Before you would get a nasty index error, even though this valid Solidity.
-    The fix involved using nicer access to `"contracts"` in the standard output JSON.
+    Before, you would get a nasty index error, even though this is valid Solidity.
+    The fix involved using nicer access to "contracts" in the standard output JSON.
     """
     contract_types = compiler.compile([project.contracts_folder / "JustAStruct.sol"])
     assert len(contract_types) == 0
