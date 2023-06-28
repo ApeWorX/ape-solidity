@@ -48,6 +48,7 @@ IMPORTS_PATTERN = re.compile(
 
 LICENSES_PATTERN = re.compile(r"(// SPDX-License-Identifier:\s*([^\n]*)\s)")
 
+VERSION_PRAGMA_PATTERN = re.compile(r"pragma solidity[^;]*;")
 
 class SolidityConfig(PluginConfig):
     # Configure re-mappings using a `=` separated-str,
@@ -749,6 +750,9 @@ class SolidityCompiler(CompilerAPI):
         source = self._flatten_source(path)
         source = remove_imports(source)
         source = process_licenses(source)
+        source = remove_version_pragmas(source)
+        pragma = get_first_version_pragma(path.read_text())
+        source = "\n".join([pragma, source])
         lines = source.splitlines()
         line_dict = {i + 1: line for i, line in enumerate(lines)}
         return Content(__root__=line_dict)
@@ -759,6 +763,18 @@ def remove_imports(flattened_contract: str) -> str:
     no_imports_contract = IMPORTS_PATTERN.sub("", flattened_contract)
 
     return no_imports_contract
+
+
+def remove_version_pragmas(flattened_contract: str) -> str:
+    return VERSION_PRAGMA_PATTERN.sub("", flattened_contract)
+
+
+def get_first_version_pragma(source: str) -> Optional[str]:
+    match = VERSION_PRAGMA_PATTERN.search(source)
+    if match:
+        print(f"Found version pragma: {match.group(0)}")
+        return match.group(0)
+    return None
 
 
 def get_licenses(source: str) -> List[Tuple[str, str]]:
