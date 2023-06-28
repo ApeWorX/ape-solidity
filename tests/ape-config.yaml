@@ -1,6 +1,8 @@
 dependencies:
   - name: TestDependency
     local: ./Dependency
+  - name: DependencyOfDependency
+    local: ./DependencyOfDependency
 
   # Make sure can use a Brownie project as a dependency
   - name: BrownieDependency
@@ -32,6 +34,7 @@ solidity:
     - "@remapping/contracts=TestDependency"
     - "@remapping_2=TestDependency"
     - "@remapping_2_brownie=BrownieDependency"
+    - "@dependency_remapping=DependencyOfDependency"
 
     # Remapping for showing we can import a contract type from a brownie-style dependency
     # (provided the _single_ contract type compiles in the project).

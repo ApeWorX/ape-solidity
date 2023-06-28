@@ -142,7 +142,7 @@ def test_get_import_remapping(compiler, project, config):
     import_remapping = compiler.get_import_remapping()
     assert import_remapping == {
         "@remapping_2_brownie": ".cache/BrownieDependency/local",
-        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
+        "@dependency_remapping": ".cache/DependencyOfDependency/local",
         "@remapping_2": ".cache/TestDependency/local",
         "@remapping/contracts": ".cache/TestDependency/local",
         "@styleofbrownie": ".cache/BrownieStyleDependency/local",
@@ -265,7 +265,7 @@ def test_compiler_data_in_manifest(project):
     common_suffix = ".cache/TestDependency/local"
     expected_remappings = (
         "@remapping_2_brownie=.cache/BrownieDependency/local",
-        "@dependency_remapping=.cache/TestDependencyOfDependency/local",
+        "@dependency_remapping=.cache/DependencyOfDependency/local",
         f"@remapping_2={common_suffix}",
         f"@remapping/contracts={common_suffix}",
         "@styleofbrownie=.cache/BrownieStyleDependency/local",
@@ -324,7 +324,7 @@ def test_get_compiler_settings(compiler, project):
     latest = max(list(actual.keys()))
     expected_remappings = (
         "@remapping_2_brownie=.cache/BrownieDependency/local",
-        "@dependency_remapping=.cache/TestDependencyOfDependency/local",
+        "@dependency_remapping=.cache/DependencyOfDependency/local",
         "@remapping_2=.cache/TestDependency/local",
         "@remapping/contracts=.cache/TestDependency/local",
         "@styleofbrownie=.cache/BrownieStyleDependency/local",
@@ -335,7 +335,7 @@ def test_get_compiler_settings(compiler, project):
         ".cache/BrownieDependency/local/BrownieContract.sol",
         "CompilesOnce.sol",
         ".cache/TestDependency/local/Dependency.sol",
-        ".cache/TestDependencyOfDependency/local/DependencyOfDependency.sol",
+        ".cache/DependencyOfDependency/local/DependencyOfDependency.sol",
         source_d,
         "subfolder/Relativecontract.sol",
         ".cache/gnosis/v1.3.0/common/Enum.sol",
@@ -427,3 +427,14 @@ def test_ast(project, compiler):
     fn_node = actual.children[1].children[0]
     assert actual.ast_type == "SourceUnit"
     assert fn_node.classification == ASTClassification.FUNCTION
+
+
+def test_flatten(project, compiler, data_folder):
+    source_path = project.contracts_folder / "Imports.sol"
+    with pytest.raises(CompilerError):
+        compiler.flatten_contract(source_path)
+
+    source_path = project.contracts_folder / "ImportingLessConstrainedVersion.sol"
+    flattened_source = compiler.flatten_contract(source_path)
+    flattened_source_path = data_folder / "ImportingLessConstrainedVersionFlat.sol"
+    assert str(flattened_source) == str(flattened_source_path.read_text())
