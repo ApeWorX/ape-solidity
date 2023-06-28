@@ -46,6 +46,8 @@ IMPORTS_PATTERN = re.compile(
     r"import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s", flags=re.MULTILINE
 )
 
+LICENSES_PATTERN = re.compile(r"(// SPDX-License-Identifier:\s*([^\n]*)\s)")
+
 
 class SolidityConfig(PluginConfig):
     # Configure re-mappings using a `=` separated-str,
@@ -760,8 +762,7 @@ def remove_imports(flattened_contract: str) -> str:
 
 
 def get_licenses(source: str) -> List[Tuple[str, str]]:
-    pattern = r"(// SPDX-License-Identifier:\s*([^\n]*)\s)"
-    matches = re.findall(pattern, source)
+    matches = LICENSES_PATTERN.findall(source)
     return matches
 
 

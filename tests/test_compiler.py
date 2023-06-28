@@ -2,7 +2,6 @@ import json
 import re
 import shutil
 from pathlib import Path
-from typing import Any
 
 import pytest
 import solcx  # type: ignore
