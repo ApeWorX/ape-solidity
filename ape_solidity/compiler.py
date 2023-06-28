@@ -770,12 +770,11 @@ def remove_version_pragmas(flattened_contract: str) -> str:
     return VERSION_PRAGMA_PATTERN.sub("", flattened_contract)
 
 
-def get_first_version_pragma(source: str) -> Optional[str]:
+def get_first_version_pragma(source: str) -> str:
     match = VERSION_PRAGMA_PATTERN.search(source)
     if match:
-        print(f"Found version pragma: {match.group(0)}")
         return match.group(0)
-    return None
+    return ""
 
 
 def get_licenses(source: str) -> List[Tuple[str, str]]:
