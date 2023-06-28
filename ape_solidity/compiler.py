@@ -50,6 +50,7 @@ LICENSES_PATTERN = re.compile(r"(// SPDX-License-Identifier:\s*([^\n]*)\s)")
 
 VERSION_PRAGMA_PATTERN = re.compile(r"pragma solidity[^;]*;")
 
+
 class SolidityConfig(PluginConfig):
     # Configure re-mappings using a `=` separated-str,
     # e.g. '@import_name=path/to/dependency'
