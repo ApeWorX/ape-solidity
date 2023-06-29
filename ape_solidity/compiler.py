@@ -356,6 +356,12 @@ class SolidityCompiler(CompilerAPI):
             if solc_version >= Version("0.6.9"):
                 arguments["base_path"] = base_path
 
+            if missing_sources := [
+                x for x in vers_settings["outputSelection"] if not (base_path / x).is_file()
+            ]:
+                missing_src_str = ", ".join(missing_sources)
+                raise CompilerError(f"Missing sources: '{missing_src_str}'.")
+
             sources = {
                 x: {"content": (base_path / x).read_text()}
                 for x in vers_settings["outputSelection"]
