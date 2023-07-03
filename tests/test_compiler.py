@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 import solcx  # type: ignore
+from ape import reverts
 from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError, ContractLogicError
 from ethpm_types.ast import ASTClassification
@@ -411,11 +412,9 @@ def test_enrich_error_when_custom(compiler, project, owner, not_owner, connectio
 
 @pytest.mark.skipif(APE_VERSION <= Version("0.6.11"), reason="Fails without fixes on main")
 def test_enrich_error_when_custom_in_constructor(compiler, project, owner, not_owner, connection):
-    contract_type = compiler.compile((project.contracts_folder / "HasError.sol",))[0]
-
     # Deploy so Ape know about contract type.
-    with pytest.raises(contract_type.Unauthorized) as err:
-        owner.deploy(project.HasError, 0)
+    with reverts(project.HasError.Unauthorized) as err:
+        not_owner.deploy(project.HasError, 0)
 
     assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
 
