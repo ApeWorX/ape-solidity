@@ -410,7 +410,6 @@ def test_enrich_error_when_custom(compiler, project, owner, not_owner, connectio
     assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
 
 
-@pytest.mark.skipif(APE_VERSION <= Version("0.6.11"), reason="Fails without fixes on main")
 def test_enrich_error_when_custom_in_constructor(compiler, project, owner, not_owner, connection):
     # Deploy so Ape know about contract type.
     with reverts(project.HasError.Unauthorized) as err:
