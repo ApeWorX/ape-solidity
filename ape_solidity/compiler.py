@@ -13,6 +13,7 @@ from ape.utils import cached_property, get_relative_path
 from eth_utils import add_0x_prefix, is_0x_prefixed
 from ethpm_types import ASTNode, HexBytes, PackageManifest
 from ethpm_types.ast import ASTClassification
+from ethpm_types.source import Content
 from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
@@ -38,6 +39,16 @@ from ape_solidity.exceptions import (
     RuntimeErrorType,
     RuntimeErrorUnion,
 )
+
+# Define a regex pattern that matches import statements
+# Both single and multi-line imports will be matched
+IMPORTS_PATTERN = re.compile(
+    r"import\s+((.*?)(?=;)|[\s\S]*?from\s+(.*?)(?=;));\s", flags=re.MULTILINE
+)
+
+LICENSES_PATTERN = re.compile(r"(// SPDX-License-Identifier:\s*([^\n]*)\s)")
+
+VERSION_PRAGMA_PATTERN = re.compile(r"pragma solidity[^;]*;")
 
 
 class SolidityConfig(PluginConfig):
@@ -153,13 +164,10 @@ class SolidityCompiler(CompilerAPI):
 
         # Convert to tuple for hashing, check if there's been a change
         remappings_tuple = tuple(remappings)
-
-        if all(
-            (
-                self._import_remapping_hash,
-                self._import_remapping_hash == hash(remappings_tuple),
-                contracts_cache.is_dir(),
-            )
+        if (
+            self._import_remapping_hash
+            and self._import_remapping_hash == hash(remappings_tuple)
+            and contracts_cache.is_dir()
         ):
             return self._cached_import_map
 
@@ -348,6 +356,12 @@ class SolidityCompiler(CompilerAPI):
             if solc_version >= Version("0.6.9"):
                 arguments["base_path"] = base_path
 
+            if missing_sources := [
+                x for x in vers_settings["outputSelection"] if not (base_path / x).is_file()
+            ]:
+                missing_src_str = ", ".join(missing_sources)
+                raise CompilerError(f"Missing sources: '{missing_src_str}'.")
+
             sources = {
                 x: {"content": (base_path / x).read_text()}
                 for x in vers_settings["outputSelection"]
@@ -381,8 +395,9 @@ class SolidityCompiler(CompilerAPI):
             except SolcError as err:
                 raise CompilerError(str(err)) from err
 
+            contracts = output.get("contracts", {})
             input_contract_names: List[str] = []
-            for source_id, contracts_out in output["contracts"].items():
+            for source_id, contracts_out in contracts.items():
                 for name, _ in contracts_out.items():
                     # Filter source files that the user did not ask for, such as
                     # imported relative files that are not part of the input.
@@ -397,7 +412,7 @@ class SolidityCompiler(CompilerAPI):
                 for child in _node.children:
                     classify_ast(child)
 
-            for source_id, contracts_out in output["contracts"].items():
+            for source_id, contracts_out in contracts.items():
                 ast_data = output["sources"][source_id]["ast"]
                 ast = ASTNode.parse_obj(ast_data)
                 classify_ast(ast)
@@ -453,63 +468,53 @@ class SolidityCompiler(CompilerAPI):
 
         return contract_types
 
+    def _get_unmapped_imports(
+        self,
+        contract_filepaths: List[Path],
+        base_path: Optional[Path] = None,
+    ) -> Dict[str, List[Tuple[str, str]]]:
+        contracts_path = base_path or self.config_manager.contracts_folder
+        import_remapping = self.get_import_remapping(base_path=contracts_path)
+        contract_filepaths_set = verify_contract_filepaths(contract_filepaths)
+
+        imports_dict: Dict[str, List[Tuple[str, str]]] = {}
+        for src_path, import_strs in get_import_lines(contract_filepaths_set).items():
+            import_list = []
+            for import_str in import_strs:
+                raw_import_item_search = re.search(r'"(.*?)"', import_str)
+                if raw_import_item_search is None:
+                    raise CompilerError(f"No target filename found in import {import_str}")
+                raw_import_item = raw_import_item_search.group(1)
+                import_item = _import_str_to_source_id(
+                    import_str, src_path, contracts_path, import_remapping
+                )
+
+                # Only add to the list if it's not already there, to mimic set behavior
+                if (import_item, raw_import_item) not in import_list:
+                    import_list.append((import_item, raw_import_item))
+
+            source_id = str(get_relative_path(src_path, contracts_path))
+            imports_dict[str(source_id)] = import_list
+
+        return imports_dict
+
     def get_imports(
-        self, contract_filepaths: List[Path], base_path: Optional[Path] = None
+        self,
+        contract_filepaths: List[Path],
+        base_path: Optional[Path] = None,
     ) -> Dict[str, List[str]]:
         # NOTE: Process import remappings _before_ getting the full contract set.
         contracts_path = base_path or self.config_manager.contracts_folder
         import_remapping = self.get_import_remapping(base_path=contracts_path)
         contract_filepaths_set = verify_contract_filepaths(contract_filepaths)
 
-        def import_str_to_source_id(_import_str: str, source_path: Path) -> str:
-            quote = '"' if '"' in _import_str else "'"
-
-            try:
-                end_index = _import_str.index(quote) + 1
-            except ValueError as err:
-                raise CompilerError(
-                    f"Error parsing import statement '{_import_str}' in '{source_path.name}'."
-                ) from err
-
-            import_str_prefix = _import_str[end_index:]
-            import_str_value = import_str_prefix[: import_str_prefix.index(quote)]
-            path = (source_path.parent / import_str_value).resolve()
-            source_id_value = str(get_relative_path(path, contracts_path))
-
-            # Get all matches.
-            matches: List[Tuple[str, str]] = []
-            for key, value in import_remapping.items():
-                if key not in source_id_value:
-                    continue
-
-                matches.append((key, value))
-
-            if not matches:
-                return source_id_value
-
-            # Convert remapping list back to source using longest match (most exact).
-            key, value = max(matches, key=lambda x: len(x[0]))
-            sections = [s for s in source_id_value.split(key) if s]
-            depth = len(sections) - 1
-            source_id_value = ""
-
-            index = 0
-            for section in sections:
-                if index == depth:
-                    source_id_value += value
-                    source_id_value += section
-                elif index >= depth:
-                    source_id_value += section
-
-                index += 1
-
-            return source_id_value
-
         imports_dict: Dict[str, List[str]] = {}
         for src_path, import_strs in get_import_lines(contract_filepaths_set).items():
             import_set = set()
             for import_str in import_strs:
-                import_item = import_str_to_source_id(import_str, src_path)
+                import_item = _import_str_to_source_id(
+                    import_str, src_path, contracts_path, import_remapping
+                )
                 import_set.add(import_item)
 
             source_id = str(get_relative_path(src_path, contracts_path))
@@ -673,26 +678,17 @@ class SolidityCompiler(CompilerAPI):
 
     def enrich_error(self, err: ContractLogicError) -> ContractLogicError:
         if not is_0x_prefixed(err.revert_message):
+            # Nothing to do.
             return err
 
         if panic_cls := _get_sol_panic(err.revert_message):
-            # Is from a Solidity panic code, like a builtin Solidity revert.
-
-            if self._ape_version <= Version("0.6.10"):
-                return panic_cls(
-                    contract_address=err.contract_address,
-                    trace=err.trace,
-                    txn=err.txn,
-                )
-            else:
-                # TODO: Bump to next ape version and remove conditional.
-                return panic_cls(
-                    base_err=err.base_err,
-                    contract_address=err.contract_address,
-                    source_traceback=err.source_traceback,
-                    trace=err.trace,
-                    txn=err.txn,
-                )
+            return panic_cls(
+                base_err=err.base_err,
+                contract_address=err.contract_address,
+                source_traceback=err.source_traceback,
+                trace=err.trace,
+                txn=err.txn,
+            )
 
         # Check for ErrorABI.
         bytes_message = HexBytes(err.revert_message)
@@ -738,6 +734,95 @@ class SolidityCompiler(CompilerAPI):
                 txn=err.txn,
             )
 
+    def _flatten_source(
+        self, path: Path, base_path: Optional[Path] = None, raw_import_name: Optional[str] = None
+    ) -> str:
+        base_path = base_path or self.config_manager.contracts_folder
+        imports = self._get_unmapped_imports([path])
+        source = ""
+        for import_list in imports.values():
+            for import_path, raw_import_path in sorted(import_list):
+                source += self._flatten_source(
+                    base_path / import_path, base_path=base_path, raw_import_name=raw_import_path
+                )
+        if raw_import_name:
+            source += f"// File: {raw_import_name}\n"
+        else:
+            source += f"// File: {path.name}\n"
+        source += path.read_text() + "\n"
+        return source
+
+    def flatten_contract(self, path: Path, **kwargs) -> Content:
+        # try compiling in order to validate it works
+        self.compile([path], base_path=self.config_manager.contracts_folder)
+        source = self._flatten_source(path)
+        source = remove_imports(source)
+        source = process_licenses(source)
+        source = remove_version_pragmas(source)
+        pragma = get_first_version_pragma(path.read_text())
+        source = "\n".join([pragma, source])
+        lines = source.splitlines()
+        line_dict = {i + 1: line for i, line in enumerate(lines)}
+        return Content(__root__=line_dict)
+
+
+def remove_imports(flattened_contract: str) -> str:
+    # Use regex.sub() to remove matched import statements
+    no_imports_contract = IMPORTS_PATTERN.sub("", flattened_contract)
+
+    return no_imports_contract
+
+
+def remove_version_pragmas(flattened_contract: str) -> str:
+    return VERSION_PRAGMA_PATTERN.sub("", flattened_contract)
+
+
+def get_first_version_pragma(source: str) -> str:
+    match = VERSION_PRAGMA_PATTERN.search(source)
+    if match:
+        return match.group(0)
+    return ""
+
+
+def get_licenses(source: str) -> List[Tuple[str, str]]:
+    matches = LICENSES_PATTERN.findall(source)
+    return matches
+
+
+def process_licenses(contract: str) -> str:
+    """
+    Process the licenses in a contract.
+    Ensure that all licenses are identical, and if not, raise an error.
+    The contract is returned with a single license identifier line at its top.
+    """
+
+    # Extract SPDX license identifiers from the contract.
+    extracted_licenses = get_licenses(contract)
+
+    # Return early if no licenses are present in the contract.
+    if not extracted_licenses:
+        return contract
+
+    # Get the unique license identifiers. We expect that all licenses in a contract are the same.
+    unique_license_identifiers = {
+        license_identifier for _, license_identifier in extracted_licenses
+    }
+
+    # If we have more than one unique license identifier, raise an error.
+    if len(unique_license_identifiers) > 1:
+        raise CompilerError(f"Conflicting licenses found: {unique_license_identifiers}")
+
+    # Get the first license line and identifier.
+    license_line, _ = extracted_licenses[0]
+
+    # Remove all of the license lines from the contract.
+    contract_without_licenses = contract.replace(license_line, "")
+
+    # Prepend the contract with only one license line.
+    contract_with_single_license = f"{license_line}\n{contract_without_licenses}"
+
+    return contract_with_single_license
+
 
 def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
     if revert_message.startswith(RUNTIME_ERROR_CODE_PREFIX):
@@ -753,3 +838,50 @@ def _get_sol_panic(revert_message: str) -> Optional[Type[RuntimeErrorUnion]]:
         return RUNTIME_ERROR_MAP[RuntimeErrorType(error_type_val)]
 
     return None
+
+
+def _import_str_to_source_id(
+    _import_str: str, source_path: Path, base_path: Path, import_remapping: Dict[str, str]
+) -> str:
+    quote = '"' if '"' in _import_str else "'"
+
+    try:
+        end_index = _import_str.index(quote) + 1
+    except ValueError as err:
+        raise CompilerError(
+            f"Error parsing import statement '{_import_str}' in '{source_path.name}'."
+        ) from err
+
+    import_str_prefix = _import_str[end_index:]
+    import_str_value = import_str_prefix[: import_str_prefix.index(quote)]
+    path = (source_path.parent / import_str_value).resolve()
+    source_id_value = str(get_relative_path(path, base_path))
+
+    # Get all matches.
+    matches: List[Tuple[str, str]] = []
+    for key, value in import_remapping.items():
+        if key not in source_id_value:
+            continue
+
+        matches.append((key, value))
+
+    if not matches:
+        return source_id_value
+
+    # Convert remapping list back to source using longest match (most exact).
+    key, value = max(matches, key=lambda x: len(x[0]))
+    sections = [s for s in source_id_value.split(key) if s]
+    depth = len(sections) - 1
+    source_id_value = ""
+
+    index = 0
+    for section in sections:
+        if index == depth:
+            source_id_value += value
+            source_id_value += section
+        elif index >= depth:
+            source_id_value += section
+
+        index += 1
+
+    return source_id_value

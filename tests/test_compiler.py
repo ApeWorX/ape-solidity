@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import solcx  # type: ignore
 from ape.contracts import ContractContainer
-from ape.exceptions import CompilerError
+from ape.exceptions import CompilerError, ContractLogicError
 from ethpm_types.ast import ASTClassification
 from semantic_version import Version  # type: ignore
 
@@ -30,6 +30,7 @@ normal_test_skips = (
     "MultipleDefinitions",
     "RandomVyperFile",
     "LibraryFun",
+    "JustAStruct",
 )
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
 DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
@@ -102,6 +103,15 @@ def test_compile_vyper_contract(compiler, vyper_source_path):
         compiler.compile([vyper_source_path])
 
 
+def test_compile_just_a_struct(compiler, project):
+    """
+    Before, you would get a nasty index error, even though this is valid Solidity.
+    The fix involved using nicer access to "contracts" in the standard output JSON.
+    """
+    contract_types = compiler.compile([project.contracts_folder / "JustAStruct.sol"])
+    assert len(contract_types) == 0
+
+
 def test_get_imports(project, compiler):
     import_dict = compiler.get_imports(TEST_CONTRACT_PATHS, BASE_PATH)
     contract_imports = import_dict["Imports.sol"]
@@ -114,6 +124,7 @@ def test_get_imports(project, compiler):
         ".cache/BrownieDependency/local/BrownieContract.sol",
         ".cache/BrownieStyleDependency/local/BrownieStyleDependency.sol",
         ".cache/TestDependency/local/Dependency.sol",
+        ".cache/gnosis/v1.3.0/common/Enum.sol",
         "CompilesOnce.sol",
         "MissingPragma.sol",
         "NumerousDefinitions.sol",
@@ -131,7 +142,7 @@ def test_get_import_remapping(compiler, project, config):
     import_remapping = compiler.get_import_remapping()
     assert import_remapping == {
         "@remapping_2_brownie": ".cache/BrownieDependency/local",
-        "@dependency_remapping": ".cache/TestDependencyOfDependency/local",
+        "@dependency_remapping": ".cache/DependencyOfDependency/local",
         "@remapping_2": ".cache/TestDependency/local",
         "@remapping/contracts": ".cache/TestDependency/local",
         "@styleofbrownie": ".cache/BrownieStyleDependency/local",
@@ -139,6 +150,7 @@ def test_get_import_remapping(compiler, project, config):
         "@oz/contracts": ".cache/OpenZeppelin/v4.5.0",
         "@vault": ".cache/vault/v0.4.5",
         "@vaultmain": ".cache/vault/master",
+        "@gnosis": ".cache/gnosis/v1.3.0",
     }
 
     with config.using_project(project.path / "ProjectWithinProject") as proj:
@@ -202,7 +214,7 @@ def test_get_version_map(project, compiler):
     assert all([f in version_map[expected_version] for f in file_paths[:-1]])
 
     latest_version_sources = version_map[latest_version]
-    assert len(latest_version_sources) == 9, "Did the import remappings load correctly?"
+    assert len(latest_version_sources) == 10, "Did the import remappings load correctly?"
     assert file_paths[-1] in latest_version_sources
 
     # Will fail if the import remappings have not loaded yet.
@@ -253,7 +265,7 @@ def test_compiler_data_in_manifest(project):
     common_suffix = ".cache/TestDependency/local"
     expected_remappings = (
         "@remapping_2_brownie=.cache/BrownieDependency/local",
-        "@dependency_remapping=.cache/TestDependencyOfDependency/local",
+        "@dependency_remapping=.cache/DependencyOfDependency/local",
         f"@remapping_2={common_suffix}",
         f"@remapping/contracts={common_suffix}",
         "@styleofbrownie=.cache/BrownieStyleDependency/local",
@@ -265,6 +277,7 @@ def test_compiler_data_in_manifest(project):
     ), "Import remappings should be sorted"
     assert f"@remapping/contracts={common_suffix}" in compiler_0426.settings["remappings"]
     assert "UseYearn" in compiler_latest.contractTypes
+    assert "@gnosis=.cache/gnosis/v1.3.0" in compiler_latest.settings["remappings"]
 
     # Compiler contract types test
     assert set(compiler_0812.contractTypes) == {
@@ -311,19 +324,21 @@ def test_get_compiler_settings(compiler, project):
     latest = max(list(actual.keys()))
     expected_remappings = (
         "@remapping_2_brownie=.cache/BrownieDependency/local",
-        "@dependency_remapping=.cache/TestDependencyOfDependency/local",
+        "@dependency_remapping=.cache/DependencyOfDependency/local",
         "@remapping_2=.cache/TestDependency/local",
         "@remapping/contracts=.cache/TestDependency/local",
         "@styleofbrownie=.cache/BrownieStyleDependency/local",
+        "@gnosis=.cache/gnosis/v1.3.0",
     )
     expected_v812_contracts = (source_a, source_b, source_c, indirect_source)
     expected_latest_contracts = (
         ".cache/BrownieDependency/local/BrownieContract.sol",
         "CompilesOnce.sol",
         ".cache/TestDependency/local/Dependency.sol",
-        ".cache/TestDependencyOfDependency/local/DependencyOfDependency.sol",
+        ".cache/DependencyOfDependency/local/DependencyOfDependency.sol",
         source_d,
         "subfolder/Relativecontract.sol",
+        ".cache/gnosis/v1.3.0/common/Enum.sol",
     )
 
     # Shared compiler defaults tests
@@ -393,10 +408,17 @@ def test_enrich_error_when_custom(compiler, project, owner, not_owner, connectio
 
 
 def test_enrich_error_when_builtin(project, owner, connection):
-    contract = project.BuiltinErrorChecker.deploy(sender=owner)
+    # TODO: Any version after eth-ape 0.6.11, you can uncomment this and delete the rest.
+    # contract = project.BuiltinErrorChecker.deploy(sender=owner)
+    # with pytest.raises(IndexOutOfBoundsError):
+    #     contract.checkIndexOutOfBounds(sender=owner)
 
-    with pytest.raises(IndexOutOfBoundsError):
-        contract.checkIndexOutOfBounds(sender=owner)
+    compiler = project.compiler_manager.solidity
+    contract_err = ContractLogicError(
+        revert_message="0x4e487b710000000000000000000000000000000000000000000000000000000000000032"
+    )
+    actual = compiler.enrich_error(contract_err)
+    assert isinstance(actual, IndexOutOfBoundsError)
 
 
 def test_ast(project, compiler):
@@ -405,3 +427,14 @@ def test_ast(project, compiler):
     fn_node = actual.children[1].children[0]
     assert actual.ast_type == "SourceUnit"
     assert fn_node.classification == ASTClassification.FUNCTION
+
+
+def test_flatten(project, compiler, data_folder):
+    source_path = project.contracts_folder / "Imports.sol"
+    with pytest.raises(CompilerError):
+        compiler.flatten_contract(source_path)
+
+    source_path = project.contracts_folder / "ImportingLessConstrainedVersion.sol"
+    flattened_source = compiler.flatten_contract(source_path)
+    flattened_source_path = data_folder / "ImportingLessConstrainedVersionFlat.sol"
+    assert str(flattened_source) == str(flattened_source_path.read_text())
