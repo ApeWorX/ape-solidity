@@ -5,9 +5,11 @@ from pathlib import Path
 
 import pytest
 import solcx  # type: ignore
+from ape import reverts
 from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError, ContractLogicError
 from ethpm_types.ast import ASTClassification
+from pkg_resources import get_distribution
 from semantic_version import Version  # type: ignore
 
 from ape_solidity import Extension
@@ -34,6 +36,7 @@ normal_test_skips = (
 )
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
 DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
+APE_VERSION = Version(get_distribution("eth-ape").version.split(".dev")[0].strip())
 
 
 @pytest.mark.parametrize(
@@ -400,9 +403,17 @@ def test_enrich_error_when_custom(compiler, project, owner, not_owner, connectio
     compiler.compile((project.contracts_folder / "HasError.sol",))
 
     # Deploy so Ape know about contract type.
-    contract = owner.deploy(project.HasError)
+    contract = owner.deploy(project.HasError, 1)
     with pytest.raises(contract.Unauthorized) as err:
         contract.withdraw(sender=not_owner)
+
+    assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
+
+
+def test_enrich_error_when_custom_in_constructor(compiler, project, owner, not_owner, connection):
+    # Deploy so Ape know about contract type.
+    with reverts(project.HasError.Unauthorized) as err:
+        not_owner.deploy(project.HasError, 0)
 
     assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
 
