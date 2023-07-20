@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import solcx  # type: ignore
 from ape.contracts import ContractContainer
-from ape.exceptions import CompilerError, ContractLogicError
+from ape.exceptions import CompilerError
 from ethpm_types.ast import ASTClassification
 from semantic_version import Version  # type: ignore
 
@@ -408,17 +408,9 @@ def test_enrich_error_when_custom(compiler, project, owner, not_owner, connectio
 
 
 def test_enrich_error_when_builtin(project, owner, connection):
-    # TODO: Any version after eth-ape 0.6.11, you can uncomment this and delete the rest.
-    # contract = project.BuiltinErrorChecker.deploy(sender=owner)
-    # with pytest.raises(IndexOutOfBoundsError):
-    #     contract.checkIndexOutOfBounds(sender=owner)
-
-    compiler = project.compiler_manager.solidity
-    contract_err = ContractLogicError(
-        revert_message="0x4e487b710000000000000000000000000000000000000000000000000000000000000032"
-    )
-    actual = compiler.enrich_error(contract_err)
-    assert isinstance(actual, IndexOutOfBoundsError)
+    contract = project.BuiltinErrorChecker.deploy(sender=owner)
+    with pytest.raises(IndexOutOfBoundsError):
+        contract.checkIndexOutOfBounds(sender=owner)
 
 
 def test_ast(project, compiler):

@@ -70,7 +70,6 @@ setup(
         "ethpm-types",  # Use the version ape requires
         "packaging",  # Use the version ape requires
         "requests",
-        "web3[tester]>=0.6.5,<7",  # Can remove any version after eth-ape 0.6.11
     ],
     python_requires=">=3.8,<4",
     extras_require=extras_require,
