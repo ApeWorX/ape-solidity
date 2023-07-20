@@ -416,7 +416,7 @@ def test_enrich_error_when_custom_in_constructor(compiler, project, owner, not_o
     # Deploy so Ape know about contract type.
     with reverts(project.HasError.Unauthorized) as err:
         not_owner.deploy(project.HasError, 0)
-    
+
     # TODO: After ape 0.6.14, try this again. It is working locally but there
     #  may be a race condition causing it to fail? I added a fix to core that
     #  may resolve but I am not sure.
