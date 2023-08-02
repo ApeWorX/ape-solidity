@@ -486,8 +486,7 @@ contract StackTooDeep {
     """
 
     # write source code to file
-    with open(source_path, "w") as f:
-        f.write(source_code)
+   source_path.write_text(source_code)
 
     try:
         compiler.compile([source_path])
