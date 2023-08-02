@@ -114,3 +114,12 @@ for compiler_entry in manifest.compilers:
 ```
 
 **NOTE**: These are the settings used during contract verification when using the [Etherscan plugin](https://github.com/ApeWorX/ape-etherscan).
+
+#### `--via-IR` Yul IR Compilation Pipeline
+
+You can enable `solc`'s `--via-IR` flag by adding the following values to your `ape-config.yaml`
+
+```yaml
+solidity:
+  via_ir: True
+```

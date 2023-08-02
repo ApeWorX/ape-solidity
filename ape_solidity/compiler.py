@@ -58,6 +58,7 @@ class SolidityConfig(PluginConfig):
     optimize: bool = True
     version: Optional[str] = None
     evm_version: Optional[str] = None
+    via_ir: bool = False
 
 
 class SolidityCompiler(CompilerAPI):
@@ -326,6 +327,9 @@ class SolidityCompiler(CompilerAPI):
             evm_version = self.config.evm_version
             if evm_version:
                 version_settings["evmVersion"] = evm_version
+
+            if solc_version >= Version("0.7.5"):
+                version_settings["viaIR"] = self.config.via_ir
 
             settings[solc_version] = version_settings
 

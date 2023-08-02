@@ -121,7 +121,7 @@ def test_get_imports(project, compiler):
     # NOTE: make sure there aren't duplicates
     assert len([x for x in contract_imports if contract_imports.count(x) > 1]) == 0
     # NOTE: returning a list
-    assert type(contract_imports) == list
+    assert isinstance(contract_imports, list)
     # NOTE: in case order changes
     expected = {
         ".cache/BrownieDependency/local/BrownieContract.sol",
@@ -170,7 +170,7 @@ def test_get_import_remapping(compiler, project, config):
 def test_brownie_project(compiler, config):
     brownie_project_path = Path(__file__).parent / "BrownieProject"
     with config.using_project(brownie_project_path) as project:
-        assert type(project.BrownieContract) == ContractContainer
+        assert isinstance(project.BrownieContract, ContractContainer)
 
         # Ensure can access twice (to make sure caching does not break anything).
         _ = project.BrownieContract
@@ -181,7 +181,7 @@ def test_compile_single_source_with_no_imports(compiler, config):
     # where the source file was individually compiled and it had no imports.
     path = Path(__file__).parent / "DependencyOfDependency"
     with config.using_project(path) as project:
-        assert type(project.DependencyOfDependency) == ContractContainer
+        assert isinstance(project.DependencyOfDependency, ContractContainer)
 
 
 def test_version_specified_in_config_file(compiler, config):
@@ -436,6 +436,71 @@ def test_ast(project, compiler):
     fn_node = actual.children[1].children[0]
     assert actual.ast_type == "SourceUnit"
     assert fn_node.classification == ASTClassification.FUNCTION
+
+
+def test_via_ir(project, compiler):
+    source_path = project.contracts_folder / "StackTooDeep.sol"
+    source_code = """
+// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.8.0;
+
+contract StackTooDeep {
+    // This contract tests the scenario when we have a contract with
+    // too many local variables and the stack is too deep.
+    // The compiler will throw an error when trying to compile this contract.
+    // To get around the error, we can compile the contract with the
+    // --via-ir flag
+
+    function foo(
+        uint256 a,
+        uint256 b,
+        uint256 c,
+        uint256 d,
+        uint256 e,
+        uint256 f,
+        uint256 g,
+        uint256 h,
+        uint256 i,
+        uint256 j,
+        uint256 k,
+        uint256 l,
+        uint256 m,
+        uint256 n,
+        uint256 o,
+        uint256 p
+    ) public pure returns (uint256) {
+
+        uint256 sum = 0;
+
+        for (uint256 index = 0; index < 16; index++) {
+            uint256 innerSum = a + b + c + d + e + f + g + h + i + j + k + l + m + n + o + p;
+            sum += innerSum;
+        }
+
+        return (sum);
+    }
+
+}
+    """
+
+    # write source code to file
+    source_path.write_text(source_code)
+
+    try:
+        compiler.compile([source_path])
+    except Exception as e:
+        assert "Stack too deep" in str(e)
+
+    compiler.config.via_ir = True
+
+    compiler.compile([source_path])
+
+    # delete source code file
+    source_path.unlink()
+
+    # flip the via_ir flag back to False
+    compiler.config.via_ir = False
 
 
 def test_flatten(project, compiler, data_folder):
