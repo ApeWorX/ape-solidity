@@ -407,6 +407,7 @@ def test_ast(project, compiler):
     assert actual.ast_type == "SourceUnit"
     assert fn_node.classification == ASTClassification.FUNCTION
 
+
 def test_via_ir(project, compiler):
     source_path = project.contracts_folder / "StackTooDeep.sol"
     source_code = """
