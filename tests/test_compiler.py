@@ -498,7 +498,7 @@ contract StackTooDeep {
     compiler.compile([source_path])
 
     # delete source code file
-    os.remove(source_path)
+    source_path.unlink()
 
     # flip the via_ir flag back to False
     compiler.config.via_ir = False
