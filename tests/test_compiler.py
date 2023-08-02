@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import shutil
 from pathlib import Path
@@ -405,3 +406,65 @@ def test_ast(project, compiler):
     fn_node = actual.children[1].children[0]
     assert actual.ast_type == "SourceUnit"
     assert fn_node.classification == ASTClassification.FUNCTION
+
+def test_via_ir(project, compiler):
+    source_path = project.contracts_folder / "StackTooDeep.sol"
+    source_code = """
+// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.8.0;
+
+contract StackTooDeep {
+    // This contract tests the scenario when we have a contract with
+    // too many local variables and the stack is too deep.
+    // The compiler will throw an error when trying to compile this contract.
+    // To get around the error, we can compile the contract with the
+    // --via-ir flag
+
+    function foo(
+        uint256 a,
+        uint256 b,
+        uint256 c,
+        uint256 d,
+        uint256 e,
+        uint256 f,
+        uint256 g,
+        uint256 h,
+        uint256 i,
+        uint256 j,
+        uint256 k,
+        uint256 l,
+        uint256 m,
+        uint256 n,
+        uint256 o,
+        uint256 p
+    ) public pure returns (uint256) {
+
+        uint256 sum = 0;
+
+        for (uint256 index = 0; index < 16; index++) {
+            uint256 innerSum = a + b + c + d + e + f + g + h + i + j + k + l + m + n + o + p;
+            sum += innerSum;
+        }
+
+        return (sum);
+    }
+
+}
+    """
+
+    # write source code to file
+    with open(source_path, "w") as f:
+        f.write(source_code)
+
+    try:
+        compiler.compile([source_path])
+    except Exception as e:
+        assert "Stack too deep" in str(e)
+
+    compiler.config.via_ir = True
+
+    compiler.compile([source_path])
+
+    # delete source code file
+    os.remove(source_path)
