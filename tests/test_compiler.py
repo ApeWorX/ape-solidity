@@ -501,6 +501,9 @@ contract StackTooDeep {
     # delete source code file
     os.remove(source_path)
 
+    # flip the via_ir flag back to False
+    compiler.config.via_ir = False
+
 
 def test_flatten(project, compiler, data_folder):
     source_path = project.contracts_folder / "Imports.sol"
