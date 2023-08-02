@@ -1,5 +1,4 @@
 import json
-import os
 import re
 import shutil
 from pathlib import Path
@@ -486,7 +485,7 @@ contract StackTooDeep {
     """
 
     # write source code to file
-   source_path.write_text(source_code)
+    source_path.write_text(source_code)
 
     try:
         compiler.compile([source_path])
