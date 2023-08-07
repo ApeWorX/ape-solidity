@@ -58,6 +58,7 @@ class SolidityConfig(PluginConfig):
     optimize: bool = True
     version: Optional[str] = None
     evm_version: Optional[str] = None
+    via_ir: bool = False
 
 
 class SolidityCompiler(CompilerAPI):
@@ -326,6 +327,9 @@ class SolidityCompiler(CompilerAPI):
             evm_version = self.config.evm_version
             if evm_version:
                 version_settings["evmVersion"] = evm_version
+
+            if solc_version >= Version("0.7.5"):
+                version_settings["viaIR"] = self.config.via_ir
 
             settings[solc_version] = version_settings
 
@@ -694,45 +698,38 @@ class SolidityCompiler(CompilerAPI):
         bytes_message = HexBytes(err.revert_message)
         selector = bytes_message[:4]
         input_data = bytes_message[4:]
-        address = err.contract_address or getattr(err.txn, "receiver", None)
-        if not address:
+
+        # TODO: Any version after Ape 0.6.11 we can replace this with `err.address`.
+        if not (
+            address := err.contract_address
+            or getattr(err.txn, "receiver", None)
+            or getattr(err.txn, "contract_address", None)
+        ):
             return err
 
         if not self.network_manager.active_provider:
             # Connection required.
             return err
 
-        contract = self.chain_manager.contracts.instance_at(address)
-        if not contract:
-            return err
-
-        if selector not in contract.contract_type.errors:
-            # Not an ErrorABI selector.
+        if (
+            not (contract := self.chain_manager.contracts.instance_at(address))
+            or selector not in contract.contract_type.errors
+        ):
             return err
 
         ecosystem = self.provider.network.ecosystem
         abi = contract.contract_type.errors[selector]
         inputs = ecosystem.decode_calldata(abi, input_data)
         error_class = contract.get_error_by_signature(abi.signature)
-        if self._ape_version <= Version("0.6.10"):
-            return error_class(
-                abi,
-                inputs,
-                txn=err.txn,
-                trace=err.trace,
-                contract_address=err.contract_address,
-            )
-        else:
-            # TODO Bump Ape on next release and remove this conditional
-            return error_class(
-                abi,
-                inputs,
-                base_err=err.base_err,
-                contract_address=err.contract_address,  # type: ignore[call-arg]
-                source_traceback=err.source_traceback,  # type: ignore[call-arg]
-                trace=err.trace,
-                txn=err.txn,
-            )
+        return error_class(
+            abi,
+            inputs,
+            base_err=err.base_err,
+            contract_address=err.contract_address,
+            source_traceback=err.source_traceback,
+            trace=err.trace,
+            txn=err.txn,
+        )
 
     def _flatten_source(
         self, path: Path, base_path: Optional[Path] = None, raw_import_name: Optional[str] = None
