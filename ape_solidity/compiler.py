@@ -73,8 +73,19 @@ class SolidityCompiler(CompilerAPI):
         return "solidity"
 
     @property
+    def extension(self) -> str:
+        return Extension.SOL.value
+
+    @property
     def config(self) -> SolidityConfig:
-        return cast(SolidityConfig, self.config_manager.get_config(self.name))
+        ecosystem = self.network_manager.network.ecosystem.name
+        ecosystem_config = self.config_manager.get_config(ecosystem)
+        plugin_config = cast(SolidityConfig, self.config_manager.get_config(self.name))
+        if ecosystem_config.compilers.get(self.name):
+            config_data = plugin_config.dict()
+            config_data.update(**ecosystem_config.compilers[self.name])
+            plugin_config = plugin_config.from_overrides(config_data)
+        return plugin_config
 
     @property
     def libraries(self) -> Dict[str, Dict[str, AddressType]]:
