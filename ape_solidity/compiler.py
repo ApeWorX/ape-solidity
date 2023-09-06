@@ -673,17 +673,17 @@ class SolidityCompiler(CompilerAPI):
             install_solc(compiler_version, show_progress=False)
         else:
             # Attempt to use the best-installed version.
-            # NOTE: Use the oldest version available for maximum compatibility.
-            for version in reversed(self.installed_versions):
-                if pragma_spec.match(version):
-                    logger.warning(
-                        "The installed version(s) are not ideal, "
-                        "and Ape is unable to install additional versions. "
-                        "Resorting to the best matching already-installed version. "
-                        "Alternatively, specify a Solidity compiler version in your "
-                        "ape-config.yaml."
-                    )
-                    return pragma_spec
+            for version in self.installed_versions:
+                if not pragma_spec.match(version):
+                    continue
+
+                logger.warning(
+                    "The installed version(s) are not ideal, and Ape is unable "
+                    "to install additional versions. Resorting to the best matching "
+                    "already-installed version. Alternatively, specify a Solidity "
+                    "compiler version in your ape-config.yaml."
+                )
+                return pragma_spec
 
             # None of the installed versions match, and we are unable to install.
             raise CompilerError(f"Solidity version specification '{pragma_spec}' could not be met.")
