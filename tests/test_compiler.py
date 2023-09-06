@@ -108,7 +108,7 @@ def test_get_imports(project, compiler):
     # NOTE: make sure there aren't duplicates
     assert len([x for x in contract_imports if contract_imports.count(x) > 1]) == 0
     # NOTE: returning a list
-    assert type(contract_imports) == list
+    assert type(contract_imports) is list
     # NOTE: in case order changes
     expected = {
         ".cache/BrownieDependency/local/BrownieContract.sol",
@@ -155,7 +155,7 @@ def test_get_import_remapping(compiler, project, config):
 def test_brownie_project(compiler, config):
     brownie_project_path = Path(__file__).parent / "BrownieProject"
     with config.using_project(brownie_project_path) as project:
-        assert type(project.BrownieContract) == ContractContainer
+        assert type(project.BrownieContract) is ContractContainer
 
         # Ensure can access twice (to make sure caching does not break anything).
         _ = project.BrownieContract
@@ -166,7 +166,7 @@ def test_compile_single_source_with_no_imports(compiler, config):
     # where the source file was individually compiled and it had no imports.
     path = Path(__file__).parent / "DependencyOfDependency"
     with config.using_project(path) as project:
-        assert type(project.DependencyOfDependency) == ContractContainer
+        assert type(project.DependencyOfDependency) is ContractContainer
 
 
 def test_version_specified_in_config_file(compiler, config):
