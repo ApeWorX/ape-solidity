@@ -678,8 +678,8 @@ class SolidityCompiler(CompilerAPI):
                     continue
 
                 logger.warning(
-                    "The installed version(s) are not ideal, and Ape is unable "
-                    "to install additional versions. Resorting to the best matching "
+                    "Ape is unable to determine if additional versions are needed "
+                    f"in order to meet spec {pragma_spec}. Resorting to the best matching "
                     "already-installed version. Alternatively, specify a Solidity "
                     "compiler version in your ape-config.yaml."
                 )
