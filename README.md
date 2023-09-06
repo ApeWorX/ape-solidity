@@ -4,7 +4,7 @@ Compile Solidity contracts.
 
 ## Dependencies
 
-- [python3](https://www.python.org/downloads) version 3.8 or greater, python3-dev
+- [python3](https://www.python.org/downloads) version 3.8 up to 3.11.
 
 ## Installation
 
@@ -114,3 +114,12 @@ for compiler_entry in manifest.compilers:
 ```
 
 **NOTE**: These are the settings used during contract verification when using the [Etherscan plugin](https://github.com/ApeWorX/ape-etherscan).
+
+#### `--via-IR` Yul IR Compilation Pipeline
+
+You can enable `solc`'s `--via-IR` flag by adding the following values to your `ape-config.yaml`
+
+```yaml
+solidity:
+  via_ir: True
+```

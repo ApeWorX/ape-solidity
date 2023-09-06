@@ -125,3 +125,5 @@ version.py
 **/.DS_Store
 *.swp
 *.swo
+
+tests/node_modules
