@@ -10,6 +10,7 @@ from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
 from ethpm_types.ast import ASTClassification
 from pkg_resources import get_distribution
+from requests.exceptions import ConnectionError
 from semantic_version import Version  # type: ignore
 
 from ape_solidity import Extension
@@ -47,6 +48,18 @@ def test_compile(project, contract):
     assert contract in project.contracts, ", ".join([n for n in project.contracts.keys()])
     contract = project.contracts[contract]
     assert contract.source_id == f"{contract.name}.sol"
+
+
+def test_compile_when_offline(project, compiler, mocker):
+    # When offline, getting solc versions raises a requests connection error.
+    # This should trigger the plugin to return an empty list.
+    patch = mocker.patch("ape_solidity.compiler.get_installable_solc_versions")
+    patch.side_effect = ConnectionError
+
+    # Using a non-specific contract - doesn't matter too much which one.
+    source_path = project.contracts_folder / "MultipleDefinitions.sol"
+    result = compiler.compile([source_path])
+    assert len(result) > 0, "Nothing got compiled."
 
 
 def test_compile_multiple_definitions_in_source(project, compiler):
