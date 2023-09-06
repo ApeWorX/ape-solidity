@@ -3,7 +3,6 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
-import solcx  # type: ignore
 from ape.api import CompilerAPI, PluginConfig
 from ape.contracts import ContractInstance
 from ape.exceptions import CompilerError, ContractLogicError
@@ -18,6 +17,11 @@ from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
 from solcx import compile_standard  # type: ignore
+from solcx import (  # type: ignore
+    get_installable_solc_versions,
+    get_installed_solc_versions,
+    install_solc,
+)
 from solcx.exceptions import SolcError  # type: ignore
 from solcx.install import get_executable  # type: ignore
 
@@ -84,7 +88,7 @@ class SolidityCompiler(CompilerAPI):
     def available_versions(self) -> List[Version]:
         # NOTE: Package version should already be included in available versions
         try:
-            return solcx.get_installable_solc_versions()
+            return get_installable_solc_versions()
         except ConnectionError:
             # Compiling offline
             logger.warning("Internet connection required to fetch installable Solidity versions.")
@@ -92,7 +96,7 @@ class SolidityCompiler(CompilerAPI):
 
     @property
     def installed_versions(self) -> List[Version]:
-        return solcx.get_installed_solc_versions()
+        return get_installed_solc_versions()
 
     @cached_property
     def _ape_version(self) -> Version:
@@ -557,7 +561,7 @@ class SolidityCompiler(CompilerAPI):
         if self.config.version is not None:
             specified_version = Version(self.config.version)
             if specified_version not in self.installed_versions:
-                solcx.install_solc(specified_version)
+                install_solc(specified_version)
 
             specified_version_with_commit_hash = get_version_with_commit_hash(specified_version)
             return {specified_version_with_commit_hash: source_paths_to_get}
@@ -570,7 +574,7 @@ class SolidityCompiler(CompilerAPI):
         # If no Solidity version has been installed previously while fetching the
         # contract version pragma, we must install a compiler, so choose the latest
         if not self.installed_versions and not any(source_by_pragma_spec.values()):
-            solcx.install_solc(max(self.available_versions), show_progress=False)
+            install_solc(max(self.available_versions), show_progress=False)
 
         # Adjust best-versions based on imports.
         files_by_solc_version: Dict[Version, Set[Path]] = {}
@@ -666,7 +670,7 @@ class SolidityCompiler(CompilerAPI):
 
         compiler_version = pragma_spec.select(self.available_versions)
         if compiler_version:
-            solcx.install_solc(compiler_version, show_progress=False)
+            install_solc(compiler_version, show_progress=False)
         else:
             # Attempt to use the best-installed version.
             # NOTE: Use the oldest version available for maximum compatibility.
