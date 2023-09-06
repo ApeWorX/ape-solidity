@@ -674,7 +674,7 @@ class SolidityCompiler(CompilerAPI):
         else:
             # Attempt to use the best-installed version.
             # NOTE: Use the oldest version available for maximum compatibility.
-            for version in self.installed_versions[::-1]:
+            for version in reversed(self.installed_versions):
                 if pragma_spec.match(version):
                     logger.warning(
                         "The installed version(s) are not ideal, "
