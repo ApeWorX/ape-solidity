@@ -105,8 +105,13 @@ def project(data_folder, config):
 
 
 @pytest.fixture
-def compiler():
-    return ape.compilers.registered_compilers[Extension.SOL.value]
+def compiler_manager():
+    return ape.compilers
+
+
+@pytest.fixture
+def compiler(compiler_manager):
+    return compiler_manager.registered_compilers[Extension.SOL.value]
 
 
 @pytest.fixture
