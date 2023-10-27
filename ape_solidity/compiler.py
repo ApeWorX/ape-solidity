@@ -262,31 +262,36 @@ class SolidityCompiler(CompilerAPI):
 
                         break
 
-            base_path = self.config_manager.packages_folder / Path(dependency_name)
-            if version is None and base_path.is_dir():
-                version_dirs = [
-                    d
-                    for d in list(base_path.iterdir())
-                    if d.is_dir() and not d.name.startswith(".")
-                ]
-                if len(version_dirs) == 1:
-                    version = version_dirs[0].name
-
-            if version is None:
-                raise CompilerError(f"Unable to discern dependency type '{uri_str}'.")
-
             # Find matching package
             for package in packages_dir.iterdir():
                 if package.name.replace("_", "-").lower() == dependency_name:
                     dependency_name = str(package.name)
                     break
 
-            dependency_path = (
-                self.config_manager.packages_folder
-                / Path(dependency_name)
-                / version
-                / f"{dependency_name}.json"
-            )
+            dependency_root_path = self.config_manager.packages_folder / Path(dependency_name)
+
+            if version is None:
+                version_dirs = [
+                    d
+                    for d in list(dependency_root_path.iterdir())
+                    if d.is_dir() and not d.name.startswith(".")
+                ]
+                if len(version_dirs) == 1:
+                    # Use the only existing version.
+                    version = version_dirs[0].name
+
+                elif (dependency_root_path / "local").is_dir():
+                    # If not specified, and local exists, use local by default.
+                    version = "local"
+
+                else:
+                    options = ", ".join([x.name for x in dependency_root_path.iterdir()])
+                    raise CompilerError(
+                        f"Ambiguous dependency version. "
+                        f"Please specify. Available versions: '{options}'."
+                    )
+
+            dependency_path = dependency_root_path / version / f"{dependency_name}.json"
             if dependency_path.is_file():
                 sub_manifest = PackageManifest.parse_file(dependency_path)
                 dep_id = Path(dependency_name) / version
