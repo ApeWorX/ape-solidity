@@ -262,6 +262,16 @@ class SolidityCompiler(CompilerAPI):
 
                         break
 
+            base_path = self.config_manager.packages_folder / Path(dependency_name)
+            if version is None and base_path.is_dir():
+                version_dirs = [
+                    d
+                    for d in list(base_path.iterdir())
+                    if d.is_dir() and not d.name.startswith(".")
+                ]
+                if len(version_dirs) == 1:
+                    version = version_dirs[0].name
+
             if version is None:
                 raise CompilerError(f"Unable to discern dependency type '{uri_str}'.")
 
