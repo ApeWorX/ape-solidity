@@ -21,6 +21,7 @@ extras_require = {
         "mdformat>=0.7.16",  # Auto-formatter for markdown
         "mdformat-gfm>=0.3.5",  # Needed for formatting GitHub-flavored markdown
         "mdformat-frontmatter>=0.4.1",  # Needed for frontmatters-style headers in issue templates
+        "pydantic<2.0",  # Needed for successful type check. TODO: Remove after full v2 support.
     ],
     "doc": [
         "Sphinx>=3.4.3,<4",  # Documentation generator

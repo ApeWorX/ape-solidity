@@ -38,6 +38,17 @@ ape compile
 
 The byte-code and ABI for your contracts should now exist in a `__local__.json` file in a `.build/` directory.
 
+### Solidity Versioning
+
+By default, `ape-solidity` tries to use the best versions of Solidity by looking at all the source files' pragma specifications.
+However, it is often better to specify a version directly.
+If you know the best version to use, set it in your `ape-config.yaml`, like this:
+
+```yaml
+solidity:
+  version: 0.8.14
+```
+
 ### Dependency Mapping
 
 To configure import remapping, use your project's `ape-config.yaml` file:
