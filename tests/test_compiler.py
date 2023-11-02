@@ -45,9 +45,14 @@ APE_VERSION = Version(get_distribution("eth-ape").version.split(".dev")[0].strip
     [c for c in TEST_CONTRACTS if all(n not in str(c) for n in normal_test_skips)],
 )
 def test_compile(project, contract):
-    assert contract in project.contracts, ", ".join([n for n in project.contracts.keys()])
+    assert contract in project.load_contracts(use_cache=False), ", ".join([n for n in project.contracts.keys()])
     contract = project.contracts[contract]
     assert contract.source_id == f"{contract.name}.sol"
+
+    # Show that compiler settings exist now.
+    compiler_data = project.compiler_data
+    assert compiler_data
+    assert any(x.name == "solidity" for x in compiler_data)
 
 
 def test_compile_when_offline(project, compiler, mocker):

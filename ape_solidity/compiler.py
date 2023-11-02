@@ -12,7 +12,7 @@ from ape.utils import cached_property, get_relative_path
 from eth_utils import add_0x_prefix, is_0x_prefixed
 from ethpm_types import ASTNode, HexBytes, PackageManifest
 from ethpm_types.ast import ASTClassification
-from ethpm_types.source import Content
+from ethpm_types.source import Compiler, Content
 from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
 from semantic_version import NpmSpec, Version  # type: ignore
@@ -363,13 +363,14 @@ class SolidityCompiler(CompilerAPI):
         base_path = base_path or self.config_manager.contracts_folder
         files_by_solc_version = self.get_version_map(contract_filepaths, base_path=base_path)
         settings = self.get_compiler_settings(contract_filepaths, base_path)
+
         input_jsons = {}
         for solc_version, vers_settings in settings.items():
             files = list(files_by_solc_version[solc_version])
             if not files:
                 continue
 
-            logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
+            logger.info(f"Compiling using Solidity compiler '{solc_version}'")
             cleaned_version = solc_version.truncate()
             solc_binary = get_executable(cleaned_version)
             arguments = {"solc_binary": solc_binary, "solc_version": cleaned_version}
@@ -402,6 +403,8 @@ class SolidityCompiler(CompilerAPI):
         solc_versions_by_contract_name: Dict[str, Version] = {}
         contract_types: List[ContractType] = []
         input_jsons = self.get_standard_input_json(contract_filepaths, base_path=base_path)
+        compilers_used: List[Compiler] = []
+
         for solc_version, input_json in input_jsons.items():
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
             cleaned_version = solc_version.truncate()
@@ -432,6 +435,17 @@ class SolidityCompiler(CompilerAPI):
 
                 for child in _node.children:
                     classify_ast(child)
+
+            if contracts:
+                # Create compiler settings artifacts only if we
+                # are outputting contracts.
+                compiler = Compiler(
+                    name=self.name,
+                    version=f"{solc_version}",
+                    settings=input_json.get("settings", {}),
+                    contractTypes=[name for out in contracts.values() for name in out],
+                )
+                compilers_used.append(compiler)
 
             for source_id, contracts_out in contracts.items():
                 ast_data = output["sources"][source_id]["ast"]
@@ -486,6 +500,11 @@ class SolidityCompiler(CompilerAPI):
                     contract_type = ContractType.parse_obj(ct_data)
                     contract_types.append(contract_type)
                     solc_versions_by_contract_name[contract_name] = solc_version
+
+        if compilers_used:
+            manifest = self.project_manager.local_project.base_manifest
+            manifest.update_compilers(compilers_used)
+            self.project_manager.local_project.update_cache(compilers=manifest.compilers)
 
         return contract_types
 
