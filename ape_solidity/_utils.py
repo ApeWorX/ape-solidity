@@ -1,22 +1,20 @@
 import json
 import os
 import re
-import subprocess
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Union
 
+from ape._pydantic_compat import BaseModel, validator
 from ape.exceptions import CompilerError
 from ape.logging import logger
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion
 from packaging.version import Version
 from packaging.version import Version as _Version
-from pydantic import BaseModel, validator
 from solcx import get_solc_version
-from solcx.exceptions import SolcError
 from solcx.install import get_executable
-from solcx.wrapper import VERSION_REGEX
+from solcx.wrapper import get_solc_version as get_solc_version_from_binary
 
 from ape_solidity.exceptions import IncorrectMappingFormatError
 
@@ -214,21 +212,15 @@ def load_dict(data: Union[str, dict]) -> Dict:
     return data if isinstance(data, dict) else json.loads(data)
 
 
-def get_version_with_commit_hash(version: Union[str, Version]) -> Version:
-    # Borrowed from:
-    # https://github.com/iamdefinitelyahuman/py-solc-x/blob/master/solcx/wrapper.py#L15-L28
-    if "+commit" in str(version):
-        return Version(str(version))
+def add_commit_hash(version: Union[str, Version]) -> Version:
+    vers = Version(f"{version}") if isinstance(version, str) else version
+    has_commit = len(f"f{vers}") > len(vers.base_version)
+    if has_commit:
+        # Already added.
+        return vers
 
-    executable = get_executable(version)
-    stdout_data = subprocess.check_output([str(executable), "--version"], encoding="utf8")
-    try:
-        match = next(re.finditer(VERSION_REGEX, stdout_data))
-        version_str = "".join(match.groups())
-    except StopIteration:
-        raise SolcError("Could not determine the solc binary version")
-
-    return Version(version_str)
+    solc = get_executable(version=vers)
+    return get_solc_version_from_binary(solc, with_commit_hash=True)
 
 
 def verify_contract_filepaths(contract_filepaths: List[Path]) -> Set[Path]:

@@ -33,10 +33,10 @@ from ape_solidity._utils import (
     Extension,
     ImportRemapping,
     ImportRemappingBuilder,
+    add_commit_hash,
     get_import_lines,
     get_pragma_spec_from_path,
     get_pragma_spec_from_str,
-    get_version_with_commit_hash,
     load_dict,
     select_version,
     verify_contract_filepaths,
@@ -377,8 +377,7 @@ class SolidityCompiler(CompilerAPI):
         settings = self.get_compiler_settings(contract_filepaths, base_path)
         input_jsons = {}
         for solc_version, vers_settings in settings.items():
-            files = list(files_by_solc_version[solc_version])
-            if not files:
+            if not list(files_by_solc_version[solc_version]):
                 continue
 
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
@@ -648,7 +647,7 @@ class SolidityCompiler(CompilerAPI):
             if specified_version not in self.installed_versions:
                 install_solc(specified_version)
 
-            specified_version_with_commit_hash = get_version_with_commit_hash(specified_version)
+            specified_version_with_commit_hash = add_commit_hash(specified_version)
             return {specified_version_with_commit_hash: source_paths_to_get}
 
         # else: find best version per source file
@@ -717,7 +716,7 @@ class SolidityCompiler(CompilerAPI):
                     if not files_by_solc_version[solc_version]:
                         del files_by_solc_version[solc_version]
 
-        return {get_version_with_commit_hash(v): ls for v, ls in files_by_solc_version.items()}
+        return {add_commit_hash(v): ls for v, ls in files_by_solc_version.items()}
 
     def _get_imported_source_paths(
         self,
@@ -779,11 +778,17 @@ class SolidityCompiler(CompilerAPI):
         if selected := select_version(pragma_spec, self.installed_versions):
             return selected
 
+        elif selected := select_version(pragma_spec, self.available_versions):
+            # Install missing version.
+            compiler_version = add_commit_hash(selected)
+            install_solc(compiler_version, show_progress=True)
+            return compiler_version
+
         elif self.installed_versions:
             return max(self.installed_versions)
 
         # Download latest version.
-        compiler_version = get_solc_version(with_commit_hash=True)
+        compiler_version = get_solc_version()
         install_solc(compiler_version, show_progress=True)
         return compiler_version
 
