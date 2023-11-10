@@ -206,7 +206,7 @@ def load_dict(data: Union[str, dict]) -> Dict:
 
 def add_commit_hash(version: Union[str, Version]) -> Version:
     vers = Version(f"{version}") if isinstance(version, str) else version
-    has_commit = len(f"f{vers}") > len(vers.base_version)
+    has_commit = len(f"{vers}") > len(vers.base_version)
     if has_commit:
         # Already added.
         return vers

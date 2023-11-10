@@ -534,6 +534,7 @@ class SolidityCompiler(CompilerAPI):
             install_solc(max_version, show_progress=False)
             version = max_version
 
+        version = add_commit_hash(version)
         cleaned_version = Version(version.base_version)
         executable = get_executable(cleaned_version)
         try:
@@ -643,12 +644,11 @@ class SolidityCompiler(CompilerAPI):
 
         # Use specified version if given one
         if self.settings.version is not None:
-            specified_version = Version(self.settings.version)
+            specified_version = add_commit_hash(self.settings.version)
             if specified_version not in self.installed_versions:
-                install_solc(specified_version)
+                install_solc(specified_version.base_version)
 
-            specified_version_with_commit_hash = add_commit_hash(specified_version)
-            return {specified_version_with_commit_hash: source_paths_to_get}
+            return {specified_version: source_paths_to_get}
 
         # else: find best version per source file
 
@@ -774,23 +774,26 @@ class SolidityCompiler(CompilerAPI):
         return pragma_spec
 
     def _get_best_version(self, path: Path, source_by_pragma_spec: Dict) -> Version:
+        compiler_version: Optional[Version] = None
         if pragma_spec := source_by_pragma_spec.get(path):
             if selected := select_version(pragma_spec, self.installed_versions):
-                return selected
+                compiler_version = selected
 
             elif selected := select_version(pragma_spec, self.available_versions):
                 # Install missing version.
                 compiler_version = add_commit_hash(selected)
                 install_solc(compiler_version, show_progress=True)
-                return compiler_version
 
         elif self.installed_versions:
-            return max(self.installed_versions)
+            compiler_version = max(self.installed_versions)
 
-        # Download latest version.
-        compiler_version = get_solc_version()
-        install_solc(compiler_version, show_progress=True)
-        return compiler_version
+        else:
+            # Download latest version.
+            compiler_version = get_solc_version(with_commit_hash=True)
+            install_solc(compiler_version, show_progress=True)
+
+        assert compiler_version  # For mypy
+        return add_commit_hash(compiler_version)
 
     def enrich_error(self, err: ContractLogicError) -> ContractLogicError:
         if not is_0x_prefixed(err.revert_message):

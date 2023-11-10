@@ -67,7 +67,7 @@ setup(
     url="https://github.com/ApeWorX/ape-solidity",
     include_package_data=True,
     install_requires=[
-        "py-solc-x>=2.0.1,<3",
+        "py-solc-x>=2.0.2,<3",
         "eth-ape>=0.6.24,<0.7",
         "ethpm-types",  # Use the version ape requires
         "packaging",  # Use the version ape requires

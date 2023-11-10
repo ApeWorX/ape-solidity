@@ -9,9 +9,9 @@ from ape import reverts
 from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
 from ethpm_types.ast import ASTClassification
+from packaging.version import Version
 from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
-from semantic_version import Version  # type: ignore
 
 from ape_solidity import Extension
 from ape_solidity._utils import OUTPUT_SELECTION
