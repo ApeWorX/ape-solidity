@@ -12,7 +12,6 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion
 from packaging.version import Version
 from packaging.version import Version as _Version
-from solcx import get_solc_version
 from solcx.install import get_executable
 from solcx.wrapper import get_solc_version as get_solc_version_from_binary
 
@@ -138,13 +137,7 @@ def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
     return imports_dict
 
 
-def get_default_pragma_spec() -> SpecifierSet:
-    # Use the default version to make a specifier.
-    version = get_solc_version()
-    return SpecifierSet(f"=={version}")
-
-
-def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> SpecifierSet:
+def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> Optional[SpecifierSet]:
     """
     Extracts pragma information from Solidity source code.
 
@@ -156,19 +149,19 @@ def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> SpecifierSe
     """
     path = Path(source_file_path)
     if not path.is_file():
-        return get_default_pragma_spec()
+        return None
 
     source_str = path.read_text()
-    return get_pragma_spec_from_str(source_str) or get_default_pragma_spec()
+    return get_pragma_spec_from_str(source_str)
 
 
-def get_pragma_spec_from_str(source_str: str) -> SpecifierSet:
+def get_pragma_spec_from_str(source_str: str) -> Optional[SpecifierSet]:
     if not (
         pragma_match := next(
             re.finditer(r"(?:\n|^)\s*pragma\s*solidity\s*([^;\n]*)", source_str), None
         )
     ):
-        return get_default_pragma_spec()  # Try compiling with latest
+        return None  # Try compiling with latest
 
     # The following logic handles the case where the user puts a space
     # between the operator and the version number in the pragma string,
@@ -202,10 +195,9 @@ def get_pragma_spec_from_str(source_str: str) -> SpecifierSet:
 
     try:
         return SpecifierSet(",".join(pragma_parts_fixed))
-
     except ValueError as err:
         logger.error(str(err))
-        return get_default_pragma_spec()
+        return None
 
 
 def load_dict(data: Union[str, dict]) -> Dict:

@@ -774,15 +774,15 @@ class SolidityCompiler(CompilerAPI):
         return pragma_spec
 
     def _get_best_version(self, path: Path, source_by_pragma_spec: Dict) -> Version:
-        pragma_spec = source_by_pragma_spec[path]
-        if selected := select_version(pragma_spec, self.installed_versions):
-            return selected
+        if pragma_spec := source_by_pragma_spec.get(path):
+            if selected := select_version(pragma_spec, self.installed_versions):
+                return selected
 
-        elif selected := select_version(pragma_spec, self.available_versions):
-            # Install missing version.
-            compiler_version = add_commit_hash(selected)
-            install_solc(compiler_version, show_progress=True)
-            return compiler_version
+            elif selected := select_version(pragma_spec, self.available_versions):
+                # Install missing version.
+                compiler_version = add_commit_hash(selected)
+                install_solc(compiler_version, show_progress=True)
+                return compiler_version
 
         elif self.installed_versions:
             return max(self.installed_versions)
