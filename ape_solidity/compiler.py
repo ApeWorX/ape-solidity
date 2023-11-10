@@ -185,12 +185,19 @@ class SolidityCompiler(CompilerAPI):
 
         # Download dependencies for first time.
         # This only happens if calling this method before compiling in ape core.
-        _ = self.project_manager.dependencies
+        dependencies = self.project_manager.dependencies
 
         for item in remappings:
             remapping_obj = ImportRemapping(entry=item, packages_cache=packages_cache)
             builder.add_entry(remapping_obj)
             package_id = remapping_obj.package_id
+
+            # Handle missing version ID
+            if len(package_id.parts) == 1:
+                if package_id.name in dependencies and len(dependencies[package_id.name]) == 1:
+                    version_id = next(iter(dependencies[package_id.name]))
+                    package_id = package_id / version_id
+
             data_folder_cache = packages_cache / package_id
 
             # Re-build a downloaded dependency manifest into the .cache directory for imports.
