@@ -4,17 +4,19 @@ import re
 import subprocess
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Union
+from typing import Dict, List, Optional, Sequence, Set, Union
 
 from ape.exceptions import CompilerError
 from ape.logging import logger
+from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion
+from packaging.version import Version
 from packaging.version import Version as _Version
 from pydantic import BaseModel, validator
-from semantic_version import NpmSpec, Version  # type: ignore
-from solcx.exceptions import SolcError  # type: ignore
-from solcx.install import get_executable  # type: ignore
-from solcx.wrapper import VERSION_REGEX  # type: ignore
+from solcx import get_solc_version
+from solcx.exceptions import SolcError
+from solcx.install import get_executable
+from solcx.wrapper import VERSION_REGEX
 
 from ape_solidity.exceptions import IncorrectMappingFormatError
 
@@ -138,38 +140,74 @@ def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
     return imports_dict
 
 
-def get_pragma_spec(source_file_path: Path) -> Optional[NpmSpec]:
+def get_default_pragma_spec() -> SpecifierSet:
+    # Use the default version to make a specifier.
+    version = get_solc_version()
+    return SpecifierSet(f"=={version}")
+
+
+def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> SpecifierSet:
     """
     Extracts pragma information from Solidity source code.
-    Args:
-        source_file_path: Solidity source code
-    Returns: NpmSpec object or None, if no valid pragma is found
-    """
-    if not source_file_path.is_file():
-        return None
 
-    source = source_file_path.read_text()
-    pragma_match = next(re.finditer(r"(?:\n|^)\s*pragma\s*solidity\s*([^;\n]*)", source), None)
-    if pragma_match is None:
-        return None  # Try compiling with latest
+    Args:
+        source_file_path (Union[Path, str]): Solidity source file path.
+
+    Returns:
+        ``packaging.specifiers.SpecifierSet``
+    """
+    path = Path(source_file_path)
+    if not path.is_file():
+        return get_default_pragma_spec()
+
+    source_str = path.read_text()
+    return get_pragma_spec_from_str(source_str) or get_default_pragma_spec()
+
+
+def get_pragma_spec_from_str(source_str: str) -> SpecifierSet:
+    if not (
+        pragma_match := next(
+            re.finditer(r"(?:\n|^)\s*pragma\s*solidity\s*([^;\n]*)", source_str), None
+        )
+    ):
+        return get_default_pragma_spec()  # Try compiling with latest
 
     # The following logic handles the case where the user puts a space
-    # between the operator and the version number in the pragam string,
+    # between the operator and the version number in the pragma string,
     # such as `solidity >= 0.4.19 < 0.7.0`.
-    pragma_expression = ""
     pragma_parts = pragma_match.groups()[0].split()
-    num_parts = len(pragma_parts)
-    for index in range(num_parts):
-        pragma_expression += pragma_parts[index]
-        if any([c.isdigit() for c in pragma_parts[index]]) and index < num_parts - 1:
-            pragma_expression += " "
+
+    def _to_spec(item: str) -> str:
+        item = item.replace("^", "~=")
+        if item and item[0].isnumeric():
+            return f"=={item}"
+        elif item and len(item) >= 2 and item[0] == "=" and item[1] != "=":
+            return f"={item}"
+
+        return item
+
+    pragma_parts_fixed = []
+    builder = ""
+    for sub_part in pragma_parts:
+        if not any(c.isnumeric() for c in sub_part):
+            # Handle pragma with spaces between constraint and values
+            # like `>= 0.6.0`.
+            builder += sub_part
+            continue
+        elif builder:
+            spec = _to_spec(f"{builder}{sub_part}")
+            builder = ""
+        else:
+            spec = _to_spec(sub_part)
+
+        pragma_parts_fixed.append(spec)
 
     try:
-        return NpmSpec(pragma_expression)
+        return SpecifierSet(",".join(pragma_parts_fixed))
 
     except ValueError as err:
         logger.error(str(err))
-        return None
+        return get_default_pragma_spec()
 
 
 def load_dict(data: Union[str, dict]) -> Dict:
@@ -190,7 +228,7 @@ def get_version_with_commit_hash(version: Union[str, Version]) -> Version:
     except StopIteration:
         raise SolcError("Could not determine the solc binary version")
 
-    return Version.coerce(version_str)
+    return Version(version_str)
 
 
 def verify_contract_filepaths(contract_filepaths: List[Path]) -> Set[Path]:
@@ -200,3 +238,8 @@ def verify_contract_filepaths(contract_filepaths: List[Path]) -> Set[Path]:
 
     sources_str = "', '".join(invalid_files)
     raise CompilerError(f"Unable to compile '{sources_str}' using Solidity compiler.")
+
+
+def select_version(pragma_spec: SpecifierSet, options: Sequence[Version]) -> Optional[Version]:
+    choices = sorted(list(pragma_spec.filter(options)), reverse=True)
+    return choices[0] if choices else None

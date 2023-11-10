@@ -11,14 +11,14 @@ extras_require = {
         "hypothesis>=6.2.0,<7.0",  # Strategy-based fuzzer
     ],
     "lint": [
-        "black>=23.3.0,<24",  # Auto-formatter and linter
-        "mypy>=0.991,<1",  # Static type analyzer
+        "black>=23.11.0,<24",  # Auto-formatter and linter
+        "mypy>=1.6.1,<2",  # Static type analyzer
         "types-requests",  # Needed due to mypy typeshed
         "types-setuptools",  # Needed due to mypy typeshed
         "types-pkg-resources",  # Needed for type checking tests
-        "flake8>=6.0.0,<7",  # Style linter
+        "flake8>=6.1.0,<7",  # Style linter
         "isort>=5.10.1,<6",  # Import sorting linter
-        "mdformat>=0.7.16",  # Auto-formatter for markdown
+        "mdformat>=0.7.17",  # Auto-formatter for markdown
         "mdformat-gfm>=0.3.5",  # Needed for formatting GitHub-flavored markdown
         "mdformat-frontmatter>=0.4.1",  # Needed for frontmatters-style headers in issue templates
         "pydantic<2.0",  # Needed for successful type check. TODO: Remove after full v2 support.
@@ -67,8 +67,8 @@ setup(
     url="https://github.com/ApeWorX/ape-solidity",
     include_package_data=True,
     install_requires=[
-        "py-solc-x>=1.1.0,<2",
-        "eth-ape>=0.6.12,<0.7",
+        "py-solc-x>=2.0.1,<3",
+        "eth-ape>=0.6.24,<0.7",
         "ethpm-types",  # Use the version ape requires
         "packaging",  # Use the version ape requires
         "requests",

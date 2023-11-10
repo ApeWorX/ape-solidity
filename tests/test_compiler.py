@@ -525,3 +525,19 @@ def test_flatten(project, compiler, data_folder):
     flattened_source = compiler.flatten_contract(source_path)
     flattened_source_path = data_folder / "ImportingLessConstrainedVersionFlat.sol"
     assert str(flattened_source) == str(flattened_source_path.read_text())
+
+
+def test_compile_code(compiler):
+    code = """
+contract Contract {
+    function snakes() pure public returns(bool) {
+        return true;
+    }
+}
+"""
+    actual = compiler.compile_code(code, contractName="TestContractName")
+    assert actual.name == "TestContractName"
+    assert len(actual.abi) > 0
+    assert actual.ast is not None
+    assert len(actual.runtime_bytecode.bytecode) > 0
+    assert len(actual.deployment_bytecode.bytecode) > 0
