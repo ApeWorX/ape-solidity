@@ -227,3 +227,10 @@ def verify_contract_filepaths(contract_filepaths: List[Path]) -> Set[Path]:
 def select_version(pragma_spec: SpecifierSet, options: Sequence[Version]) -> Optional[Version]:
     choices = sorted(list(pragma_spec.filter(options)), reverse=True)
     return choices[0] if choices else None
+
+
+def strip_commit_hash(version: Union[str, Version]) -> Version:
+    """
+    Version('0.8.21+commit.d9974bed') => Version('0.8.21')> the simple way.
+    """
+    return Version(f"{str(version).split('+')[0].strip()}")
