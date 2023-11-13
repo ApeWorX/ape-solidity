@@ -701,7 +701,7 @@ class SolidityCompiler(CompilerAPI):
         if (
             not self.installed_versions
             and not any(source_by_pragma_spec.values())
-            and (latest := self.laest)
+            and (latest := self.latest_version)
         ):
             install_solc(latest, show_progress=False)
 
