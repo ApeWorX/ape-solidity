@@ -9,9 +9,9 @@ from ape import reverts
 from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
 from ethpm_types.ast import ASTClassification
+from packaging.version import Version
 from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
-from semantic_version import Version  # type: ignore
 
 from ape_solidity import Extension
 from ape_solidity._utils import OUTPUT_SELECTION
@@ -48,6 +48,10 @@ def test_compile(project, contract):
     assert contract in project.contracts, ", ".join([n for n in project.contracts.keys()])
     contract = project.contracts[contract]
     assert contract.source_id == f"{contract.name}.sol"
+
+
+def test_compile_solc_not_installed(project, fake_no_installs):
+    assert len(project.load_contracts(use_cache=False)) > 0
 
 
 def test_compile_when_offline(project, compiler, mocker):
@@ -525,3 +529,19 @@ def test_flatten(project, compiler, data_folder):
     flattened_source = compiler.flatten_contract(source_path)
     flattened_source_path = data_folder / "ImportingLessConstrainedVersionFlat.sol"
     assert str(flattened_source) == str(flattened_source_path.read_text())
+
+
+def test_compile_code(compiler):
+    code = """
+contract Contract {
+    function snakes() pure public returns(bool) {
+        return true;
+    }
+}
+"""
+    actual = compiler.compile_code(code, contractName="TestContractName")
+    assert actual.name == "TestContractName"
+    assert len(actual.abi) > 0
+    assert actual.ast is not None
+    assert len(actual.runtime_bytecode.bytecode) > 0
+    assert len(actual.deployment_bytecode.bytecode) > 0

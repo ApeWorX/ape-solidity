@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
 from ape.api import CompilerAPI, PluginConfig
 from ape.contracts import ContractInstance
-from ape.exceptions import CompilerError, ContractLogicError
+from ape.exceptions import CompilerError, ConfigError, ContractLogicError
 from ape.logging import logger
 from ape.types import AddressType, ContractType
 from ape.utils import cached_property, get_relative_path
@@ -13,27 +13,32 @@ from eth_utils import add_0x_prefix, is_0x_prefixed
 from ethpm_types import ASTNode, HexBytes, PackageManifest
 from ethpm_types.ast import ASTClassification
 from ethpm_types.source import Content
+from packaging.specifiers import SpecifierSet
+from packaging.version import Version
 from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
-from semantic_version import NpmSpec, Version  # type: ignore
-from solcx import compile_standard  # type: ignore
-from solcx import (  # type: ignore
+from solcx import (
+    compile_source,
+    compile_standard,
     get_installable_solc_versions,
     get_installed_solc_versions,
     install_solc,
 )
-from solcx.exceptions import SolcError  # type: ignore
-from solcx.install import get_executable  # type: ignore
+from solcx.exceptions import SolcError
+from solcx.install import get_executable
 
 from ape_solidity._utils import (
     OUTPUT_SELECTION,
     Extension,
     ImportRemapping,
     ImportRemappingBuilder,
+    add_commit_hash,
     get_import_lines,
-    get_pragma_spec,
-    get_version_with_commit_hash,
+    get_pragma_spec_from_path,
+    get_pragma_spec_from_str,
     load_dict,
+    select_version,
+    strip_commit_hash,
     verify_contract_filepaths,
 )
 from ape_solidity.exceptions import (
@@ -42,6 +47,7 @@ from ape_solidity.exceptions import (
     IncorrectMappingFormatError,
     RuntimeErrorType,
     RuntimeErrorUnion,
+    SolcInstallError,
 )
 
 # Define a regex pattern that matches import statements
@@ -96,7 +102,53 @@ class SolidityCompiler(CompilerAPI):
 
     @property
     def installed_versions(self) -> List[Version]:
+        """
+        Returns a lis of installed version WITHOUT their
+        commit hashes.
+        """
         return get_installed_solc_versions()
+
+    @property
+    def latest_version(self) -> Optional[Version]:
+        """
+        Returns the latest version available of ``solc``.
+        When unable to retrieve available ``solc`` versions, such as
+        times disconnected from the Internet, returns ``None``.
+        """
+        return _try_max(self.available_versions)
+
+    @property
+    def latest_installed_version(self) -> Optional[Version]:
+        """
+        Returns the highest version of all the installed versions.
+        If ``solc`` is not installed at all, returns ``None``.
+        """
+        return _try_max(self.installed_versions)
+
+    @property
+    def _settings_version(self) -> Optional[Version]:
+        """
+        A helper property that gets, verifies, and installs (if needed)
+        the version specified in the settings.
+        """
+        if not (version := self.settings.version):
+            return None
+
+        installed_versions = self.installed_versions
+        specified_commit_hash = "+" in version
+        base_version = strip_commit_hash(version)
+        if base_version not in installed_versions:
+            install_solc(base_version, show_progress=True)
+
+        settings_version = add_commit_hash(base_version)
+        if specified_commit_hash:
+            if settings_version != version:
+                raise ConfigError(
+                    f"Commit hash from settings version {version} "
+                    f"differs from installed: {settings_version}"
+                )
+
+        return settings_version
 
     @cached_property
     def _ape_version(self) -> Version:
@@ -145,9 +197,9 @@ class SolidityCompiler(CompilerAPI):
         versions = set()
         for path in all_paths:
             # Make sure we have the compiler available to compile this
-            version_spec = get_pragma_spec(path)
-            if version_spec:
-                versions.add(str(version_spec.select(self.available_versions)))
+            if version_spec := get_pragma_spec_from_path(path):
+                if selected_version := select_version(version_spec, self.available_versions):
+                    versions.add(selected_version.base_version)
 
         return versions
 
@@ -157,7 +209,7 @@ class SolidityCompiler(CompilerAPI):
         e.g. ``'@import_name=path/to/dependency'``.
         """
         base_path = base_path or self.project_manager.contracts_folder
-        remappings = self.config.import_remapping
+        remappings = self.settings.import_remapping
         if not remappings:
             return {}
 
@@ -180,12 +232,19 @@ class SolidityCompiler(CompilerAPI):
 
         # Download dependencies for first time.
         # This only happens if calling this method before compiling in ape core.
-        _ = self.project_manager.dependencies
+        dependencies = self.project_manager.dependencies
 
         for item in remappings:
             remapping_obj = ImportRemapping(entry=item, packages_cache=packages_cache)
             builder.add_entry(remapping_obj)
             package_id = remapping_obj.package_id
+
+            # Handle missing version ID
+            if len(package_id.parts) == 1:
+                if package_id.name in dependencies and len(dependencies[package_id.name]) == 1:
+                    version_id = next(iter(dependencies[package_id.name]))
+                    package_id = package_id / version_id
+
             data_folder_cache = packages_cache / package_id
 
             # Re-build a downloaded dependency manifest into the .cache directory for imports.
@@ -315,7 +374,7 @@ class SolidityCompiler(CompilerAPI):
         settings: Dict = {}
         for solc_version, sources in files_by_solc_version.items():
             version_settings: Dict[str, Union[Any, List[Any]]] = {
-                "optimizer": {"enabled": self.config.optimize, "runs": 200},
+                "optimizer": {"enabled": self.settings.optimize, "runs": 200},
                 "outputSelection": {
                     str(get_relative_path(p, base_path)): {"*": OUTPUT_SELECTION, "": ["ast"]}
                     for p in sources
@@ -341,12 +400,12 @@ class SolidityCompiler(CompilerAPI):
                 # Standard JSON input requires remappings to be sorted.
                 version_settings["remappings"] = sorted(list(remappings_used))
 
-            evm_version = self.config.evm_version
+            evm_version = self.settings.evm_version
             if evm_version:
                 version_settings["evmVersion"] = evm_version
 
             if solc_version >= Version("0.7.5"):
-                version_settings["viaIR"] = self.config.via_ir
+                version_settings["viaIR"] = self.settings.via_ir
 
             settings[solc_version] = version_settings
 
@@ -365,13 +424,12 @@ class SolidityCompiler(CompilerAPI):
         settings = self.get_compiler_settings(contract_filepaths, base_path)
         input_jsons = {}
         for solc_version, vers_settings in settings.items():
-            files = list(files_by_solc_version[solc_version])
-            if not files:
+            if not list(files_by_solc_version[solc_version]):
                 continue
 
             logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
-            cleaned_version = solc_version.truncate()
-            solc_binary = get_executable(cleaned_version)
+            cleaned_version = Version(solc_version.base_version)
+            solc_binary = get_executable(version=cleaned_version)
             arguments = {"solc_binary": solc_binary, "solc_version": cleaned_version}
 
             if solc_version >= Version("0.6.9"):
@@ -403,13 +461,16 @@ class SolidityCompiler(CompilerAPI):
         contract_types: List[ContractType] = []
         input_jsons = self.get_standard_input_json(contract_filepaths, base_path=base_path)
         for solc_version, input_json in input_jsons.items():
-            logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
-            cleaned_version = solc_version.truncate()
-            solc_binary = get_executable(cleaned_version)
-            arguments = {"solc_binary": solc_binary, "solc_version": cleaned_version}
+            logger.info(f"Compiling using Solidity compiler '{solc_version}'.")
+            cleaned_version = Version(solc_version.base_version)
+            solc_binary = get_executable(version=cleaned_version)
+            arguments: Dict = {"solc_binary": solc_binary, "solc_version": cleaned_version}
 
             if solc_version >= Version("0.6.9"):
                 arguments["base_path"] = base_path
+
+            # Allow empty contracts, like Vyper does.
+            arguments["allow_empty"] = True
 
             try:
                 output = compile_standard(input_json, **arguments)
@@ -488,6 +549,62 @@ class SolidityCompiler(CompilerAPI):
                     solc_versions_by_contract_name[contract_name] = solc_version
 
         return contract_types
+
+    def compile_code(
+        self,
+        code: str,
+        base_path: Optional[Path] = None,
+        **kwargs,
+    ) -> ContractType:
+        if settings_version := self._settings_version:
+            version = settings_version
+
+        elif pragma := self._get_pramga_spec_from_str(code):
+            if selected_version := select_version(pragma, self.installed_versions):
+                version = selected_version
+            else:
+                if selected_version := select_version(pragma, self.available_versions):
+                    version = selected_version
+                    install_solc(version, show_progress=False)
+                else:
+                    raise SolcInstallError()
+
+        elif latest_installed := self.latest_installed_version:
+            version = latest_installed
+
+        elif latest := self.latest_version:
+            install_solc(latest, show_progress=False)
+            version = latest
+
+        else:
+            raise SolcInstallError()
+
+        version = add_commit_hash(version)
+        cleaned_version = Version(version.base_version)
+        executable = get_executable(cleaned_version)
+        try:
+            result = compile_source(
+                code,
+                import_remappings=self.get_import_remapping(base_path=base_path),
+                base_path=base_path,
+                solc_binary=executable,
+                solc_version=cleaned_version,
+                allow_empty=True,
+            )
+        except SolcError as err:
+            raise CompilerError(str(err)) from err
+
+        output = result[next(iter(result.keys()))]
+        return ContractType(
+            abi=output["abi"],
+            ast=output["ast"],
+            deploymentBytecode={"bytecode": HexBytes(output["bin"])},
+            devdoc=load_dict(output["devdoc"]),
+            runtimeBytecode={"bytecode": HexBytes(output["bin-runtime"])},
+            sourcemap=output["srcmap"],
+            userdoc=load_dict(output["userdoc"]),
+            **kwargs,
+        )
 
     def _get_unmapped_imports(
         self,
@@ -571,23 +688,22 @@ class SolidityCompiler(CompilerAPI):
                 source_paths_to_get.add(imported_source)
 
         # Use specified version if given one
-        if self.config.version is not None:
-            specified_version = Version(self.config.version)
-            if specified_version not in self.installed_versions:
-                install_solc(specified_version)
-
-            specified_version_with_commit_hash = get_version_with_commit_hash(specified_version)
-            return {specified_version_with_commit_hash: source_paths_to_get}
+        if version := self._settings_version:
+            return {version: source_paths_to_get}
 
         # else: find best version per source file
 
         # Build map of pragma-specs.
-        source_by_pragma_spec = {p: self._get_pragma_spec(p) for p in source_paths_to_get}
+        source_by_pragma_spec = {p: get_pragma_spec_from_path(p) for p in source_paths_to_get}
 
         # If no Solidity version has been installed previously while fetching the
         # contract version pragma, we must install a compiler, so choose the latest
-        if not self.installed_versions and not any(source_by_pragma_spec.values()):
-            install_solc(max(self.available_versions), show_progress=False)
+        if (
+            not self.installed_versions
+            and not any(source_by_pragma_spec.values())
+            and (latest := self.latest_version)
+        ):
+            install_solc(latest, show_progress=False)
 
         # Adjust best-versions based on imports.
         files_by_solc_version: Dict[Version, Set[Path]] = {}
@@ -604,8 +720,8 @@ class SolidityCompiler(CompilerAPI):
                 )
 
                 if imported_pragma_spec is not None and (
-                    imported_pragma_spec.expression.startswith("=")
-                    or imported_pragma_spec.expression[0].isdigit()
+                    str(imported_pragma_spec)[0].startswith("=")
+                    or str(imported_pragma_spec)[0].isdigit()
                 ):
                     # Have to use this version.
                     solc_version = imported_version
@@ -645,7 +761,7 @@ class SolidityCompiler(CompilerAPI):
                     if not files_by_solc_version[solc_version]:
                         del files_by_solc_version[solc_version]
 
-        return {get_version_with_commit_hash(v): ls for v, ls in files_by_solc_version.items()}
+        return {add_commit_hash(v): ls for v, ls in files_by_solc_version.items()}
 
     def _get_imported_source_paths(
         self,
@@ -672,22 +788,21 @@ class SolidityCompiler(CompilerAPI):
 
         return return_set
 
-    def _get_pragma_spec(self, path: Path) -> Optional[NpmSpec]:
-        pragma_spec = get_pragma_spec(path)
-        if not pragma_spec:
+    def _get_pramga_spec_from_str(self, source_str: str) -> Optional[SpecifierSet]:
+        if not (pragma_spec := get_pragma_spec_from_str(source_str)):
             return None
 
         # Check if we need to install specified compiler version
-        if pragma_spec is pragma_spec.select(self.installed_versions):
+        if select_version(pragma_spec, self.installed_versions):
             return pragma_spec
 
-        compiler_version = pragma_spec.select(self.available_versions)
-        if compiler_version:
+        elif compiler_version := select_version(pragma_spec, self.available_versions):
             install_solc(compiler_version, show_progress=False)
+
         else:
             # Attempt to use the best-installed version.
             for version in self.installed_versions:
-                if not pragma_spec.match(version):
+                if version not in pragma_spec:
                     continue
 
                 logger.warning(
@@ -704,12 +819,30 @@ class SolidityCompiler(CompilerAPI):
         return pragma_spec
 
     def _get_best_version(self, path: Path, source_by_pragma_spec: Dict) -> Version:
-        pragma_spec = source_by_pragma_spec[path]
-        return (
-            pragma_spec.select(self.installed_versions)
-            if pragma_spec
-            else max(self.installed_versions)
-        )
+        compiler_version: Optional[Version] = None
+        if pragma_spec := source_by_pragma_spec.get(path):
+            if selected := select_version(pragma_spec, self.installed_versions):
+                compiler_version = selected
+
+            elif selected := select_version(pragma_spec, self.available_versions):
+                # Install missing version.
+                # NOTE: Must be installed before adding commit hash.
+                install_solc(selected, show_progress=True)
+                compiler_version = add_commit_hash(selected)
+
+        elif latest_installed := self.latest_installed_version:
+            compiler_version = latest_installed
+
+        elif latest := self.latest_version:
+            # Download latest version.
+            install_solc(latest, show_progress=True)
+            compiler_version = latest
+
+        else:
+            raise SolcInstallError()
+
+        assert compiler_version  # For mypy
+        return add_commit_hash(compiler_version)
 
     def enrich_error(self, err: ContractLogicError) -> ContractLogicError:
         if not is_0x_prefixed(err.revert_message):
@@ -913,3 +1046,7 @@ def _import_str_to_source_id(
         index += 1
 
     return source_id_value
+
+
+def _try_max(ls: List[Any]):
+    return max(ls) if ls else None

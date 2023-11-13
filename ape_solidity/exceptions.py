@@ -1,7 +1,19 @@
 from enum import IntEnum
 from typing import Dict, Type, Union
 
-from ape.exceptions import ConfigError, ContractLogicError
+from ape.exceptions import CompilerError, ConfigError, ContractLogicError
+
+
+class SolcInstallError(CompilerError):
+    """
+    Raised when `solc` is not installed
+    and unable to be installed.
+    """
+
+    def __init__(self):
+        super().__init__(
+            "No versions of `solc` installed and unable to install latest `solc` version."
+        )
 
 
 class IncorrectMappingFormatError(ConfigError, ValueError):

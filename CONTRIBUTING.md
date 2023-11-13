@@ -47,12 +47,3 @@ If you are opening a work-in-progress pull request to verify that it passes CI t
 [marking it as a draft](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests#draft-pull-requests).
 
 Join the ApeWorX [Discord](https://discord.gg/apeworx) if you have any questions.
-
-## Testing
-
-By default, the test suite will use a new, temporary path for the Solidity compiler installations.
-This ensures that the tests always run from a clean slate without any relying on existing installations.
-
-If you wish to use your existing `~/.solcx` installations instead, you must set the environment variable `APE_SOLIDITY_USE_SYSTEM_SOLC=1`.
-
-This will ensure that py-solc-x's default path will be used, but any compilers installed as part of the tests will not be removed after tests have completed.
