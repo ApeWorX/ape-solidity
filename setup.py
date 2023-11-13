@@ -12,7 +12,7 @@ extras_require = {
     ],
     "lint": [
         "black>=23.11.0,<24",  # Auto-formatter and linter
-        "mypy>=1.6.1,<2",  # Static type analyzer
+        "mypy>=1.7.0,<2",  # Static type analyzer
         "types-requests",  # Needed due to mypy typeshed
         "types-setuptools",  # Needed due to mypy typeshed
         "types-pkg-resources",  # Needed for type checking tests
@@ -68,7 +68,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "py-solc-x>=2.0.2,<3",
-        "eth-ape>=0.6.24,<0.7",
+        "eth-ape>=0.6.25,<0.7",
         "ethpm-types",  # Use the version ape requires
         "packaging",  # Use the version ape requires
         "requests",
