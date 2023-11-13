@@ -1,4 +1,3 @@
-import os
 import shutil
 from contextlib import contextmanager
 from distutils.dir_util import copy_tree
