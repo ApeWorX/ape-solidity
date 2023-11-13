@@ -33,26 +33,16 @@ def _tmp_solcx_path(monkeypatch):
         shutil.rmtree(solcx_install_path, ignore_errors=True)
 
 
-@pytest.fixture(
-    scope="session",
-    autouse=os.environ.get("APE_SOLIDITY_USE_SYSTEM_SOLC") is None,
-)
-def setup_session_solcx_path(request):
+@pytest.fixture
+def fake_no_installs(mocker):
     """
-    Creates a new, temporary installation path for solcx when the test suite is
-    run.
-
-    This ensures the Solidity installations do not conflict with the user's
-    installed versions and that the installations from the tests are cleaned up
-    after the suite is finished.
+    Tricks the tests into thinking there are no installed versions.
+    This saves time because it won't actually need to install solc,
+    and it should still work.
     """
-    from _pytest.monkeypatch import MonkeyPatch
-
-    patch = MonkeyPatch()
-    request.addfinalizer(patch.undo)
-
-    with _tmp_solcx_path(patch) as path:
-        yield path
+    patch = mocker.patch("ape_solidity.compiler.get_installed_solc_versions")
+    patch.return_value = []
+    return patch
 
 
 @pytest.fixture

@@ -50,6 +50,10 @@ def test_compile(project, contract):
     assert contract.source_id == f"{contract.name}.sol"
 
 
+def test_compile_solc_not_installed(project, fake_no_installs):
+    assert len(project.load_contracts(use_cache=False)) > 0
+
+
 def test_compile_when_offline(project, compiler, mocker):
     # When offline, getting solc versions raises a requests connection error.
     # This should trigger the plugin to return an empty list.
