@@ -2,6 +2,8 @@ from enum import IntEnum
 from typing import Dict, Type, Union
 
 from ape.exceptions import CompilerError, ConfigError, ContractLogicError
+from ape.logging import LogLevel, logger
+from solcx.exceptions import SolcError
 
 
 class SolcInstallError(CompilerError):
@@ -14,6 +16,26 @@ class SolcInstallError(CompilerError):
         super().__init__(
             "No versions of `solc` installed and unable to install latest `solc` version."
         )
+
+
+class SolcCompileError(CompilerError):
+    """
+    Specifically, only errors arising from ``solc`` compile methods.
+    This error is a modified version of ``SolcError`` to take into
+    account Ape's logging verbosity.
+    """
+
+    def __init__(self, solc_error: SolcError):
+        self.solc_error = solc_error
+
+    def __str__(self) -> str:
+        if logger.level <= LogLevel.DEBUG:
+            # Show everything when in DEBUG mode.
+            return str(self.solc_error)
+
+        else:
+            # Only show the error and line-number(s) where it occurred.
+            return self.solc_error.message
 
 
 class IncorrectMappingFormatError(ConfigError, ValueError):

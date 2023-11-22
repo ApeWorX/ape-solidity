@@ -47,6 +47,7 @@ from ape_solidity.exceptions import (
     IncorrectMappingFormatError,
     RuntimeErrorType,
     RuntimeErrorUnion,
+    SolcCompileError,
     SolcInstallError,
 )
 
@@ -475,7 +476,7 @@ class SolidityCompiler(CompilerAPI):
             try:
                 output = compile_standard(input_json, **arguments)
             except SolcError as err:
-                raise CompilerError(str(err)) from err
+                raise SolcCompileError(err) from err
 
             contracts = output.get("contracts", {})
             input_contract_names: List[str] = []
@@ -592,7 +593,7 @@ class SolidityCompiler(CompilerAPI):
                 allow_empty=True,
             )
         except SolcError as err:
-            raise CompilerError(str(err)) from err
+            raise SolcCompileError(err) from err
 
         output = result[next(iter(result.keys()))]
         return ContractType(
