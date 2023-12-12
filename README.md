@@ -49,6 +49,17 @@ solidity:
   version: 0.8.14
 ```
 
+### EVM Versioning
+
+By default, `ape-solidity` will use whatever version of EVM rules are set as default in the compiler version that gets used.
+Sometimes, you might want to use a different version, such as deploying on Arbitrum or Optimism where new opcodes are not supported yet.
+If you want to require a different version of EVM rules to use in the configuration of the compiler, set it in your `ape-config.yaml` like this:
+
+```yaml
+solidity:
+  evm_version: paris
+```
+
 ### Dependency Mapping
 
 To configure import remapping, use your project's `ape-config.yaml` file:
