@@ -3,10 +3,11 @@ from contextlib import contextmanager
 from distutils.dir_util import copy_tree
 from pathlib import Path
 from tempfile import mkdtemp
+from unittest import mock
 
 import ape
 import pytest
-import solcx  # type: ignore
+import solcx
 
 from ape_solidity.compiler import Extension
 
@@ -100,7 +101,28 @@ def compiler_manager():
 
 @pytest.fixture
 def compiler(compiler_manager):
-    return compiler_manager.registered_compilers[Extension.SOL.value]
+    return compiler_manager.solidity
+
+
+@pytest.fixture(autouse=True)
+def ignore_other_compilers(mocker, compiler_manager, compiler):
+    """
+    Having ape-vyper installed causes the random Vyper file
+    (that exists for testing purposes) to get compiled and
+    vyper to get repeatedly installed in a temporary directory.
+    Avoid that by tricking Ape into thinking ape-vyper is not
+    installed (if it is).
+    """
+    existing_compilers = compiler_manager.registered_compilers
+    ape_pm = compiler_manager.ethpm
+    valid_compilers = {
+        ext: c for ext, c in existing_compilers.items() if ext in [x.value for x in Extension]
+    }
+    path = "ape.managers.compilers.CompilerManager.registered_compilers"
+    mock_registered_compilers = mocker.patch(path, new_callable=mock.PropertyMock)
+
+    # Only ethpm (.json) and Solidity extensions allowed.
+    mock_registered_compilers.return_value = {".json": ape_pm, **valid_compilers}
 
 
 @pytest.fixture

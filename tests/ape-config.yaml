@@ -50,5 +50,8 @@ solidity:
     # Needed for Vault
     - "@openzeppelin/contracts=OpenZeppelin/v4.7.1"
 
+    # Testing multiple versions of same dependency.
+    - "@oz/contracts=OpenZeppelin/v4.5.0"
+
   # Using evm_version compatible with older and newer solidity versions.
   evm_version: constantinople

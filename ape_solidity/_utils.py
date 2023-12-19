@@ -5,13 +5,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Union
 
-from ape._pydantic_compat import BaseModel, validator
 from ape.exceptions import CompilerError
-from ape.logging import logger
+from ape.utils import pragma_str_to_specifier_set
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion
 from packaging.version import Version
 from packaging.version import Version as _Version
+from pydantic import BaseModel, field_validator
 from solcx.install import get_executable
 from solcx.wrapper import get_solc_version as get_solc_version_from_binary
 
@@ -36,7 +36,8 @@ class ImportRemapping(BaseModel):
     entry: str
     packages_cache: Path
 
-    @validator("entry")
+    @field_validator("entry", mode="before")
+    @classmethod
     def validate_entry(cls, value):
         if len((value or "").split("=")) != 2:
             raise IncorrectMappingFormatError()
@@ -93,6 +94,8 @@ class ImportRemapping(BaseModel):
 
 class ImportRemappingBuilder:
     def __init__(self, contracts_cache: Path):
+        # import_map maps import keys like `@openzeppelin/contracts`
+        # to str paths in the contracts' .cache folder.
         self.import_map: Dict[str, str] = {}
         self.dependencies_added: Set[Path] = set()
         self.contracts_cache = contracts_cache
@@ -145,7 +148,7 @@ def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> Optional[Sp
         source_file_path (Union[Path, str]): Solidity source file path.
 
     Returns:
-        ``packaging.specifiers.SpecifierSet``
+        ``Optional[packaging.specifiers.SpecifierSet]``
     """
     path = Path(source_file_path)
     if not path.is_file():
@@ -163,41 +166,7 @@ def get_pragma_spec_from_str(source_str: str) -> Optional[SpecifierSet]:
     ):
         return None  # Try compiling with latest
 
-    # The following logic handles the case where the user puts a space
-    # between the operator and the version number in the pragma string,
-    # such as `solidity >= 0.4.19 < 0.7.0`.
-    pragma_parts = pragma_match.groups()[0].split()
-
-    def _to_spec(item: str) -> str:
-        item = item.replace("^", "~=")
-        if item and item[0].isnumeric():
-            return f"=={item}"
-        elif item and len(item) >= 2 and item[0] == "=" and item[1] != "=":
-            return f"={item}"
-
-        return item
-
-    pragma_parts_fixed = []
-    builder = ""
-    for sub_part in pragma_parts:
-        if not any(c.isnumeric() for c in sub_part):
-            # Handle pragma with spaces between constraint and values
-            # like `>= 0.6.0`.
-            builder += sub_part
-            continue
-        elif builder:
-            spec = _to_spec(f"{builder}{sub_part}")
-            builder = ""
-        else:
-            spec = _to_spec(sub_part)
-
-        pragma_parts_fixed.append(spec)
-
-    try:
-        return SpecifierSet(",".join(pragma_parts_fixed))
-    except ValueError as err:
-        logger.error(str(err))
-        return None
+    return pragma_str_to_specifier_set(pragma_match.groups()[0])
 
 
 def load_dict(data: Union[str, dict]) -> Dict:
@@ -215,7 +184,7 @@ def add_commit_hash(version: Union[str, Version]) -> Version:
     return get_solc_version_from_binary(solc, with_commit_hash=True)
 
 
-def verify_contract_filepaths(contract_filepaths: List[Path]) -> Set[Path]:
+def verify_contract_filepaths(contract_filepaths: Sequence[Path]) -> Set[Path]:
     invalid_files = [p.name for p in contract_filepaths if p.suffix != Extension.SOL.value]
     if not invalid_files:
         return set(contract_filepaths)
