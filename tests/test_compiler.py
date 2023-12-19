@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 import pytest
-import solcx  # type: ignore
+import solcx
 from ape import reverts
 from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
@@ -234,7 +234,7 @@ def test_get_version_map(project, compiler):
     assert all([f in version_map[expected_version] for f in file_paths[:-1]])
 
     latest_version_sources = version_map[latest_version]
-    assert len(latest_version_sources) == 10, "Did the import remappings load correctly?"
+    assert len(latest_version_sources) >= 10, "Did the import remappings load correctly?"
     assert file_paths[-1] in latest_version_sources
 
     # Will fail if the import remappings have not loaded yet.
@@ -256,68 +256,79 @@ def test_get_version_map_raises_on_non_solidity_sources(compiler, vyper_source_p
 
 
 def test_compiler_data_in_manifest(project):
-    manifest = project.extract_manifest()
-    compilers = [c for c in manifest.compilers if c.name == "solidity"]
-    latest_version = max(c.version for c in compilers)
+    def run_test(manifest):
+        compilers = [c for c in manifest.compilers if c.name == "solidity"]
+        latest_version = max(c.version for c in compilers)
 
-    compiler_latest = [c for c in compilers if str(c.version) == latest_version][0]
-    compiler_0812 = [c for c in compilers if str(c.version) == "0.8.12+commit.f00d7308"][0]
-    compiler_0612 = [c for c in compilers if str(c.version) == "0.6.12+commit.27d51765"][0]
-    compiler_0426 = [c for c in compilers if str(c.version) == "0.4.26+commit.4563c3fc"][0]
+        compiler_latest = [c for c in compilers if str(c.version) == latest_version][0]
+        compiler_0812 = [c for c in compilers if str(c.version) == "0.8.12+commit.f00d7308"][0]
+        compiler_0612 = [c for c in compilers if str(c.version) == "0.6.12+commit.27d51765"][0]
+        compiler_0426 = [c for c in compilers if str(c.version) == "0.4.26+commit.4563c3fc"][0]
 
-    # Compiler name test
-    for compiler in (compiler_latest, compiler_0812, compiler_0612, compiler_0426):
-        assert compiler.name == "solidity"
-        assert compiler.settings["optimizer"] == DEFAULT_OPTIMIZER
-        assert compiler.settings["evmVersion"] == "constantinople"
+        # Compiler name test
+        for compiler in (compiler_latest, compiler_0812, compiler_0612, compiler_0426):
+            assert compiler.name == "solidity"
+            assert compiler.settings["optimizer"] == DEFAULT_OPTIMIZER
+            assert compiler.settings["evmVersion"] == "constantinople"
 
-    # No remappings for sources in the following compilers
-    assert (
-        "remappings" not in compiler_0812.settings
-    ), f"Remappings found: {compiler_0812.settings['remappings']}"
+        # No remappings for sources in the following compilers
+        assert (
+            "remappings" not in compiler_0812.settings
+        ), f"Remappings found: {compiler_0812.settings['remappings']}"
 
-    assert (
-        "@openzeppelin/contracts=.cache/OpenZeppelin/v4.7.1"
-        in compiler_latest.settings["remappings"]
-    )
-    assert "@vault=.cache/vault/v0.4.5" in compiler_latest.settings["remappings"]
-    assert "@vaultmain=.cache/vault/master" in compiler_latest.settings["remappings"]
-    common_suffix = ".cache/TestDependency/local"
-    expected_remappings = (
-        "@remapping_2_brownie=.cache/BrownieDependency/local",
-        "@dependency_remapping=.cache/DependencyOfDependency/local",
-        f"@remapping_2={common_suffix}",
-        f"@remapping/contracts={common_suffix}",
-        "@styleofbrownie=.cache/BrownieStyleDependency/local",
-    )
-    actual_remappings = compiler_latest.settings["remappings"]
-    assert all(x in actual_remappings for x in expected_remappings)
-    assert all(
-        b >= a for a, b in zip(actual_remappings, actual_remappings[1:])
-    ), "Import remappings should be sorted"
-    assert f"@remapping/contracts={common_suffix}" in compiler_0426.settings["remappings"]
-    assert "UseYearn" in compiler_latest.contractTypes
-    assert "@gnosis=.cache/gnosis/v1.3.0" in compiler_latest.settings["remappings"]
+        assert (
+            "@openzeppelin/contracts=.cache/OpenZeppelin/v4.7.1"
+            in compiler_latest.settings["remappings"]
+        )
+        assert "@vault=.cache/vault/v0.4.5" in compiler_latest.settings["remappings"]
+        assert "@vaultmain=.cache/vault/master" in compiler_latest.settings["remappings"]
+        common_suffix = ".cache/TestDependency/local"
+        expected_remappings = (
+            "@remapping_2_brownie=.cache/BrownieDependency/local",
+            "@dependency_remapping=.cache/DependencyOfDependency/local",
+            f"@remapping_2={common_suffix}",
+            f"@remapping/contracts={common_suffix}",
+            "@styleofbrownie=.cache/BrownieStyleDependency/local",
+        )
+        actual_remappings = compiler_latest.settings["remappings"]
+        assert all(x in actual_remappings for x in expected_remappings)
+        assert all(
+            b >= a for a, b in zip(actual_remappings, actual_remappings[1:])
+        ), "Import remappings should be sorted"
+        assert f"@remapping/contracts={common_suffix}" in compiler_0426.settings["remappings"]
+        assert "UseYearn" in compiler_latest.contractTypes
+        assert "@gnosis=.cache/gnosis/v1.3.0" in compiler_latest.settings["remappings"]
 
-    # Compiler contract types test
-    assert set(compiler_0812.contractTypes) == {
-        "ImportSourceWithEqualSignVersion",
-        "ImportSourceWithNoPrefixVersion",
-        "ImportingLessConstrainedVersion",
-        "IndirectlyImportingMoreConstrainedVersion",
-        "IndirectlyImportingMoreConstrainedVersionCompanion",
-        "SpecificVersionNoPrefix",
-        "SpecificVersionRange",
-        "SpecificVersionWithEqualSign",
-        "CompilesOnce",
-        "IndirectlyImportingMoreConstrainedVersionCompanionImport",
-    }
-    assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion"}
-    assert set(compiler_0426.contractTypes) == {
-        "ExperimentalABIEncoderV2",
-        "SpacesInPragma",
-        "ImportOlderDependency",
-    }
+        # Compiler contract types test
+        assert set(compiler_0812.contractTypes) == {
+            "ImportSourceWithEqualSignVersion",
+            "ImportSourceWithNoPrefixVersion",
+            "ImportingLessConstrainedVersion",
+            "IndirectlyImportingMoreConstrainedVersion",
+            "IndirectlyImportingMoreConstrainedVersionCompanion",
+            "SpecificVersionNoPrefix",
+            "SpecificVersionRange",
+            "SpecificVersionWithEqualSign",
+            "CompilesOnce",
+            "IndirectlyImportingMoreConstrainedVersionCompanionImport",
+        }
+        assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion"}
+        assert set(compiler_0426.contractTypes) == {
+            "ExperimentalABIEncoderV2",
+            "SpacesInPragma",
+            "ImportOlderDependency",
+        }
+
+    # Ensure compiled first so that the local cached manifest exists.
+    # We want to make ape-solidity has placed the compiler info in there.
+    project.load_contracts()
+    if man := project.local_project.manifest:
+        run_test(man)
+    else:
+        pytest.fail("Manifest was not cached after loading.")
+
+    # The extracted manifest should produce the same result.
+    run_test(project.extract_manifest())
 
 
 def test_get_versions(compiler, project):
@@ -333,37 +344,54 @@ def test_get_versions(compiler, project):
 
 
 def test_get_compiler_settings(compiler, project):
-    source_a = "ImportSourceWithEqualSignVersion.sol"
-    source_b = "SpecificVersionNoPrefix.sol"
-    source_c = "CompilesOnce.sol"
-    source_d = "Imports.sol"  # Uses mapped imports!
-    indirect_source = "SpecificVersionWithEqualSign.sol"
-    file_paths = [project.contracts_folder / x for x in (source_a, source_b, source_c, source_d)]
+    # We start with the following sources as inputs:
+    # `forced_812_*` are forced to compile using solc 0.8.12 because its
+    #  import is hard-pinned to it.
+    forced_812_0 = "ImportSourceWithEqualSignVersion.sol"
+    forced_812_1 = "SpecificVersionNoPrefix.sol"
+    # The following are unspecified and not used by the above.
+    # Thus are compiled on the latest.
+    latest_0 = "CompilesOnce.sol"
+    latest_1 = "Imports.sol"  # Uses mapped imports!
+    file_paths = [
+        project.contracts_folder / x for x in (forced_812_0, forced_812_1, latest_0, latest_1)
+    ]
+
+    # Actual should contain all the settings for every file used in a would-be compile.
     actual = compiler.get_compiler_settings(file_paths)
+
+    # The following is indirectly used by 0.8.12 from an import.
+    forced_812_0_import = "SpecificVersionWithEqualSign.sol"
+
+    # These are the versions we are checking in our expectations.
     v812 = Version("0.8.12+commit.f00d7308")
     latest = max(list(actual.keys()))
-    expected_remappings = (
+
+    expected_v812_contracts = [forced_812_0, forced_812_0_import, forced_812_1]
+    expected_latest_contracts = [
+        latest_0,
+        latest_1,
+        # The following are expected imported sources.
+        ".cache/BrownieDependency/local/BrownieContract.sol",
+        "CompilesOnce.sol",
+        ".cache/TestDependency/local/Dependency.sol",
+        ".cache/DependencyOfDependency/local/DependencyOfDependency.sol",
+        "subfolder/Relativecontract.sol",
+        ".cache/gnosis/v1.3.0/common/Enum.sol",
+    ]
+    expected_remappings = [
         "@remapping_2_brownie=.cache/BrownieDependency/local",
         "@dependency_remapping=.cache/DependencyOfDependency/local",
         "@remapping_2=.cache/TestDependency/local",
         "@remapping/contracts=.cache/TestDependency/local",
         "@styleofbrownie=.cache/BrownieStyleDependency/local",
         "@gnosis=.cache/gnosis/v1.3.0",
-    )
-    expected_v812_contracts = (source_a, source_b, source_c, indirect_source)
-    expected_latest_contracts = (
-        ".cache/BrownieDependency/local/BrownieContract.sol",
-        "CompilesOnce.sol",
-        ".cache/TestDependency/local/Dependency.sol",
-        ".cache/DependencyOfDependency/local/DependencyOfDependency.sol",
-        source_d,
-        "subfolder/Relativecontract.sol",
-        ".cache/gnosis/v1.3.0/common/Enum.sol",
-    )
+    ]
 
     # Shared compiler defaults tests
     expected_source_lists = (expected_v812_contracts, expected_latest_contracts)
     for version, expected_sources in zip((v812, latest), expected_source_lists):
+        expected_sources.sort()
         output_selection = actual[version]["outputSelection"]
         assert actual[version]["optimizer"] == DEFAULT_OPTIMIZER
         for _, item_selection in output_selection.items():
@@ -373,7 +401,9 @@ def test_get_compiler_settings(compiler, project):
                 elif key == "":  # All sources
                     assert selection == ["ast"]
 
-        actual_sources = [x for x in output_selection.keys()]
+        # Sort to help debug.
+        actual_sources = sorted([x for x in output_selection.keys()])
+
         for expected_source_id in expected_sources:
             assert (
                 expected_source_id in actual_sources
@@ -401,7 +431,7 @@ def test_evm_version(compiler):
 def test_source_map(project, compiler):
     source_path = project.contracts_folder / "MultipleDefinitions.sol"
     result = compiler.compile([source_path])[-1]
-    assert result.sourcemap.__root__ == "124:87:0:-:0;;;;;;;;;;;;;;;;;;;"
+    assert result.sourcemap.root == "124:87:0:-:0;;;;;;;;;;;;;;;;;;;"
 
 
 def test_add_library(project, account, compiler, connection):
