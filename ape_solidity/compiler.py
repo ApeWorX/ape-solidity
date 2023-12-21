@@ -455,7 +455,6 @@ class SolidityCompiler(CompilerAPI):
             if not list(files_by_solc_version[solc_version]):
                 continue
 
-            logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
             cleaned_version = Version(solc_version.base_version)
             solc_binary = get_executable(version=cleaned_version)
             arguments = {"solc_binary": solc_binary, "solc_version": cleaned_version}
