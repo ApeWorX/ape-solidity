@@ -11,8 +11,7 @@ from ape.types import AddressType, ContractType
 from ape.utils import cached_property, get_relative_path
 from eth_pydantic_types import HexBytes
 from eth_utils import add_0x_prefix, is_0x_prefixed
-from ethpm_types import ASTNode, PackageManifest
-from ethpm_types.ast import ASTClassification
+from ethpm_types import PackageManifest
 from ethpm_types.source import Compiler, Content
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
@@ -455,7 +454,6 @@ class SolidityCompiler(CompilerAPI):
             if not list(files_by_solc_version[solc_version]):
                 continue
 
-            logger.debug(f"Compiling using Solidity compiler '{solc_version}'")
             cleaned_version = Version(solc_version.base_version)
             solc_binary = get_executable(version=cleaned_version)
             arguments = {"solc_binary": solc_binary, "solc_version": cleaned_version}
@@ -521,17 +519,8 @@ class SolidityCompiler(CompilerAPI):
                         if source_id in str(input_file_path):
                             input_contract_names.append(name)
 
-            def classify_ast(_node: ASTNode):
-                if _node.ast_type in ("FunctionDefinition", "FunctionDefinitionNode"):
-                    _node.classification = ASTClassification.FUNCTION
-
-                for child in _node.children:
-                    classify_ast(child)
-
             for source_id, contracts_out in contracts.items():
-                ast_data = output["sources"][source_id]["ast"]
-                ast = ASTNode.model_validate(ast_data)
-                classify_ast(ast)
+                # ast_data = output["sources"][source_id]["ast"]
 
                 for contract_name, ct_data in contracts_out.items():
                     contract_path = base_path / source_id
@@ -579,7 +568,6 @@ class SolidityCompiler(CompilerAPI):
                     ct_data["userdoc"] = load_dict(ct_data["userdoc"])
                     ct_data["devdoc"] = load_dict(ct_data["devdoc"])
                     ct_data["sourcemap"] = evm_data["bytecode"]["sourceMap"]
-                    ct_data["ast"] = ast
                     contract_type = ContractType.model_validate(ct_data)
                     contract_types.append(contract_type)
                     contract_versions[contract_name] = solc_version

@@ -8,7 +8,6 @@ import solcx
 from ape import reverts
 from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
-from ethpm_types.ast import ASTClassification
 from packaging.version import Version
 from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
@@ -48,6 +47,15 @@ def test_compile(project, contract):
     assert contract in project.contracts, ", ".join([n for n in project.contracts.keys()])
     contract = project.contracts[contract]
     assert contract.source_id == f"{contract.name}.sol"
+
+
+def test_compile_performance(benchmark, compiler, project):
+    """
+    See https://pytest-benchmark.readthedocs.io/en/latest/
+    """
+    source_path = project.contracts_folder / "MultipleDefinitions.sol"
+    result = benchmark.pedantic(compiler.compile, args=([source_path],), rounds=1)
+    assert len(result) > 0
 
 
 def test_compile_solc_not_installed(project, fake_no_installs):
@@ -477,12 +485,13 @@ def test_enrich_error_when_builtin(project, owner, connection):
         contract.checkIndexOutOfBounds(sender=owner)
 
 
-def test_ast(project, compiler):
-    source_path = project.contracts_folder / "MultipleDefinitions.sol"
-    actual = compiler.compile([source_path])[-1].ast
-    fn_node = actual.children[1].children[0]
-    assert actual.ast_type == "SourceUnit"
-    assert fn_node.classification == ASTClassification.FUNCTION
+# TODO: Not yet used and super slow.
+# def test_ast(project, compiler):
+#     source_path = project.contracts_folder / "MultipleDefinitions.sol"
+#     actual = compiler.compile([source_path])[-1].ast
+#     fn_node = actual.children[1].children[0]
+#     assert actual.ast_type == "SourceUnit"
+#     assert fn_node.classification == ASTClassification.FUNCTION
 
 
 def test_via_ir(project, compiler):

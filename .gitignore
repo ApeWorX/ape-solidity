@@ -127,3 +127,4 @@ version.py
 *.swo
 
 tests/node_modules
+.benchmarks/
