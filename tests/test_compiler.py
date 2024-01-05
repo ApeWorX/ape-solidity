@@ -54,7 +54,7 @@ def test_compile_performance(benchmark, compiler, project):
     See https://pytest-benchmark.readthedocs.io/en/latest/
     """
     source_path = project.contracts_folder / "MultipleDefinitions.sol"
-    result = benchmark.pedantic(compiler.compile, args=[source_path], rounds=1)
+    result = benchmark.pedantic(compiler.compile, args=([source_path],), rounds=1)
     assert len(result) > 0
 
 
