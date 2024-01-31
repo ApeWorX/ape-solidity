@@ -221,9 +221,8 @@ class SolidityCompiler(CompilerAPI):
             raise IncorrectMappingFormatError()
 
         # We use these helpers to transform the values configured
-        # to values matching files in the `contracts/.cache` folder.
-        contracts_cache = base_path / ".cache"
-        builder = ImportRemappingBuilder(contracts_cache)
+        # to values matching files in the compiler cache folder.
+        builder = ImportRemappingBuilder(self.project_manager.compiler_cache_folder)
         packages_cache = self.config_manager.packages_folder
 
         # Here we hash and validate if there were changes to remappings.
@@ -233,7 +232,7 @@ class SolidityCompiler(CompilerAPI):
         if (
             self._import_remapping_hash
             and self._import_remapping_hash == hash(remappings_tuple)
-            and contracts_cache.is_dir()
+            and self.project_manager.compiler_cache_folder.is_dir()
         ):
             return self._cached_import_map
 
@@ -265,7 +264,7 @@ class SolidityCompiler(CompilerAPI):
             data_folder_cache = packages_cache / package_id
 
             # Re-build a downloaded dependency manifest into the .cache directory for imports.
-            sub_contracts_cache = contracts_cache / package_id
+            sub_contracts_cache = self.project_manager.compiler_cache_folder / package_id
             if not sub_contracts_cache.is_dir() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{remapping_obj.name}.json"
                 if not cached_manifest_file.is_file():
@@ -435,7 +434,7 @@ class SolidityCompiler(CompilerAPI):
                 x
                 for sources in self.get_imports(list(sources), base_path=base_path).values()
                 for x in sources
-                if x.startswith(".cache")
+                if str(self.project_manager.compiler_cache_folder) in x
             )
             for parent_key in (
                 os.path.sep.join(source.split(os.path.sep)[:3]) for source in [source]
