@@ -391,10 +391,7 @@ class SolidityCompiler(CompilerAPI):
         for solc_version, sources in files_by_solc_version.items():
             version_settings: Dict[str, Union[Any, List[Any]]] = {
                 "optimizer": {"enabled": self.settings.optimize, "runs": DEFAULT_OPTIMIZATION_RUNS},
-                "outputSelection": {
-                    str(get_relative_path(p, base_path)): {"*": OUTPUT_SELECTION, "": ["ast"]}
-                    for p in sources
-                },
+                "outputSelection": {str(p): {"*": OUTPUT_SELECTION, "": ["ast"]} for p in sources},
             }
             if remappings_used := self._get_used_remappings(
                 sources, remappings=import_remappings, base_path=base_path
@@ -432,8 +429,8 @@ class SolidityCompiler(CompilerAPI):
             k: v
             for source in (
                 x
-                for sources in self.get_imports(list(sources), base_path=base_path).values()
-                for x in sources
+                for sourceset in self.get_imports(list(sources), base_path=base_path).values()
+                for x in sourceset
                 if str(self.project_manager.compiler_cache_folder) in x
             )
             for parent_key in (
@@ -470,6 +467,7 @@ class SolidityCompiler(CompilerAPI):
                 x: {"content": (base_path / x).read_text()}
                 for x in vers_settings["outputSelection"]
             }
+
             input_jsons[solc_version] = {
                 "sources": sources,
                 "settings": vers_settings,
@@ -494,6 +492,11 @@ class SolidityCompiler(CompilerAPI):
 
             if solc_version >= Version("0.6.9"):
                 arguments["base_path"] = base_path
+
+            if self.project_manager.compiler_cache_folder.is_dir():
+                # TODO: equivalent of --include-path?
+                # arguments["include_path"] = self.project_manager.compiler_cache_folder
+                arguments["allow_paths"] = self.project_manager.compiler_cache_folder
 
             # Allow empty contracts, like Vyper does.
             arguments["allow_empty"] = True
@@ -835,7 +838,9 @@ class SolidityCompiler(CompilerAPI):
             return set()
 
         source_ids_checked.append(source_identifier)
-        import_file_paths = [base_path / i for i in imports.get(source_identifier, []) if i]
+        import_file_paths = [
+            (base_path / i).resolve() for i in imports.get(source_identifier, []) if i
+        ]
         return_set = {i for i in import_file_paths}
         for import_path in import_file_paths:
             indirect_imports = self._get_imported_source_paths(
@@ -1108,3 +1113,19 @@ def _import_str_to_source_id(
 
 def _try_max(ls: List[Any]):
     return max(ls) if ls else None
+
+
+def _get_best_relative_path(path: Path, base_paths: List[Path]) -> Path:
+    """Return the first matching relative path to the given base paths"""
+    relatives = []
+
+    for base in base_paths:
+        try:
+            relatives.append(path.relative_to(base))
+        except ValueError:
+            continue
+
+    if not relatives:
+        raise ValueError(f"{path} is not a subpath of any given base paths")
+
+    return min(relatives, key=lambda x: len(x.parts))
