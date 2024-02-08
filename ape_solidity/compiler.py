@@ -501,8 +501,6 @@ class SolidityCompiler(CompilerAPI):
                 arguments["base_path"] = base_path
 
             if self.project_manager.compiler_cache_folder.is_dir():
-                # TODO: equivalent of --include-path?
-                # arguments["include_path"] = self.project_manager.compiler_cache_folder
                 arguments["allow_paths"] = self.project_manager.compiler_cache_folder
 
             # Allow empty contracts, like Vyper does.
@@ -1118,19 +1116,3 @@ def _import_str_to_source_id(
 
 def _try_max(ls: List[Any]):
     return max(ls) if ls else None
-
-
-def _get_best_relative_path(path: Path, base_paths: List[Path]) -> Path:
-    """Return the first matching relative path to the given base paths"""
-    relatives = []
-
-    for base in base_paths:
-        try:
-            relatives.append(path.relative_to(base))
-        except ValueError:
-            continue
-
-    if not relatives:
-        raise ValueError(f"{path} is not a subpath of any given base paths")
-
-    return min(relatives, key=lambda x: len(x.parts))
