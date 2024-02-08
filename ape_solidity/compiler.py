@@ -222,7 +222,9 @@ class SolidityCompiler(CompilerAPI):
 
         # We use these helpers to transform the values configured
         # to values matching files in the compiler cache folder.
-        builder = ImportRemappingBuilder(self.project_manager.compiler_cache_folder)
+        builder = ImportRemappingBuilder(
+            get_relative_path(self.project_manager.compiler_cache_folder, base_path)
+        )
         packages_cache = self.config_manager.packages_folder
 
         # Here we hash and validate if there were changes to remappings.
@@ -391,7 +393,10 @@ class SolidityCompiler(CompilerAPI):
         for solc_version, sources in files_by_solc_version.items():
             version_settings: Dict[str, Union[Any, List[Any]]] = {
                 "optimizer": {"enabled": self.settings.optimize, "runs": DEFAULT_OPTIMIZATION_RUNS},
-                "outputSelection": {str(p): {"*": OUTPUT_SELECTION, "": ["ast"]} for p in sources},
+                "outputSelection": {
+                    str(get_relative_path(p, base_path)): {"*": OUTPUT_SELECTION, "": ["ast"]}
+                    for p in sources
+                },
             }
             if remappings_used := self._get_used_remappings(
                 sources, remappings=import_remappings, base_path=base_path
@@ -424,6 +429,8 @@ class SolidityCompiler(CompilerAPI):
             # No remappings used at all.
             return {}
 
+        relative_cache = get_relative_path(self.project_manager.compiler_cache_folder, base_path)
+
         # Filter out unused import remapping.
         return {
             k: v
@@ -431,7 +438,7 @@ class SolidityCompiler(CompilerAPI):
                 x
                 for sourceset in self.get_imports(list(sources), base_path=base_path).values()
                 for x in sourceset
-                if str(self.project_manager.compiler_cache_folder) in x
+                if str(relative_cache) in x
             )
             for parent_key in (
                 os.path.sep.join(source.split(os.path.sep)[:3]) for source in [source]
@@ -838,9 +845,7 @@ class SolidityCompiler(CompilerAPI):
             return set()
 
         source_ids_checked.append(source_identifier)
-        import_file_paths = [
-            (base_path / i).resolve() for i in imports.get(source_identifier, []) if i
-        ]
+        import_file_paths = [base_path / i for i in imports.get(source_identifier, []) if i]
         return_set = {i for i in import_file_paths}
         for import_path in import_file_paths:
             indirect_imports = self._get_imported_source_paths(
