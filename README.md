@@ -145,3 +145,18 @@ You can enable `solc`'s `--via-IR` flag by adding the following values to your `
 solidity:
   via_ir: True
 ```
+
+### Contract Flattening
+
+`ape-solidity` has contract-flattening capabilities.
+If you are publishing contracts using Ape, Ape automatically detects and uses the flattened-contract approach if needed.
+
+To manually flatten a contract for your own benefit, use the following code:
+
+```python
+from ape import compilers, project
+
+source_path = project.source_paths[0]  # Replace with your path.
+flattened_src = compilers.flatten_contract(source_path)
+print(str(flattened_src))
+```
