@@ -168,8 +168,9 @@ def test_get_imports(project, compiler):
 
 def test_get_imports_cache_folder(project, compiler):
     """Test imports when cache folder is configured"""
-    config = project.config_manager.get_config("compile")
-    config.cache_folder = project.path / ".cash"
+    compile_config = project.config_manager.get_config("compile")
+    og_cache_colder = compile_config.cache_folder
+    compile_config.cache_folder = project.path / ".cash"
     # assert False
     test_contract_paths = [
         p
@@ -195,6 +196,10 @@ def test_get_imports_cache_folder(project, compiler):
         "contracts/subfolder/Relativecontract.sol",
     }
     assert set(contract_imports) == expected
+
+    # Reset because this config is stateful across tests
+    compile_config.cache_folder = og_cache_colder
+    shutil.rmtree(og_cache_colder)
 
 
 def test_get_imports_raises_when_non_solidity_files(compiler, vyper_source_path):
