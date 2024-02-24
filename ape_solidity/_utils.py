@@ -102,7 +102,7 @@ class ImportRemappingBuilder:
 
     def add_entry(self, remapping: ImportRemapping):
         path = remapping.package_id
-        if str(self.contracts_cache) not in str(path):
+        if self.contracts_cache not in path.parents:
             path = self.contracts_cache / path
 
         self.import_map[remapping.key] = str(path)
@@ -110,7 +110,6 @@ class ImportRemappingBuilder:
 
 def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
     imports_dict: Dict[Path, List[str]] = {}
-
     for filepath in source_paths:
         import_set = set()
         if not filepath.is_file():

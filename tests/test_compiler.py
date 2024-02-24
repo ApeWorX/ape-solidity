@@ -3,6 +3,7 @@ import re
 import shutil
 from pathlib import Path
 
+import ape
 import pytest
 import solcx
 from ape import reverts
@@ -141,7 +142,12 @@ def test_compile_just_a_struct(compiler, project):
 
 
 def test_get_imports(project, compiler):
-    import_dict = compiler.get_imports(TEST_CONTRACT_PATHS, BASE_PATH)
+    test_contract_paths = [
+        p
+        for p in project.contracts_folder.iterdir()
+        if ".cache" not in str(p) and not p.is_dir() and p.suffix == Extension.SOL.value
+    ]
+    import_dict = compiler.get_imports(test_contract_paths, project.contracts_folder)
     contract_imports = import_dict["Imports.sol"]
     # NOTE: make sure there aren't duplicates
     assert len([x for x in contract_imports if contract_imports.count(x) > 1]) == 0
@@ -157,6 +163,37 @@ def test_get_imports(project, compiler):
         "MissingPragma.sol",
         "NumerousDefinitions.sol",
         "subfolder/Relativecontract.sol",
+    }
+    assert set(contract_imports) == expected
+
+
+def test_get_imports_cache_folder(project, compiler):
+    """Test imports when cache folder is configured"""
+    config = project.config_manager.get_config("compile")
+    config.cache_folder = project.path / ".cash"
+    # assert False
+    test_contract_paths = [
+        p
+        for p in project.contracts_folder.iterdir()
+        if ".cache" not in str(p) and not p.is_dir() and p.suffix == Extension.SOL.value
+    ]
+    # Using a different base path here because the cache folder is in the project root
+    import_dict = compiler.get_imports(test_contract_paths, project.path)
+    contract_imports = import_dict["contracts/Imports.sol"]
+    # NOTE: make sure there aren't duplicates
+    assert len([x for x in contract_imports if contract_imports.count(x) > 1]) == 0
+    # NOTE: returning a list
+    assert isinstance(contract_imports, list)
+    # NOTE: in case order changes
+    expected = {
+        ".cash/BrownieDependency/local/BrownieContract.sol",
+        ".cash/BrownieStyleDependency/local/BrownieStyleDependency.sol",
+        ".cash/TestDependency/local/Dependency.sol",
+        ".cash/gnosis/v1.3.0/common/Enum.sol",
+        "contracts/CompilesOnce.sol",
+        "contracts/MissingPragma.sol",
+        "contracts/NumerousDefinitions.sol",
+        "contracts/subfolder/Relativecontract.sol",
     }
     assert set(contract_imports) == expected
 
