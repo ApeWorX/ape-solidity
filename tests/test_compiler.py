@@ -3,7 +3,6 @@ import re
 import shutil
 from pathlib import Path
 
-import ape
 import pytest
 import solcx
 from ape import reverts
