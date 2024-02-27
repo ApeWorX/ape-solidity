@@ -221,9 +221,10 @@ class SolidityCompiler(CompilerAPI):
             raise IncorrectMappingFormatError()
 
         # We use these helpers to transform the values configured
-        # to values matching files in the `contracts/.cache` folder.
-        contracts_cache = base_path / ".cache"
-        builder = ImportRemappingBuilder(contracts_cache)
+        # to values matching files in the compiler cache folder.
+        builder = ImportRemappingBuilder(
+            get_relative_path(self.project_manager.compiler_cache_folder, base_path)
+        )
         packages_cache = self.config_manager.packages_folder
 
         # Here we hash and validate if there were changes to remappings.
@@ -233,7 +234,7 @@ class SolidityCompiler(CompilerAPI):
         if (
             self._import_remapping_hash
             and self._import_remapping_hash == hash(remappings_tuple)
-            and contracts_cache.is_dir()
+            and self.project_manager.compiler_cache_folder.is_dir()
         ):
             return self._cached_import_map
 
@@ -265,7 +266,7 @@ class SolidityCompiler(CompilerAPI):
             data_folder_cache = packages_cache / package_id
 
             # Re-build a downloaded dependency manifest into the .cache directory for imports.
-            sub_contracts_cache = contracts_cache / package_id
+            sub_contracts_cache = self.project_manager.compiler_cache_folder / package_id
             if not sub_contracts_cache.is_dir() or not list(sub_contracts_cache.iterdir()):
                 cached_manifest_file = data_folder_cache / f"{remapping_obj.name}.json"
                 if not cached_manifest_file.is_file():
@@ -428,14 +429,16 @@ class SolidityCompiler(CompilerAPI):
             # No remappings used at all.
             return {}
 
+        relative_cache = get_relative_path(self.project_manager.compiler_cache_folder, base_path)
+
         # Filter out unused import remapping.
         return {
             k: v
             for source in (
                 x
-                for sources in self.get_imports(list(sources), base_path=base_path).values()
-                for x in sources
-                if x.startswith(".cache")
+                for sourceset in self.get_imports(list(sources), base_path=base_path).values()
+                for x in sourceset
+                if str(relative_cache) in x
             )
             for parent_key in (
                 os.path.sep.join(source.split(os.path.sep)[:3]) for source in [source]
@@ -471,6 +474,7 @@ class SolidityCompiler(CompilerAPI):
                 x: {"content": (base_path / x).read_text()}
                 for x in vers_settings["outputSelection"]
             }
+
             input_jsons[solc_version] = {
                 "sources": sources,
                 "settings": vers_settings,
@@ -495,6 +499,9 @@ class SolidityCompiler(CompilerAPI):
 
             if solc_version >= Version("0.6.9"):
                 arguments["base_path"] = base_path
+
+            if self.project_manager.compiler_cache_folder.is_dir():
+                arguments["allow_paths"] = self.project_manager.compiler_cache_folder
 
             # Allow empty contracts, like Vyper does.
             arguments["allow_empty"] = True

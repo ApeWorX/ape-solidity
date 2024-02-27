@@ -95,22 +95,21 @@ class ImportRemapping(BaseModel):
 class ImportRemappingBuilder:
     def __init__(self, contracts_cache: Path):
         # import_map maps import keys like `@openzeppelin/contracts`
-        # to str paths in the contracts' .cache folder.
+        # to str paths in the compiler cache folder.
         self.import_map: Dict[str, str] = {}
         self.dependencies_added: Set[Path] = set()
         self.contracts_cache = contracts_cache
 
     def add_entry(self, remapping: ImportRemapping):
         path = remapping.package_id
-        if not str(path).startswith(f".cache{os.path.sep}"):
-            path = Path(".cache") / path
+        if self.contracts_cache not in path.parents:
+            path = self.contracts_cache / path
 
         self.import_map[remapping.key] = str(path)
 
 
 def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
     imports_dict: Dict[Path, List[str]] = {}
-
     for filepath in source_paths:
         import_set = set()
         if not filepath.is_file():

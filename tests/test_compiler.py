@@ -141,7 +141,12 @@ def test_compile_just_a_struct(compiler, project):
 
 
 def test_get_imports(project, compiler):
-    import_dict = compiler.get_imports(TEST_CONTRACT_PATHS, BASE_PATH)
+    test_contract_paths = [
+        p
+        for p in project.contracts_folder.iterdir()
+        if ".cache" not in str(p) and not p.is_dir() and p.suffix == Extension.SOL.value
+    ]
+    import_dict = compiler.get_imports(test_contract_paths, project.contracts_folder)
     contract_imports = import_dict["Imports.sol"]
     # NOTE: make sure there aren't duplicates
     assert len([x for x in contract_imports if contract_imports.count(x) > 1]) == 0
@@ -159,6 +164,42 @@ def test_get_imports(project, compiler):
         "subfolder/Relativecontract.sol",
     }
     assert set(contract_imports) == expected
+
+
+def test_get_imports_cache_folder(project, compiler):
+    """Test imports when cache folder is configured"""
+    compile_config = project.config_manager.get_config("compile")
+    og_cache_colder = compile_config.cache_folder
+    compile_config.cache_folder = project.path / ".cash"
+    # assert False
+    test_contract_paths = [
+        p
+        for p in project.contracts_folder.iterdir()
+        if ".cache" not in str(p) and not p.is_dir() and p.suffix == Extension.SOL.value
+    ]
+    # Using a different base path here because the cache folder is in the project root
+    import_dict = compiler.get_imports(test_contract_paths, project.path)
+    contract_imports = import_dict["contracts/Imports.sol"]
+    # NOTE: make sure there aren't duplicates
+    assert len([x for x in contract_imports if contract_imports.count(x) > 1]) == 0
+    # NOTE: returning a list
+    assert isinstance(contract_imports, list)
+    # NOTE: in case order changes
+    expected = {
+        ".cash/BrownieDependency/local/BrownieContract.sol",
+        ".cash/BrownieStyleDependency/local/BrownieStyleDependency.sol",
+        ".cash/TestDependency/local/Dependency.sol",
+        ".cash/gnosis/v1.3.0/common/Enum.sol",
+        "contracts/CompilesOnce.sol",
+        "contracts/MissingPragma.sol",
+        "contracts/NumerousDefinitions.sol",
+        "contracts/subfolder/Relativecontract.sol",
+    }
+    assert set(contract_imports) == expected
+
+    # Reset because this config is stateful across tests
+    compile_config.cache_folder = og_cache_colder
+    shutil.rmtree(og_cache_colder)
 
 
 def test_get_imports_raises_when_non_solidity_files(compiler, vyper_source_path):
