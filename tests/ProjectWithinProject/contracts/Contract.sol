@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.4;
 
-import "@remapping/Dependency.sol";
+import "@remapping/contracts/Dependency.sol";
 
 contract Contract {
     function foo() pure public returns(bool) {
