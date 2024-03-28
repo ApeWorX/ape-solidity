@@ -9,7 +9,7 @@ struct Data {
     mapping(uint => bool) flags;
 }
 
-library Set {
+library ExampleLibrary {
     // Note that the first parameter is of type "storage
     // reference" and thus only its storage address and not
     // its contents is passed as part of the call.  This is a
@@ -46,14 +46,14 @@ library Set {
 }
 
 
-contract C {
+contract ContractUsingLibraryInSameSource {
     Data knownValues;
 
     function register(uint value) public {
         // The library functions can be called without a
         // specific instance of the library, since the
         // "instance" will be the current contract.
-        require(Set.insert(knownValues, value));
+        require(ExampleLibrary.insert(knownValues, value));
     }
     // In this contract, we can also directly access knownValues.flags, if we want.
 }

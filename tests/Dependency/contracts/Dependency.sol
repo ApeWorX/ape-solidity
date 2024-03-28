@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.4;
 
-import "@dependency_remapping/DependencyOfDependency.sol";
+import "@dependencyofdependency/contracts/DependencyOfDependency.sol";
 
 struct DependencyStruct {
     string name;
