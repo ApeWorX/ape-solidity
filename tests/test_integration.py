@@ -13,11 +13,12 @@ def runner():
     return CliRunner()
 
 
-def test_compile_using_cli(ape_cli, runner):
-    result = runner.invoke(ape_cli, ("compile", "--force"), catch_exceptions=False)
+def test_compile_using_cli(ape_cli, runner, project):
+    arguments = ["compile", "--project", f"{project.path}"]
+    result = runner.invoke(ape_cli, [*arguments, "--force"], catch_exceptions=False)
     assert result.exit_code == 0
     assert "CompilesOnce" in result.output
-    result = runner.invoke(ape_cli, "compile", catch_exceptions=False)
+    result = runner.invoke(ape_cli, arguments, catch_exceptions=False)
 
     # Already compiled so does not compile again.
     assert "CompilesOnce" not in result.output
@@ -32,12 +33,8 @@ def test_compile_using_cli(ape_cli, runner):
         "contracts/CompilesOnce.sol",
     ),
 )
-def test_compile_specified_contracts(ape_cli, runner, contract_path):
-    result = runner.invoke(ape_cli, ("compile", contract_path, "--force"), catch_exceptions=False)
+def test_compile_specified_contracts(ape_cli, runner, contract_path, project):
+    arguments = ("compile", "--project", f"{project.path}", contract_path, "--force")
+    result = runner.invoke(ape_cli, arguments, catch_exceptions=False)
     assert result.exit_code == 0, result.output
-    assert "Compiling 'CompilesOnce.sol'" in result.output, f"Failed to compile {contract_path}."
-
-
-def test_force_recompile(ape_cli, runner):
-    result = runner.invoke(ape_cli, ("compile", "--force"), catch_exceptions=False)
-    assert result.exit_code == 0
+    assert "contracts/CompilesOnce.sol" in result.output, f"Failed to compile {contract_path}."
