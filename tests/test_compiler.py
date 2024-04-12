@@ -8,6 +8,7 @@ import solcx
 from ape import reverts
 from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
+from ape.logging import LogLevel
 from packaging.version import Version
 from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
@@ -600,15 +601,23 @@ contract StackTooDeep {
     compiler.config.via_ir = False
 
 
-def test_flatten(project, compiler, data_folder):
+def test_flatten(project, compiler, data_folder, caplog):
     source_path = project.contracts_folder / "Imports.sol"
-    with pytest.raises(CompilerError):
+    with caplog.at_level(LogLevel.WARNING):
         compiler.flatten_contract(source_path)
+        actual = caplog.messages[-1]
+        expected = (
+            "Conflicting licenses found: 'LGPL-3.0-only, MIT'. "
+            "Using the root file's license 'MIT'."
+        )
+        assert actual == expected
 
     source_path = project.contracts_folder / "ImportingLessConstrainedVersion.sol"
     flattened_source = compiler.flatten_contract(source_path)
     flattened_source_path = data_folder / "ImportingLessConstrainedVersionFlat.sol"
-    assert str(flattened_source) == str(flattened_source_path.read_text())
+    actual = str(flattened_source)
+    expected = str(flattened_source_path.read_text())
+    assert actual == expected
 
 
 def test_compile_code(compiler):
