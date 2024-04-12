@@ -1011,9 +1011,8 @@ def get_first_version_pragma(source: str) -> str:
     return ""
 
 
-def get_licenses(source: str) -> List[Tuple[str, str]]:
-    matches = LICENSES_PATTERN.findall(source)
-    return matches
+def get_licenses(src: str) -> List[Tuple[str, str]]:
+    return LICENSES_PATTERN.findall(src)
 
 
 def process_licenses(contract: str) -> str:
@@ -1030,22 +1029,30 @@ def process_licenses(contract: str) -> str:
     if not extracted_licenses:
         return contract
 
-    # Get the unique license identifiers. We expect that all licenses in a contract are the same.
+    # The "root" license is most-likely last because import statements are
+    # replaced with their sources typically at the top of the file
+    license_line, root_license = extracted_licenses[-1]
+
+    # Get the unique license identifiers. All licenses in a contract _should_ be the same.
     unique_license_identifiers = {
         license_identifier for _, license_identifier in extracted_licenses
     }
 
-    # If we have more than one unique license identifier, raise an error.
+    # If we have more than one unique license identifier, warn the user and use the root.
     if len(unique_license_identifiers) > 1:
-        raise CompilerError(f"Conflicting licenses found: {unique_license_identifiers}")
-
-    # Get the first license line and identifier.
-    license_line, _ = extracted_licenses[0]
+        licenses_str = ", ".join(sorted(unique_license_identifiers))
+        logger.warning(
+            f"Conflicting licenses found: '{licenses_str}'. "
+            f"Using the root file's license '{root_license}'."
+        )
 
     # Remove all of the license lines from the contract.
-    contract_without_licenses = contract.replace(license_line, "")
+    contract_without_licenses = contract
+    for license_tuple in extracted_licenses:
+        line = license_tuple[0]
+        contract_without_licenses = contract_without_licenses.replace(line, "")
 
-    # Prepend the contract with only one license line.
+    # Prepend the contract with only the root license line.
     contract_with_single_license = f"{license_line}\n{contract_without_licenses}"
 
     return contract_with_single_license
