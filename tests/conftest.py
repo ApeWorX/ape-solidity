@@ -147,5 +147,5 @@ def not_owner():
 
 @pytest.fixture
 def connection():
-    with ape.networks.ethereum.local.use_provider("test"):
-        yield
+    with ape.networks.ethereum.local.use_provider("test") as provider:
+        yield provider

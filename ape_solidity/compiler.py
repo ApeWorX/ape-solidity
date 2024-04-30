@@ -62,13 +62,39 @@ DEFAULT_OPTIMIZATION_RUNS = 200
 
 
 class SolidityConfig(PluginConfig):
-    # Configure re-mappings using a `=` separated-str,
-    # e.g. '@import_name=path/to/dependency'
+    """
+    Configure the Solidity plugin.
+    """
+
     import_remapping: List[str] = []
+    """
+    Configure re-mappings using a ``=`` separated-str,
+    e.g. ``"@import_name=path/to/dependency"``.
+    """
+
     optimize: bool = True
+    """
+    Set to ``False`` to disable compiler-optimizations.
+    """
+
     version: Optional[str] = None
+    """
+    The compiler version to use. Defaults to selecting
+    the best version(s) it can for each file-set.
+    """
+
     evm_version: Optional[str] = None
+    """
+    The EVM version (fork) to use. Defaults to letting
+    the compiler decide.
+    """
+
     via_ir: Optional[bool] = None
+    """
+    Set to ``True`` to turn on compilation mode via the IR.
+    Defaults to ``None`` which does not pass the flag to
+    the compiler (same as ``False``).
+    """
 
 
 class SolidityCompiler(CompilerAPI):
