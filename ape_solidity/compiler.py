@@ -8,14 +8,13 @@ from ape.contracts import ContractInstance
 from ape.exceptions import CompilerError, ConfigError, ContractLogicError
 from ape.logging import logger
 from ape.types import AddressType, ContractType
-from ape.utils import cached_property, get_relative_path
+from ape.utils import cached_property, get_package_version, get_relative_path
 from eth_pydantic_types import HexBytes
 from eth_utils import add_0x_prefix, is_0x_prefixed
 from ethpm_types import PackageManifest
 from ethpm_types.source import Compiler, Content
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
-from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
 from solcx import (
     compile_source,
@@ -178,7 +177,8 @@ class SolidityCompiler(CompilerAPI):
 
     @cached_property
     def _ape_version(self) -> Version:
-        return Version(get_distribution("eth-ape").version.split(".dev")[0].strip())
+        version_str = get_package_version("eth-ape").split(".dev")[0].strip()
+        return Version(version_str)
 
     def add_library(self, *contracts: ContractInstance):
         """
