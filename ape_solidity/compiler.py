@@ -8,14 +8,13 @@ from ape.contracts import ContractInstance
 from ape.exceptions import CompilerError, ConfigError, ContractLogicError
 from ape.logging import logger
 from ape.types import AddressType, ContractType
-from ape.utils import cached_property, get_relative_path
+from ape.utils import cached_property, get_package_version, get_relative_path
 from eth_pydantic_types import HexBytes
 from eth_utils import add_0x_prefix, is_0x_prefixed
 from ethpm_types import PackageManifest
 from ethpm_types.source import Compiler, Content
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
-from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
 from solcx import (
     compile_source,
@@ -62,13 +61,39 @@ DEFAULT_OPTIMIZATION_RUNS = 200
 
 
 class SolidityConfig(PluginConfig):
-    # Configure re-mappings using a `=` separated-str,
-    # e.g. '@import_name=path/to/dependency'
+    """
+    Configure the Solidity plugin.
+    """
+
     import_remapping: List[str] = []
+    """
+    Configure re-mappings using a ``=`` separated-str,
+    e.g. ``"@import_name=path/to/dependency"``.
+    """
+
     optimize: bool = True
+    """
+    Set to ``False`` to disable compiler-optimizations.
+    """
+
     version: Optional[str] = None
+    """
+    The compiler version to use. Defaults to selecting
+    the best version(s) it can for each file-set.
+    """
+
     evm_version: Optional[str] = None
+    """
+    The EVM version (fork) to use. Defaults to letting
+    the compiler decide.
+    """
+
     via_ir: Optional[bool] = None
+    """
+    Set to ``True`` to turn on compilation mode via the IR.
+    Defaults to ``None`` which does not pass the flag to
+    the compiler (same as ``False``).
+    """
 
 
 class SolidityCompiler(CompilerAPI):
@@ -152,7 +177,8 @@ class SolidityCompiler(CompilerAPI):
 
     @cached_property
     def _ape_version(self) -> Version:
-        return Version(get_distribution("eth-ape").version.split(".dev")[0].strip())
+        version_str = get_package_version("eth-ape").split(".dev")[0].strip()
+        return Version(version_str)
 
     def add_library(self, *contracts: ContractInstance):
         """

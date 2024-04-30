@@ -10,7 +10,6 @@ from ape.contracts import ContractContainer
 from ape.exceptions import CompilerError
 from ape.logging import LogLevel
 from packaging.version import Version
-from pkg_resources import get_distribution
 from requests.exceptions import ConnectionError
 
 from ape_solidity import Extension
@@ -37,7 +36,6 @@ normal_test_skips = (
 )
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
 DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
-APE_VERSION = Version(get_distribution("eth-ape").version.split(".dev")[0].strip())
 
 
 @pytest.mark.parametrize(

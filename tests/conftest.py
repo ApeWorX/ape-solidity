@@ -1,7 +1,7 @@
 import shutil
 from contextlib import contextmanager
-from distutils.dir_util import copy_tree
 from pathlib import Path
+from shutil import copytree
 from tempfile import mkdtemp
 from unittest import mock
 
@@ -57,7 +57,7 @@ def temp_solcx_path(monkeypatch):
 @pytest.fixture(autouse=True)
 def data_folder():
     base_path = Path(__file__).parent / "data"
-    copy_tree(base_path.as_posix(), DATA_FOLDER.as_posix())
+    copytree(base_path, DATA_FOLDER, dirs_exist_ok=True)
     return DATA_FOLDER
 
 
@@ -87,7 +87,7 @@ def project(data_folder, config):
             if cache.is_dir():
                 shutil.rmtree(cache)
 
-    copy_tree(project_source_dir.as_posix(), project_dest_dir.as_posix())
+    copytree(project_source_dir, project_dest_dir, dirs_exist_ok=True)
     with config.using_project(project_dest_dir) as project:
         yield project
         if project.local_project._cache_folder.is_dir():
@@ -147,5 +147,5 @@ def not_owner():
 
 @pytest.fixture
 def connection():
-    with ape.networks.ethereum.local.use_provider("test"):
-        yield
+    with ape.networks.ethereum.local.use_provider("test") as provider:
+        yield provider
