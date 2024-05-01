@@ -941,7 +941,7 @@ class SolidityCompiler(CompilerAPI):
             # Nothing to do.
             return err
 
-        if panic_cls := _get_sol_panic(err.revert_message):
+        elif panic_cls := _get_sol_panic(err.revert_message):
             return panic_cls(
                 base_err=err.base_err,
                 contract_address=err.contract_address,
