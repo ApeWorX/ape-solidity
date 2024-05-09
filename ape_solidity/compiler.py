@@ -614,17 +614,19 @@ class SolidityCompiler(CompilerAPI):
 
             vers = contract_versions[ct.name]
             settings = input_jsons[vers]["settings"]
-            if vers in compilers_used and ct.name not in (compilers_used[vers].contractTypes or []):
-                compilers_used[vers].contractTypes = [
-                    *(compilers_used[vers].contractTypes or []),
-                    ct.name,
-                ]
+            contract_id = f"{ct.source_id}:{ct.name}"
+            if vers in compilers_used and contract_id not in (
+                compilers_used[vers].contractTypes or []
+            ):
+                existing_cts = compilers_used[vers].contractTypes or []
+                if contract_id not in existing_cts:
+                    compilers_used[vers].contractTypes = [*existing_cts, contract_id]
 
             elif vers not in compilers_used:
                 compilers_used[vers] = Compiler(
                     name=self.name.lower(),
                     version=f"{vers}",
-                    contractTypes=[ct.name],
+                    contractTypes=[contract_id],
                     settings=settings,
                 )
 

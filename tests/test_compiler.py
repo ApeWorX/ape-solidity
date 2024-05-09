@@ -344,27 +344,43 @@ def test_compiler_data_in_manifest(project):
             b >= a for a, b in zip(actual_remappings, actual_remappings[1:])
         ), "Import remappings should be sorted"
         assert f"@remapping/contracts={common_suffix}" in compiler_0426.settings["remappings"]
-        assert "UseYearn" in compiler_latest.contractTypes
+        assert "UseYearn.sol:UseYearn" in compiler_latest.contractTypes
         assert "@gnosis=.cache/gnosis/v1.3.0" in compiler_latest.settings["remappings"]
+
+        more_c = (
+            "IndirectlyImportingMoreConstrainedVersionCompanion.sol"
+            ":IndirectlyImportingMoreConstrainedVersionCompanion"
+        )
+        indirect_morec = (
+            "IndirectlyImportingMoreConstrainedVersionCompanionImport.sol"
+            ":IndirectlyImportingMoreConstrainedVersionCompanionImport"
+        )
+        indrect_morec_2 = (
+            "IndirectlyImportingMoreConstrainedVersion.sol"
+            ":IndirectlyImportingMoreConstrainedVersion"
+        )
 
         # Compiler contract types test
         assert set(compiler_0812.contractTypes) == {
-            "ImportSourceWithEqualSignVersion",
-            "ImportSourceWithNoPrefixVersion",
-            "ImportingLessConstrainedVersion",
-            "IndirectlyImportingMoreConstrainedVersion",
-            "IndirectlyImportingMoreConstrainedVersionCompanion",
-            "SpecificVersionNoPrefix",
-            "SpecificVersionRange",
-            "SpecificVersionWithEqualSign",
-            "CompilesOnce",
-            "IndirectlyImportingMoreConstrainedVersionCompanionImport",
+            "ImportSourceWithEqualSignVersion.sol:ImportSourceWithEqualSignVersion",
+            "ImportSourceWithNoPrefixVersion.sol:ImportSourceWithNoPrefixVersion",
+            "ImportingLessConstrainedVersion.sol:ImportingLessConstrainedVersion",
+            indrect_morec_2,
+            more_c,
+            "SpecificVersionNoPrefix.sol:SpecificVersionNoPrefix",
+            "SpecificVersionRange.sol:SpecificVersionRange",
+            "SpecificVersionWithEqualSign.sol:SpecificVersionWithEqualSign",
+            "CompilesOnce.sol:CompilesOnce",
+            indirect_morec,
         }
-        assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion"}
+        assert set(compiler_0612.contractTypes) == {
+            "RangedVersion.sol:RangedVersion",
+            "VagueVersion.sol:VagueVersion",
+        }
         assert set(compiler_0426.contractTypes) == {
-            "ExperimentalABIEncoderV2",
-            "SpacesInPragma",
-            "ImportOlderDependency",
+            "ExperimentalABIEncoderV2.sol:ExperimentalABIEncoderV2",
+            "SpacesInPragma.sol:SpacesInPragma",
+            "ImportOlderDependency.sol:ImportOlderDependency",
         }
 
     # Ensure compiled first so that the local cached manifest exists.
