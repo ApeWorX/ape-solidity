@@ -94,21 +94,21 @@ def test_compile_specific_order(project, compiler):
     ]
     compiler.compile(ordered_files)
 
-#
-# def test_compile_missing_version(project, compiler, temp_solcx_path):
-#     """
-#     Test the compilation of a contract with no defined pragma spec.
-#
-#     The plugin should implicitly download the latest version to compile the
-#     contract with. `temp_solcx_path` is used to simulate an environment without
-#     compilers installed.
-#     """
-#     assert not solcx.get_installed_solc_versions()
-#     contract_types = compiler.compile([project.contracts_folder / "MissingPragma.sol"])
-#     assert len(contract_types) == 1
-#     installed_versions = solcx.get_installed_solc_versions()
-#     assert len(installed_versions) == 1
-#     assert installed_versions[0] == max(solcx.get_installable_solc_versions())
+
+def test_compile_missing_version(project, compiler, temp_solcx_path):
+    """
+    Test the compilation of a contract with no defined pragma spec.
+
+    The plugin should implicitly download the latest version to compile the
+    contract with. `temp_solcx_path` is used to simulate an environment without
+    compilers installed.
+    """
+    assert not solcx.get_installed_solc_versions()
+    contract_types = compiler.compile([project.contracts_folder / "MissingPragma.sol"])
+    assert len(contract_types) == 1
+    installed_versions = solcx.get_installed_solc_versions()
+    assert len(installed_versions) == 1
+    assert installed_versions[0] == max(solcx.get_installable_solc_versions())
 
 
 def test_compile_contract_with_different_name_than_file(project):
@@ -198,7 +198,7 @@ def test_get_imports_cache_folder(project, compiler):
 
     # Reset because this config is stateful across tests
     compile_config.cache_folder = og_cache_colder
-    shutil.rmtree(og_cache_colder)
+    shutil.rmtree(og_cache_colder, ignore_errors=True)
 
 
 def test_get_imports_raises_when_non_solidity_files(compiler, vyper_source_path):
@@ -265,8 +265,7 @@ def test_get_version_map(project, compiler):
     # Files are selected in order to trigger `CompilesOnce.sol` to
     # get removed from version '0.8.12'.
     cache_folder = project.contracts_folder / ".cache"
-    if cache_folder.is_dir():
-        shutil.rmtree(cache_folder)
+    shutil.rmtree(cache_folder, ignore_errors=True)
 
     file_paths = [
         project.contracts_folder / "ImportSourceWithEqualSignVersion.sol",

@@ -17,7 +17,7 @@ def test_compile_using_cli(ape_cli, runner):
     result = runner.invoke(ape_cli, ("compile", "--force"), catch_exceptions=False)
     assert result.exit_code == 0
     assert "CompilesOnce" in result.output
-    result = runner.invoke(ape_cli, ("compile",), catch_exceptions=False)
+    result = runner.invoke(ape_cli, "compile", catch_exceptions=False)
 
     # Already compiled so does not compile again.
     assert "CompilesOnce" not in result.output
