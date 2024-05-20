@@ -198,7 +198,7 @@ def test_get_imports_cache_folder(project, compiler):
 
     # Reset because this config is stateful across tests
     compile_config.cache_folder = og_cache_colder
-    shutil.rmtree(og_cache_colder)
+    shutil.rmtree(og_cache_colder, ignore_errors=True)
 
 
 def test_get_imports_raises_when_non_solidity_files(compiler, vyper_source_path):
@@ -265,8 +265,7 @@ def test_get_version_map(project, compiler):
     # Files are selected in order to trigger `CompilesOnce.sol` to
     # get removed from version '0.8.12'.
     cache_folder = project.contracts_folder / ".cache"
-    if cache_folder.is_dir():
-        shutil.rmtree(cache_folder)
+    shutil.rmtree(cache_folder, ignore_errors=True)
 
     file_paths = [
         project.contracts_folder / "ImportSourceWithEqualSignVersion.sol",
@@ -369,7 +368,7 @@ def test_compiler_data_in_manifest(project):
 
     # Ensure compiled first so that the local cached manifest exists.
     # We want to make ape-solidity has placed the compiler info in there.
-    project.load_contracts()
+    project.load_contracts(use_cache=False)
     if man := project.local_project.manifest:
         run_test(man)
     else:
