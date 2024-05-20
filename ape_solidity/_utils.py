@@ -1,9 +1,10 @@
 import json
 import os
 import re
+from collections.abc import Iterable
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Set, Union
+from typing import Optional, Union
 
 from ape.exceptions import CompilerError
 from ape.utils import pragma_str_to_specifier_set
@@ -45,7 +46,7 @@ class ImportRemapping(BaseModel):
         return value
 
     @property
-    def _parts(self) -> List[str]:
+    def _parts(self) -> list[str]:
         return self.entry.split("=")
 
     # path normalization needed in case delimiter in remapping key/value
@@ -96,8 +97,8 @@ class ImportRemappingBuilder:
     def __init__(self, contracts_cache: Path):
         # import_map maps import keys like `@openzeppelin/contracts`
         # to str paths in the compiler cache folder.
-        self.import_map: Dict[str, str] = {}
-        self.dependencies_added: Set[Path] = set()
+        self.import_map: dict[str, str] = {}
+        self.dependencies_added: set[Path] = set()
         self.contracts_cache = contracts_cache
 
     def add_entry(self, remapping: ImportRemapping):
@@ -108,8 +109,8 @@ class ImportRemappingBuilder:
         self.import_map[remapping.key] = str(path)
 
 
-def get_import_lines(source_paths: Set[Path]) -> Dict[Path, List[str]]:
-    imports_dict: Dict[Path, List[str]] = {}
+def get_import_lines(source_paths: set[Path]) -> dict[Path, list[str]]:
+    imports_dict: dict[Path, list[str]] = {}
     for filepath in source_paths:
         import_set = set()
         if not filepath.is_file():
@@ -168,7 +169,7 @@ def get_pragma_spec_from_str(source_str: str) -> Optional[SpecifierSet]:
     return pragma_str_to_specifier_set(pragma_match.groups()[0])
 
 
-def load_dict(data: Union[str, dict]) -> Dict:
+def load_dict(data: Union[str, dict]) -> dict:
     return data if isinstance(data, dict) else json.loads(data)
 
 
@@ -183,7 +184,7 @@ def add_commit_hash(version: Union[str, Version]) -> Version:
     return get_solc_version_from_binary(solc, with_commit_hash=True)
 
 
-def verify_contract_filepaths(contract_filepaths: Sequence[Path]) -> Set[Path]:
+def verify_contract_filepaths(contract_filepaths: Iterable[Path]) -> set[Path]:
     invalid_files = [p.name for p in contract_filepaths if p.suffix != Extension.SOL.value]
     if not invalid_files:
         return set(contract_filepaths)
@@ -192,7 +193,7 @@ def verify_contract_filepaths(contract_filepaths: Sequence[Path]) -> Set[Path]:
     raise CompilerError(f"Unable to compile '{sources_str}' using Solidity compiler.")
 
 
-def select_version(pragma_spec: SpecifierSet, options: Sequence[Version]) -> Optional[Version]:
+def select_version(pragma_spec: SpecifierSet, options: Iterable[Version]) -> Optional[Version]:
     choices = sorted(list(pragma_spec.filter(options)), reverse=True)
     return choices[0] if choices else None
 

@@ -53,7 +53,11 @@ def test_compile_performance(benchmark, compiler, project):
     See https://pytest-benchmark.readthedocs.io/en/latest/
     """
     source_path = project.contracts_folder / "MultipleDefinitions.sol"
-    result = benchmark.pedantic(compiler.compile, args=([source_path],), rounds=1)
+    result = benchmark.pedantic(
+        lambda *args, **kwargs: list(compiler.compile(*args, **kwargs)),
+        args=([source_path],),
+        rounds=1,
+    )
     assert len(result) > 0
 
 
@@ -69,13 +73,13 @@ def test_compile_when_offline(project, compiler, mocker):
 
     # Using a non-specific contract - doesn't matter too much which one.
     source_path = project.contracts_folder / "MultipleDefinitions.sol"
-    result = compiler.compile([source_path])
+    result = list(compiler.compile([source_path]))
     assert len(result) > 0, "Nothing got compiled."
 
 
 def test_compile_multiple_definitions_in_source(project, compiler):
     source_path = project.contracts_folder / "MultipleDefinitions.sol"
-    result = compiler.compile([source_path])
+    result = list(compiler.compile([source_path]))
     assert len(result) == 2
     assert [r.name for r in result] == ["IMultipleDefinitions", "MultipleDefinitions"]
     assert all(r.source_id == "MultipleDefinitions.sol" for r in result)
@@ -92,7 +96,7 @@ def test_compile_specific_order(project, compiler):
         project.contracts_folder / "OlderVersion.sol",
         project.contracts_folder / "Imports.sol",
     ]
-    compiler.compile(ordered_files)
+    list(compiler.compile(ordered_files))
 
 
 def test_compile_missing_version(project, compiler, temp_solcx_path):
@@ -104,7 +108,7 @@ def test_compile_missing_version(project, compiler, temp_solcx_path):
     compilers installed.
     """
     assert not solcx.get_installed_solc_versions()
-    contract_types = compiler.compile([project.contracts_folder / "MissingPragma.sol"])
+    contract_types = list(compiler.compile([project.contracts_folder / "MissingPragma.sol"]))
     assert len(contract_types) == 1
     installed_versions = solcx.get_installed_solc_versions()
     assert len(installed_versions) == 1
@@ -120,14 +124,14 @@ def test_compile_contract_with_different_name_than_file(project):
 def test_compile_only_returns_contract_types_for_inputs(compiler, project):
     # The compiler has to compile multiple files for 'Imports.sol' (it imports stuff).
     # However - it should only return a single contract type in this case.
-    contract_types = compiler.compile([project.contracts_folder / "Imports.sol"])
+    contract_types = list(compiler.compile([project.contracts_folder / "Imports.sol"]))
     assert len(contract_types) == 1
     assert contract_types[0].name == "Imports"
 
 
 def test_compile_vyper_contract(compiler, vyper_source_path):
     with raises_because_not_sol:
-        compiler.compile([vyper_source_path])
+        list(compiler.compile([vyper_source_path]))
 
 
 def test_compile_just_a_struct(compiler, project):
@@ -135,7 +139,7 @@ def test_compile_just_a_struct(compiler, project):
     Before, you would get a nasty index error, even though this is valid Solidity.
     The fix involved using nicer access to "contracts" in the standard output JSON.
     """
-    contract_types = compiler.compile([project.contracts_folder / "JustAStruct.sol"])
+    contract_types = list(compiler.compile([project.contracts_folder / "JustAStruct.sol"]))
     assert len(contract_types) == 0
 
 
@@ -477,7 +481,7 @@ def test_evm_version(compiler):
 
 def test_source_map(project, compiler):
     source_path = project.contracts_folder / "MultipleDefinitions.sol"
-    result = compiler.compile([source_path])[-1]
+    result = list(compiler.compile([source_path]))[-1]
     assert result.sourcemap.root == "124:87:0:-:0;;;;;;;;;;;;;;;;;;;"
 
 
@@ -494,7 +498,7 @@ def test_add_library(project, account, compiler, connection):
 
 
 def test_enrich_error_when_custom(compiler, project, owner, not_owner, connection):
-    compiler.compile((project.contracts_folder / "HasError.sol",))
+    list(compiler.compile((project.contracts_folder / "HasError.sol",)))
 
     # Deploy so Ape know about contract type.
     contract = owner.deploy(project.HasError, 1)
@@ -527,7 +531,7 @@ def test_enrich_error_when_builtin(project, owner, connection):
 # TODO: Not yet used and super slow.
 # def test_ast(project, compiler):
 #     source_path = project.contracts_folder / "MultipleDefinitions.sol"
-#     actual = compiler.compile([source_path])[-1].ast
+#     actual = list(compiler.compile([source_path]))[-1].ast
 #     fn_node = actual.children[1].children[0]
 #     assert actual.ast_type == "SourceUnit"
 #     assert fn_node.classification == ASTClassification.FUNCTION
@@ -583,13 +587,13 @@ contract StackTooDeep {
     source_path.write_text(source_code)
 
     try:
-        compiler.compile([source_path])
+        list(compiler.compile([source_path]))
     except Exception as e:
         assert "Stack too deep" in str(e)
 
     compiler.config.via_ir = True
 
-    compiler.compile([source_path])
+    list(compiler.compile([source_path]))
 
     # delete source code file
     source_path.unlink()
