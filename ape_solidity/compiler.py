@@ -332,10 +332,6 @@ class SolidityCompiler(CompilerAPI):
         for dependency in pm.dependencies.specified:
             unpack(dependency)
 
-        # Next, add any others that are simply "installed".
-        for dependency in pm.dependencies.installed:
-            unpack(dependency)
-
         return remapping
 
     def get_compiler_settings(
