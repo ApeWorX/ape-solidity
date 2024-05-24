@@ -532,6 +532,7 @@ class SolidityCompiler(CompilerAPI):
 
             # Allow empty contracts, like Vyper does.
             arguments["allow_empty"] = True
+
             try:
                 output = compile_standard(input_json, **arguments)
             except SolcError as err:
@@ -1177,7 +1178,13 @@ def _import_str_to_source_id(
         key, value = max(valid_matches, key=lambda x: len(x[0]))
         import_str_value = import_str_value.replace(key, value)
 
-    base_path = source_path.parent if import_str_value.startswith(".") else pm.path
+    if import_str_value.startswith("."):
+        base_path = source_path.parent
+    elif (pm.path / import_str_value).is_file():
+        base_path = pm.path
+    else:
+        base_path = pm.contracts_folder
+
     path = (base_path / import_str_value).resolve()
     return f"{get_relative_path(path.absolute(), pm.path)}"
 
