@@ -1194,7 +1194,7 @@ def _try_max(ls: list[Any]):
 
 
 def _validate_can_compile(paths: Iterable[Path]):
-    extensions = {get_full_extension(p): p for p in paths}
+    extensions = {get_full_extension(p): p for p in paths if p}
 
     for ext, file in extensions.items():
         if ext not in [e.value for e in Extension]:

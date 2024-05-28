@@ -158,7 +158,8 @@ def test_get_imports_dependencies(project, compiler):
 
 
 def test_get_imports_vyper_file(project, compiler):
-    path = project.sources.lookup("contracts/RandomVyperFile.vy")
+    path = Path(__file__).parent / "contracts" / "RandomVyperFile.vy"
+    assert path.is_file(), f"Setup failed - file not found {path}"
     with raises_because_not_sol:
         compiler.get_imports((path,))
 
