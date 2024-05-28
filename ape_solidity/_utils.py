@@ -31,7 +31,7 @@ def get_import_lines(source_paths: Iterable[Path]) -> dict[Path, list[str]]:
     imports_dict: dict[Path, list[str]] = {}
     for filepath in source_paths:
         import_set = set()
-        if not filepath.is_file():
+        if not filepath or not filepath.is_file():
             continue
 
         source_lines = filepath.read_text().splitlines()
