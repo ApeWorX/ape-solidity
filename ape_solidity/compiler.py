@@ -503,6 +503,9 @@ class SolidityCompiler(CompilerAPI):
         with pm.isolate_in_tempdir() as isolated_project:
             filepaths = [isolated_project.path / src_id for src_id in source_ids]
             yield from self._compile(filepaths, project=isolated_project, settings=settings)
+            compilers = isolated_project.manifest.compilers
+
+        pm.update_manifest(compilers=compilers)
 
     def _compile(
         self,
@@ -604,20 +607,17 @@ class SolidityCompiler(CompilerAPI):
 
             vers = contract_versions[ct.name]
             settings = input_jsons[vers]["settings"]
-            contract_id = f"{ct.source_id}:{ct.name}"
-            if vers in compilers_used and contract_id not in (
-                compilers_used[vers].contractTypes or []
-            ):
+            if vers in compilers_used and ct.name not in (compilers_used[vers].contractTypes or []):
                 compilers_used[vers].contractTypes = [
                     *(compilers_used[vers].contractTypes or []),
-                    contract_id,
+                    ct.name,
                 ]
 
             elif vers not in compilers_used:
                 compilers_used[vers] = Compiler(
                     name=self.name.lower(),
                     version=f"{vers}",
-                    contractTypes=[contract_id],
+                    contractTypes=[ct.name],
                     settings=settings,
                 )
 

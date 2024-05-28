@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 import solcx
-
 from ape import Project, reverts
 from ape.exceptions import CompilerError
 from ape.logging import LogLevel
@@ -596,7 +595,7 @@ def test_compile_outputs_compiler_data_to_manifest(project, compiler):
     assert len(project.manifest.compilers or []) == 1
     actual = project.manifest.compilers[0]
     assert actual.name == "solidity"
-    assert "contracts/CompilesOnce.sol:CompilesOnce" in actual.contractTypes
+    assert "CompilesOnce" in actual.contractTypes
     assert actual.version == "0.8.25+commit.b61c2a91"
     # Compiling again should not add the same compiler again.
     _ = [c for c in compiler.compile((path,), project=project)]
