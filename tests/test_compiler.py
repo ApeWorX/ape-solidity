@@ -1,6 +1,8 @@
 from pathlib import Path
 
 import pytest
+import solcx
+
 from ape import Project, reverts
 from ape.exceptions import CompilerError
 from ape.logging import LogLevel
@@ -561,22 +563,21 @@ contract StackTooDeep {
         path.unlink()
 
 
-#
-# def test_compile_missing_version(project, compiler, temp_solcx_path):
-#     """
-#     Test the compilation of a contract with no defined pragma spec.
-#
-#     The plugin should implicitly download the latest version to compile the
-#     contract with. `temp_solcx_path` is used to simulate an environment without
-#     compilers installed.
-#     """
-#     assert not solcx.get_installed_solc_versions()
-#     path = project.sources.lookup("contracts/MissingPragma.sol")
-#     contract_types = [c for c in compiler.compile((path,), project=project)]
-#     assert len(contract_types) == 1
-#     installed_versions = solcx.get_installed_solc_versions()
-#     assert len(installed_versions) == 1
-#     assert installed_versions[0] == max(solcx.get_installable_solc_versions())
+def test_compile_missing_version(project, compiler, temp_solcx_path):
+    """
+    Test the compilation of a contract with no defined pragma spec.
+
+    The plugin should implicitly download the latest version to compile the
+    contract with. `temp_solcx_path` is used to simulate an environment without
+    compilers installed.
+    """
+    assert not solcx.get_installed_solc_versions()
+    path = project.sources.lookup("contracts/MissingPragma.sol")
+    contract_types = [c for c in compiler.compile((path,), project=project)]
+    assert len(contract_types) == 1
+    installed_versions = solcx.get_installed_solc_versions()
+    assert len(installed_versions) == 1
+    assert installed_versions[0] == max(solcx.get_installable_solc_versions())
 
 
 def test_compile_project(project, compiler):

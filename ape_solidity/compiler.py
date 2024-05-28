@@ -725,7 +725,8 @@ class SolidityCompiler(CompilerAPI):
 
             # Init with all top-level imports.
             import_map = {
-                x: _import_str_to_source_id(x, src_path, pm, remapping) for x in import_strs
+                x: self._import_str_to_source_id(x, src_path, remapping, project=pm)
+                for x in import_strs
             }
             import_source_ids = list(set(list(import_map.values())))
 
@@ -1069,6 +1070,63 @@ class SolidityCompiler(CompilerAPI):
         line_dict = {i + 1: line for i, line in enumerate(lines)}
         return Content(root=line_dict)
 
+    def _import_str_to_source_id(
+        self,
+        _import_str: str,
+        source_path: Path,
+        import_remapping: dict[str, str],
+        project: Optional[ProjectManager] = None,
+    ) -> str:
+        pm = project or self.local_project
+        quote = '"' if '"' in _import_str else "'"
+
+        try:
+            end_index = _import_str.index(quote) + 1
+        except ValueError as err:
+            raise CompilerError(
+                f"Error parsing import statement '{_import_str}' in '{source_path.name}'."
+            ) from err
+
+        import_str_prefix = _import_str[end_index:]
+        import_str_value = import_str_prefix[: import_str_prefix.index(quote)]
+
+        # Get all matches.
+        valid_matches: list[tuple[str, str]] = []
+        key = None
+        base_path = None
+        for key, value in import_remapping.items():
+            if key not in import_str_value:
+                continue
+
+            valid_matches.append((key, value))
+
+        if valid_matches:
+            key, value = max(valid_matches, key=lambda x: len(x[0]))
+            import_str_value = import_str_value.replace(key, value)
+
+        if import_str_value.startswith("."):
+            base_path = source_path.parent
+        elif (pm.path / import_str_value).is_file():
+            base_path = pm.path
+        elif (pm.contracts_folder / import_str_value).is_file():
+            base_path = pm.contracts_folder
+        elif key.startswith("@"):
+            nm = key[1:]
+            for cfg_dep in pm.config.dependencies:
+                if (
+                    cfg_dep.get("name") == nm
+                    and "project" in cfg_dep
+                    and (Path(cfg_dep["project"]) / import_str_value).is_file()
+                ):
+                    base_path = Path(cfg_dep["project"])
+
+        if base_path is None:
+            # No base_path, do as-is.
+            return import_str_value
+
+        path = (base_path / import_str_value).resolve()
+        return f"{get_relative_path(path.absolute(), pm.path)}"
+
 
 def remove_imports(flattened_contract: str) -> str:
     # Use regex.sub() to remove matched import statements
@@ -1149,44 +1207,6 @@ def _get_sol_panic(revert_message: str) -> Optional[type[RuntimeErrorUnion]]:
         return RUNTIME_ERROR_MAP[RuntimeErrorType(error_type_val)]
 
     return None
-
-
-def _import_str_to_source_id(
-    _import_str: str, source_path: Path, pm: ProjectManager, import_remapping: dict[str, str]
-) -> str:
-    quote = '"' if '"' in _import_str else "'"
-
-    try:
-        end_index = _import_str.index(quote) + 1
-    except ValueError as err:
-        raise CompilerError(
-            f"Error parsing import statement '{_import_str}' in '{source_path.name}'."
-        ) from err
-
-    import_str_prefix = _import_str[end_index:]
-    import_str_value = import_str_prefix[: import_str_prefix.index(quote)]
-
-    # Get all matches.
-    valid_matches: list[tuple[str, str]] = []
-    for key, value in import_remapping.items():
-        if key not in import_str_value:
-            continue
-
-        valid_matches.append((key, value))
-
-    if valid_matches:
-        key, value = max(valid_matches, key=lambda x: len(x[0]))
-        import_str_value = import_str_value.replace(key, value)
-
-    if import_str_value.startswith("."):
-        base_path = source_path.parent
-    elif (pm.path / import_str_value).is_file():
-        base_path = pm.path
-    else:
-        base_path = pm.contracts_folder
-
-    path = (base_path / import_str_value).resolve()
-    return f"{get_relative_path(path.absolute(), pm.path)}"
 
 
 def _try_max(ls: list[Any]):
