@@ -357,7 +357,7 @@ class SolidityCompiler(CompilerAPI):
                 "optimizer": {"enabled": config.optimize, "runs": DEFAULT_OPTIMIZATION_RUNS},
                 "outputSelection": {
                     str(get_relative_path(p, pm.path)): {"*": OUTPUT_SELECTION, "": ["ast"]}
-                    for p in sources
+                    for p in sorted(sources)
                 },
                 **kwargs,
             }
@@ -476,7 +476,8 @@ class SolidityCompiler(CompilerAPI):
                 raise CompilerError(f"Sources '{missing_src_str}' not found in '{pm.name}'.")
 
             sources = {
-                x: {"content": (pm.path / x).read_text()} for x in vers_settings["outputSelection"]
+                x: {"content": (pm.path / x).read_text()}
+                for x in sorted(vers_settings["outputSelection"])
             }
 
             input_jsons[solc_version] = {
