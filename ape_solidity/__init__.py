@@ -1,6 +1,7 @@
 from ape import plugins
 
-from .compiler import Extension, SolidityCompiler, SolidityConfig
+from ._utils import Extension
+from .compiler import SolidityCompiler, SolidityConfig
 
 
 @plugins.register(plugins.Config)

@@ -1,137 +1,486 @@
-import json
-import re
-import shutil
 from pathlib import Path
 
 import pytest
-import solcx
-from ape import reverts
-from ape.contracts import ContractContainer
+from ape import Project, reverts
 from ape.exceptions import CompilerError
 from ape.logging import LogLevel
+from ethpm_types import ContractType
 from packaging.version import Version
-from requests.exceptions import ConnectionError
 
-from ape_solidity import Extension
-from ape_solidity._utils import OUTPUT_SELECTION
 from ape_solidity.exceptions import IndexOutOfBoundsError
 
-BASE_PATH = Path(__file__).parent / "contracts"
-TEST_CONTRACT_PATHS = [
-    p
-    for p in BASE_PATH.iterdir()
-    if ".cache" not in str(p) and not p.is_dir() and p.suffix == Extension.SOL.value
-]
-TEST_CONTRACTS = [str(p.stem) for p in TEST_CONTRACT_PATHS]
-PATTERN_REQUIRING_COMMIT_HASH = re.compile(r"\d+\.\d+\.\d+\+commit\.[\d|a-f]+")
 EXPECTED_NON_SOLIDITY_ERR_MSG = "Unable to compile 'RandomVyperFile.vy' using Solidity compiler."
-
-# These are tested elsewhere, not in `test_compile`.
-normal_test_skips = (
-    "DifferentNameThanFile",
-    "MultipleDefinitions",
-    "RandomVyperFile",
-    "LibraryFun",
-    "JustAStruct",
-)
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
-DEFAULT_OPTIMIZER = {"enabled": True, "runs": 200}
 
 
-@pytest.mark.parametrize(
-    "contract",
-    [c for c in TEST_CONTRACTS if all(n not in str(c) for n in normal_test_skips)],
-)
-def test_compile(project, contract):
-    assert contract in project.contracts, ", ".join([n for n in project.contracts.keys()])
-    contract = project.contracts[contract]
-    assert contract.source_id == f"{contract.name}.sol"
+def test_get_config(project, compiler):
+    actual = compiler.get_config(project=project)
+    assert actual.evm_version == "constantinople"
+
+
+def test_get_import_remapping(project, compiler):
+    actual = compiler.get_import_remapping(project=project)
+    expected = {
+        "@browniedependency": "contracts/.cache/browniedependency/local",
+        "@dependency": "contracts/.cache/dependency/local",
+        "@dependencyofdependency": "contracts/.cache/dependencyofdependency/local",
+        "@noncompilingdependency": "contracts/.cache/noncompilingdependency/local",
+        "@openzeppelin": "contracts/.cache/openzeppelin/4.5.0",
+        "@safe": "contracts/.cache/safe/1.3.0",
+        "@vault": "contracts/.cache/vault/v0.4.5",
+        "@vaultmain": "contracts/.cache/vaultmain/master",
+    }
+    for key, value in expected.items():
+        assert key in actual
+        assert actual[key] == value
+
+
+def test_get_import_remapping_handles_config(project, compiler):
+    """
+    Show you can override default remappings.
+    Normally, these are deduced from dependencies, but you can change them
+    and/or add new ones.
+    """
+    new_value = "NEW_VALUE"
+    cfg = {
+        "solidity": {
+            "import_remapping": [
+                "@dependency=dependency",  # Backwards compat!
+                "@dependencyofdependency=dependencyofdependency/local",
+                f"@vaultmain={new_value}",  # Changing a dependency
+                f"@{new_value}={new_value}123",  # Adding something new
+            ]
+        },
+        "dependencies": project.config.dependencies,
+    }
+    with project.temp_config(**cfg):
+        actual = compiler.get_import_remapping(project=project)
+
+    # Show it is backwards compatible (still works w/o changing cfg)
+    assert actual["@dependency"] == "contracts/.cache/dependency/local"
+    assert actual["@dependencyofdependency"] == "contracts/.cache/dependencyofdependency/local"
+    # Show we can change a dependency.
+    assert actual["@vaultmain"] == new_value
+    # Show we can add a new remapping (quiet dependency).
+    assert actual[f"@{new_value}"] == f"{new_value}123"
+    # Show other dependency-deduced remappings still work.
+    assert actual["@browniedependency"] == "contracts/.cache/browniedependency/local"
+
+
+def test_get_imports(project, compiler):
+    source_id = "contracts/ImportSourceWithEqualSignVersion.sol"
+    path = project.sources.lookup(source_id)
+    # Source (total) only has these 2 imports.
+    expected = (
+        "contracts/SpecificVersionWithEqualSign.sol",
+        "contracts/CompilesOnce.sol",
+    )
+    actual = compiler.get_imports((path,), project=project)
+    assert source_id in actual
+    assert all(e in actual[source_id] for e in expected)
+
+
+def test_get_imports_indirect(project, compiler):
+    """
+    Show that twice-removed indirect imports show up. This is required
+    for accurate version mapping.
+    """
+
+    source_id = "contracts/IndirectlyImportingMoreConstrainedVersion.sol"
+    path = project.sources.lookup(source_id)
+    expected = (
+        # These 2 are directly imported.
+        "contracts/ImportSourceWithEqualSignVersion.sol",
+        "contracts/IndirectlyImportingMoreConstrainedVersionCompanion.sol",
+        # These are 2 are imported by the imported.
+        "contracts/SpecificVersionWithEqualSign.sol",
+        "contracts/CompilesOnce.sol",
+    )
+    actual = compiler.get_imports((path,), project=project)
+    assert source_id in actual
+    actual_str = ", ".join(list(actual[source_id]))
+    for ex in expected:
+        assert ex in actual[source_id], f"{ex} not in {actual_str}"
+
+
+def test_get_imports_complex(project, compiler):
+    """
+    `contracts/Imports.sol` imports sources in every possible
+    way. This test shows that we are able to detect all those
+    unique ways of importing.
+    """
+    path = project.sources.lookup("contracts/Imports.sol")
+    assert path is not None, "Failed to find Imports test contract."
+
+    actual = compiler.get_imports((path,), project=project)
+    expected = {
+        "contracts/CompilesOnce.sol": [],
+        "contracts/Imports.sol": [
+            "contracts/.cache/browniedependency/local/contracts/BrownieContract.sol",
+            "contracts/.cache/dependency/local/contracts/Dependency.sol",
+            "contracts/.cache/dependencyofdependency/local/contracts/DependencyOfDependency.sol",
+            "contracts/.cache/noncompilingdependency/local/contracts/CompilingContract.sol",
+            "contracts/.cache/safe/1.3.0/contracts/common/Enum.sol",
+            "contracts/CompilesOnce.sol",
+            "contracts/MissingPragma.sol",
+            "contracts/NumerousDefinitions.sol",
+            "contracts/subfolder/Relativecontract.sol",
+        ],
+        "contracts/MissingPragma.sol": [],
+        "contracts/NumerousDefinitions.sol": [],
+        "contracts/subfolder/Relativecontract.sol": [],
+    }
+    for base, imports in expected.items():
+        assert base in actual
+        assert actual[base] == imports
+
+
+def test_get_imports_dependencies(project, compiler):
+    """
+    Show all the affected dependency contracts get included in the imports list.
+    """
+    source_id = "contracts/UseYearn.sol"
+    path = project.sources.lookup(source_id)
+    import_ls = compiler.get_imports((path,), project=project)
+    actual = import_ls[source_id]
+    token_path = "contracts/.cache/openzeppelin/4.5.0/contracts/token"
+    expected = [
+        f"{token_path}/ERC20/ERC20.sol",
+        f"{token_path}/ERC20/IERC20.sol",
+        f"{token_path}/ERC20/extensions/IERC20Metadata.sol",
+        f"{token_path}/ERC20/utils/SafeERC20.sol",
+        "contracts/.cache/openzeppelin/4.5.0/contracts/utils/Address.sol",
+        "contracts/.cache/openzeppelin/4.5.0/contracts/utils/Context.sol",
+        "contracts/.cache/vault/v0.4.5/contracts/BaseStrategy.sol",
+        "contracts/.cache/vaultmain/master/contracts/BaseStrategy.sol",
+    ]
+    assert actual == expected
+
+
+def test_get_imports_vyper_file(project, compiler):
+    path = project.sources.lookup("contracts/RandomVyperFile.vy")
+    with raises_because_not_sol:
+        compiler.get_imports((path,))
+
+
+def test_get_imports_full_project(project, compiler):
+    paths = [x for x in project.sources.paths if x.suffix == ".sol"]
+    actual = compiler.get_imports(paths, project=project)
+    assert len(actual) > 0
+    # Prove that every import source also is present in the import map.
+    for imported_source_ids in actual.values():
+        for source_id in imported_source_ids:
+            assert source_id in actual, f"{source_id}'s imports not present."
+
+
+def test_get_version_map(project, compiler):
+    """
+    Test that a strict version pragma is recognized in the version map.
+    """
+    path = project.sources.lookup("contracts/SpecificVersionWithEqualSign.sol")
+    actual = compiler.get_version_map((path,), project=project)
+    expected_version = Version("0.8.12+commit.f00d7308")
+    expected_sources = ("SpecificVersionWithEqualSign",)
+    assert expected_version in actual
+
+    actual_ids = [x.stem for x in actual[expected_version]]
+    assert all(e in actual_ids for e in expected_sources)
+
+
+def test_get_version_map_importing_more_constrained_version(project, compiler):
+    """
+    Test that a strict version pragma in an imported source is recognized
+    in the version map.
+    """
+    # This file's version is not super constrained, but it imports
+    # a different source that does have a strict constraint.
+    path = project.sources.lookup("contracts/ImportSourceWithEqualSignVersion.sol")
+
+    actual = compiler.get_version_map((path,), project=project)
+    expected_version = Version("0.8.12+commit.f00d7308")
+    expected_sources = ("ImportSourceWithEqualSignVersion", "SpecificVersionWithEqualSign")
+    assert expected_version in actual
+
+    actual_ids = [x.stem for x in actual[expected_version]]
+    assert all(e in actual_ids for e in expected_sources)
+
+
+def test_get_version_map_indirectly_importing_more_constrained_version(project, compiler):
+    """
+    Test that a strict version pragma in a source imported by an imported
+    source (twice removed) is recognized in the version map.
+    """
+    # This file's version is not super constrained, but it imports
+    # a different source that imports another source that does have a constraint.
+    path = project.sources.lookup("contracts/IndirectlyImportingMoreConstrainedVersion.sol")
+
+    actual = compiler.get_version_map((path,), project=project)
+    expected_version = Version("0.8.12+commit.f00d7308")
+    expected_sources = (
+        "IndirectlyImportingMoreConstrainedVersion",
+        "ImportSourceWithEqualSignVersion",
+        "SpecificVersionWithEqualSign",
+    )
+    assert expected_version in actual
+
+    actual_ids = [x.stem for x in actual[expected_version]]
+    assert all(e in actual_ids for e in expected_sources)
+
+
+def test_get_version_map_dependencies(project, compiler):
+    """
+    Show all the affected dependency contracts get included in the version map.
+    """
+    source_id = "contracts/UseYearn.sol"
+    older_example = "contracts/ImportOlderDependency.sol"
+    paths = [project.sources.lookup(x) for x in (source_id, older_example)]
+    actual = compiler.get_version_map(paths, project=project)
+    assert len(actual) == 2
+    versions = sorted(list(actual.keys()))
+    older = versions[0]  # Via ImportOlderDependency
+    latest = versions[1]  # via UseYearn
+
+    oz_token = "contracts/.cache/openzeppelin/4.5.0/contracts/token"
+    expected_latest_source_ids = [
+        f"{oz_token}/ERC20/ERC20.sol",
+        f"{oz_token}/ERC20/IERC20.sol",
+        f"{oz_token}/ERC20/extensions/IERC20Metadata.sol",
+        f"{oz_token}/ERC20/utils/SafeERC20.sol",
+        "contracts/.cache/openzeppelin/4.5.0/contracts/utils/Address.sol",
+        "contracts/.cache/openzeppelin/4.5.0/contracts/utils/Context.sol",
+        "contracts/.cache/vault/v0.4.5/contracts/BaseStrategy.sol",
+        "contracts/.cache/vaultmain/master/contracts/BaseStrategy.sol",
+        source_id,
+    ]
+    expected_older_source_ids = [
+        "contracts/.cache/dependency/local/contracts/OlderDependency.sol",
+        older_example,
+    ]
+    expected_latest_source_paths = {project.path / e for e in expected_latest_source_ids}
+    expected_oldest_source_paths = {project.path / e for e in expected_older_source_ids}
+    assert len(actual[latest]) == len(expected_latest_source_paths)
+    assert actual[latest] == expected_latest_source_paths
+    assert actual[older] == expected_oldest_source_paths
+
+
+def test_get_version_map_picks_most_constrained_version(project, compiler):
+    """
+    Test that if given both a file that can compile at the latest version
+    and a file that requires a lesser version but also imports the same file
+    that could compile at the latest version, that they are all designated
+    to compile using the lesser version.
+    """
+    source_ids = (
+        "contracts/CompilesOnce.sol",
+        "contracts/IndirectlyImportingMoreConstrainedVersion.sol",
+    )
+    paths = [project.sources.lookup(x) for x in source_ids]
+    actual = compiler.get_version_map(paths, project=project)
+    expected_version = Version("0.8.12+commit.f00d7308")
+    assert expected_version in actual
+    for path in paths:
+        assert path in actual[expected_version], f"{path} is missing!"
+
+
+def test_get_version_map_version_specified_in_config_file(compiler):
+    path = Path(__file__).parent / "VersionSpecifiedInConfig"
+    project = Project(path)
+    paths = [p for p in project.sources.paths if p.suffix == ".sol"]
+    actual = compiler.get_version_map(paths, project=project)
+    expected_version = Version("0.8.12+commit.f00d7308")
+    assert len(actual) == 1
+    assert expected_version in actual
+    assert len(actual[expected_version]) > 0
+
+
+def test_get_version_map_raises_on_non_solidity_sources(project, compiler):
+    path = project.sources.lookup("contracts/RandomVyperFile.vy")
+    with raises_because_not_sol:
+        compiler.get_version_map((path,), project=project)
+
+
+def test_get_version_map_full_project(project, compiler):
+    paths = [x for x in project.sources.paths if x.suffix == ".sol"]
+    actual = compiler.get_version_map(paths, project=project)
+    latest = sorted(list(actual.keys()), reverse=True)[0]
+    v0812 = Version("0.8.12+commit.f00d7308")
+    vold = Version("0.4.26+commit.4563c3fc")
+    assert v0812 in actual
+    assert vold in actual
+
+    v0812_1 = project.path / "contracts/ImportSourceWithEqualSignVersion.sol"
+    v0812_2 = project.path / "contracts/IndirectlyImportingMoreConstrainedVersion.sol"
+
+    assert v0812_1 in actual[v0812], "Constrained version files missing"
+    assert v0812_2 in actual[v0812], "Constrained version files missing"
+
+    # TDD: This was happening during development of 0.8.0.
+    assert v0812_1 not in actual[latest], f"{v0812_1.stem} ended up in latest"
+    assert v0812_2 not in actual[latest], f"{v0812_2.stem} ended up in latest"
+
+    # TDD: Old file ending up in multiple spots.
+    older_file = project.path / "contracts/.cache/dependency/local/contracts/OlderDependency.sol"
+    assert older_file in actual[vold]
+    for vers, fileset in actual.items():
+        if vers == vold:
+            continue
+
+        assert older_file not in fileset, f"Oldest file also appears in version {vers}"
+
+
+def test_get_compiler_settings(project, compiler):
+    path = project.sources.lookup("contracts/Imports.sol")
+    actual = compiler.get_compiler_settings((path,), project=project)
+    # No reason (when alone) to not use
+    assert len(actual) == 1
+
+    # 0.8.12 is hardcoded in some files, but none of those files should be here.
+    version = next(iter(actual.keys()))
+    assert version > Version("0.8.12+commit.f00d7308")
+
+    settings = actual[version]
+    assert settings["optimizer"] == {"enabled": True, "runs": 200}
+
+    # NOTE: These should be sorted!
+    assert settings["remappings"] == [
+        "@browniedependency=contracts/.cache/browniedependency/local",
+        "@dependency=contracts/.cache/dependency/local",
+        "@dependencyofdependency=contracts/.cache/dependencyofdependency/local",
+        "@noncompilingdependency=contracts/.cache/noncompilingdependency/local",
+        "@safe=contracts/.cache/safe/1.3.0",
+    ]
+
+    # Set in config.
+    assert settings["evmVersion"] == "constantinople"
+
+    # Should be all files (imports of imports etc.)
+    actual_files = sorted(list(settings["outputSelection"].keys()))
+    expected_files = [
+        "contracts/.cache/browniedependency/local/contracts/BrownieContract.sol",
+        "contracts/.cache/dependency/local/contracts/Dependency.sol",
+        "contracts/.cache/dependencyofdependency/local/contracts/DependencyOfDependency.sol",
+        "contracts/.cache/noncompilingdependency/local/contracts/CompilingContract.sol",
+        "contracts/.cache/safe/1.3.0/contracts/common/Enum.sol",
+        "contracts/CompilesOnce.sol",
+        "contracts/Imports.sol",
+        "contracts/MissingPragma.sol",
+        "contracts/NumerousDefinitions.sol",
+        "contracts/subfolder/Relativecontract.sol",
+    ]
+    assert actual_files == expected_files
+
+    # Output request is the same for all.
+    expected_output_request = {
+        "*": [
+            "abi",
+            "bin-runtime",
+            "devdoc",
+            "userdoc",
+            "evm.bytecode.object",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.object",
+        ],
+        "": ["ast"],
+    }
+    for output in settings["outputSelection"].values():
+        assert output == expected_output_request
+
+
+def test_get_standard_input_json(project, compiler):
+    paths = [x for x in project.sources.paths if x.suffix == ".sol"]
+    actual = compiler.get_standard_input_json(paths, project=project)
+    v0812 = Version("0.8.12+commit.f00d7308")
+    v056 = Version("0.5.16+commit.9c3226ce")
+    v0612 = Version("0.6.12+commit.27d51765")
+    v0426 = Version("0.4.26+commit.4563c3fc")
+    latest = sorted(list(actual.keys()), reverse=True)[0]
+
+    v0812_sources = list(actual[v0812]["sources"].keys())
+    v056_sources = list(actual[v056]["sources"].keys())
+    v0612_sources = list(actual[v0612]["sources"].keys())
+    v0426_sources = list(actual[v0426]["sources"].keys())
+    latest_sources = list(actual[latest]["sources"].keys())
+
+    assert "contracts/ImportSourceWithEqualSignVersion.sol" not in latest_sources
+    assert "contracts/IndirectlyImportingMoreConstrainedVersion.sol" not in latest_sources
+
+    # Some source expectations.
+    assert "contracts/CompilesOnce.sol" in v0812_sources
+    assert "contracts/SpecificVersionRange.sol" in v0812_sources
+    assert "contracts/ImportSourceWithNoPrefixVersion.sol" in v0812_sources
+
+    assert "contracts/OlderVersion.sol" in v056_sources
+    assert "contracts/VagueVersion.sol" in v0612_sources
+    assert "contracts/ImportOlderDependency.sol" in v0426_sources
+    assert "contracts/.cache/dependency/local/contracts/OlderDependency.sol" in v0426_sources
+
+
+def test_compile(project, compiler):
+    path = project.sources.lookup("contracts/Imports.sol")
+    actual = [c for c in compiler.compile((path,), project=project)]
+    # We only get back the contracts we requested, even if it had to compile
+    # others (like imports) to get it to work.
+    assert len(actual) == 1
+    assert isinstance(actual[0], ContractType)
+    assert actual[0].name == "Imports"
+    assert actual[0].source_id == "contracts/Imports.sol"
+    assert actual[0].deployment_bytecode is not None
+    assert actual[0].runtime_bytecode is not None
+    assert len(actual[0].abi) > 0
 
 
 def test_compile_performance(benchmark, compiler, project):
     """
     See https://pytest-benchmark.readthedocs.io/en/latest/
     """
-    source_path = project.contracts_folder / "MultipleDefinitions.sol"
+    path = project.sources.lookup("contracts/MultipleDefinitions.sol")
     result = benchmark.pedantic(
-        lambda *args, **kwargs: list(compiler.compile(*args, **kwargs)),
-        args=([source_path],),
+        lambda *args, **kwargs: [x for x in compiler.compile(*args, **kwargs)],
+        args=((path,),),
+        kwargs={"project": project},
         rounds=1,
     )
     assert len(result) > 0
 
 
-def test_compile_solc_not_installed(project, fake_no_installs):
-    assert len(project.load_contracts(use_cache=False)) > 0
-
-
-def test_compile_when_offline(project, compiler, mocker):
-    # When offline, getting solc versions raises a requests connection error.
-    # This should trigger the plugin to return an empty list.
-    patch = mocker.patch("ape_solidity.compiler.get_installable_solc_versions")
-    patch.side_effect = ConnectionError
-
-    # Using a non-specific contract - doesn't matter too much which one.
-    source_path = project.contracts_folder / "MultipleDefinitions.sol"
-    result = list(compiler.compile([source_path]))
-    assert len(result) > 0, "Nothing got compiled."
-
-
 def test_compile_multiple_definitions_in_source(project, compiler):
-    source_path = project.contracts_folder / "MultipleDefinitions.sol"
-    result = list(compiler.compile([source_path]))
+    """
+    Show that if multiple contracts / interfaces are defined in a single
+    source, that we get all of them when compiling.
+    """
+    source_id = "contracts/MultipleDefinitions.sol"
+    path = project.sources.lookup(source_id)
+    result = [c for c in compiler.compile((path,), project=project)]
     assert len(result) == 2
     assert [r.name for r in result] == ["IMultipleDefinitions", "MultipleDefinitions"]
-    assert all(r.source_id == "MultipleDefinitions.sol" for r in result)
+    assert all(r.source_id == source_id for r in result)
 
     assert project.MultipleDefinitions
     assert project.IMultipleDefinitions
 
 
-def test_compile_specific_order(project, compiler):
-    # NOTE: This test seems random but it's important!
-    # It replicates a bug where the first contract had a low solidity version
-    # and the second had a bunch of imports.
-    ordered_files = [
-        project.contracts_folder / "OlderVersion.sol",
-        project.contracts_folder / "Imports.sol",
-    ]
-    list(compiler.compile(ordered_files))
+def test_compile_contract_with_different_name_than_file(project, compiler):
+    source_id = "contracts/DifferentNameThanFile.sol"
+    path = project.sources.lookup(source_id)
+    actual = [c for c in compiler.compile((path,), project=project)]
+    assert len(actual) == 1
+    assert actual[0].source_id == source_id
 
 
-def test_compile_missing_version(project, compiler, temp_solcx_path):
+def test_compile_only_returns_contract_types_for_inputs(project, compiler):
     """
-    Test the compilation of a contract with no defined pragma spec.
-
-    The plugin should implicitly download the latest version to compile the
-    contract with. `temp_solcx_path` is used to simulate an environment without
-    compilers installed.
+    Test showing only the requested contract types get returned.
     """
-    assert not solcx.get_installed_solc_versions()
-    contract_types = list(compiler.compile([project.contracts_folder / "MissingPragma.sol"]))
-    assert len(contract_types) == 1
-    installed_versions = solcx.get_installed_solc_versions()
-    assert len(installed_versions) == 1
-    assert installed_versions[0] == max(solcx.get_installable_solc_versions())
-
-
-def test_compile_contract_with_different_name_than_file(project):
-    file_name = "DifferentNameThanFile.sol"
-    contract = project.contracts["ApeDifferentNameThanFile"]
-    assert contract.source_id == file_name
-
-
-def test_compile_only_returns_contract_types_for_inputs(compiler, project):
-    # The compiler has to compile multiple files for 'Imports.sol' (it imports stuff).
-    # However - it should only return a single contract type in this case.
-    contract_types = list(compiler.compile([project.contracts_folder / "Imports.sol"]))
+    path = project.sources.lookup("contracts/Imports.sol")
+    contract_types = [c for c in compiler.compile((path,), project=project)]
     assert len(contract_types) == 1
     assert contract_types[0].name == "Imports"
 
 
-def test_compile_vyper_contract(compiler, vyper_source_path):
+def test_compile_vyper_contract(project, compiler):
+    path = project.sources.lookup("contracts/RandomVyperFile.vy")
     with raises_because_not_sol:
-        list(compiler.compile([vyper_source_path]))
+        _ = [c for c in compiler.compile((path,), project=project)]
 
 
 def test_compile_just_a_struct(compiler, project):
@@ -139,406 +488,19 @@ def test_compile_just_a_struct(compiler, project):
     Before, you would get a nasty index error, even though this is valid Solidity.
     The fix involved using nicer access to "contracts" in the standard output JSON.
     """
-    contract_types = list(compiler.compile([project.contracts_folder / "JustAStruct.sol"]))
+    path = project.sources.lookup("contracts/JustAStruct.sol")
+    contract_types = [c for c in compiler.compile((path,), project=project)]
     assert len(contract_types) == 0
 
 
-def test_get_imports(project, compiler):
-    test_contract_paths = [
-        p
-        for p in project.contracts_folder.iterdir()
-        if ".cache" not in str(p) and not p.is_dir() and p.suffix == Extension.SOL.value
-    ]
-    import_dict = compiler.get_imports(test_contract_paths, project.contracts_folder)
-    contract_imports = import_dict["Imports.sol"]
-    # NOTE: make sure there aren't duplicates
-    assert len([x for x in contract_imports if contract_imports.count(x) > 1]) == 0
-    # NOTE: returning a list
-    assert isinstance(contract_imports, list)
-    # NOTE: in case order changes
-    expected = {
-        ".cache/BrownieDependency/local/BrownieContract.sol",
-        ".cache/BrownieStyleDependency/local/BrownieStyleDependency.sol",
-        ".cache/TestDependency/local/Dependency.sol",
-        ".cache/gnosis/v1.3.0/common/Enum.sol",
-        "CompilesOnce.sol",
-        "MissingPragma.sol",
-        "NumerousDefinitions.sol",
-        "subfolder/Relativecontract.sol",
-    }
-    assert set(contract_imports) == expected
-
-
-def test_get_imports_cache_folder(project, compiler):
-    """Test imports when cache folder is configured"""
-    compile_config = project.config_manager.get_config("compile")
-    og_cache_colder = compile_config.cache_folder
-    compile_config.cache_folder = project.path / ".cash"
-    # assert False
-    test_contract_paths = [
-        p
-        for p in project.contracts_folder.iterdir()
-        if ".cache" not in str(p) and not p.is_dir() and p.suffix == Extension.SOL.value
-    ]
-    # Using a different base path here because the cache folder is in the project root
-    import_dict = compiler.get_imports(test_contract_paths, project.path)
-    contract_imports = import_dict["contracts/Imports.sol"]
-    # NOTE: make sure there aren't duplicates
-    assert len([x for x in contract_imports if contract_imports.count(x) > 1]) == 0
-    # NOTE: returning a list
-    assert isinstance(contract_imports, list)
-    # NOTE: in case order changes
-    expected = {
-        ".cash/BrownieDependency/local/BrownieContract.sol",
-        ".cash/BrownieStyleDependency/local/BrownieStyleDependency.sol",
-        ".cash/TestDependency/local/Dependency.sol",
-        ".cash/gnosis/v1.3.0/common/Enum.sol",
-        "contracts/CompilesOnce.sol",
-        "contracts/MissingPragma.sol",
-        "contracts/NumerousDefinitions.sol",
-        "contracts/subfolder/Relativecontract.sol",
-    }
-    assert set(contract_imports) == expected
-
-    # Reset because this config is stateful across tests
-    compile_config.cache_folder = og_cache_colder
-    shutil.rmtree(og_cache_colder, ignore_errors=True)
-
-
-def test_get_imports_raises_when_non_solidity_files(compiler, vyper_source_path):
-    with raises_because_not_sol:
-        compiler.get_imports([vyper_source_path])
-
-
-def test_get_import_remapping(compiler, project, config):
-    import_remapping = compiler.get_import_remapping()
-    assert import_remapping == {
-        "@remapping_2_brownie": ".cache/BrownieDependency/local",
-        "@dependency_remapping": ".cache/DependencyOfDependency/local",
-        "@remapping_2": ".cache/TestDependency/local",
-        "@remapping/contracts": ".cache/TestDependency/local",
-        "@styleofbrownie": ".cache/BrownieStyleDependency/local",
-        "@openzeppelin/contracts": ".cache/OpenZeppelin/v4.7.1",
-        "@oz/contracts": ".cache/OpenZeppelin/v4.5.0",
-        "@vault": ".cache/vault/v0.4.5",
-        "@vaultmain": ".cache/vault/master",
-        "@gnosis": ".cache/gnosis/v1.3.0",
-    }
-
-    with config.using_project(project.path / "ProjectWithinProject") as proj:
-        # Trigger downloading dependencies in new ProjectWithinProject
-        dependencies = proj.dependencies
-        assert dependencies
-        # Should be different now that we have changed projects.
-        second_import_remapping = compiler.get_import_remapping()
-        assert second_import_remapping
-
-    assert import_remapping != second_import_remapping
-
-
-def test_brownie_project(compiler, config):
-    brownie_project_path = Path(__file__).parent / "BrownieProject"
-    with config.using_project(brownie_project_path) as project:
-        assert isinstance(project.BrownieContract, ContractContainer)
-
-        # Ensure can access twice (to make sure caching does not break anything).
-        _ = project.BrownieContract
-
-
-def test_compile_single_source_with_no_imports(compiler, config):
-    # Tests against an important edge case that was discovered
-    # where the source file was individually compiled and it had no imports.
-    path = Path(__file__).parent / "DependencyOfDependency"
-    with config.using_project(path) as project:
-        assert isinstance(project.DependencyOfDependency, ContractContainer)
-
-
-def test_version_specified_in_config_file(compiler, config):
-    path = Path(__file__).parent / "VersionSpecifiedInConfig"
-    with config.using_project(path) as project:
-        source_path = project.contracts_folder / "VersionSpecifiedInConfig.sol"
-        version_map = compiler.get_version_map(source_path)
-        actual_versions = ", ".join(str(v) for v in version_map)
-        fail_msg = f"Actual versions: {actual_versions}"
-        expected_version = Version("0.8.12+commit.f00d7308")
-        assert expected_version in version_map, fail_msg
-        assert version_map[expected_version] == {source_path}, fail_msg
-
-
-def test_get_version_map(project, compiler):
-    # Files are selected in order to trigger `CompilesOnce.sol` to
-    # get removed from version '0.8.12'.
-    cache_folder = project.contracts_folder / ".cache"
-    shutil.rmtree(cache_folder, ignore_errors=True)
-
-    file_paths = [
-        project.contracts_folder / "ImportSourceWithEqualSignVersion.sol",
-        project.contracts_folder / "SpecificVersionNoPrefix.sol",
-        project.contracts_folder / "CompilesOnce.sol",
-        project.contracts_folder / "Imports.sol",  # Uses mapped imports!
-    ]
-    version_map = compiler.get_version_map(file_paths)
-    assert len(version_map) == 2
-
-    expected_version = Version("0.8.12+commit.f00d7308")
-    latest_version = [v for v in version_map if v != expected_version][0]
-    assert all([f in version_map[expected_version] for f in file_paths[:-1]])
-
-    latest_version_sources = version_map[latest_version]
-    assert len(latest_version_sources) >= 10, "Did the import remappings load correctly?"
-    assert file_paths[-1] in latest_version_sources
-
-    # Will fail if the import remappings have not loaded yet.
-    assert all([f.is_file() for f in file_paths])
-
-
-def test_get_version_map_single_source(compiler, project):
-    # Source has no imports
-    source = project.contracts_folder / "OlderVersion.sol"
-    actual = compiler.get_version_map([source])
-    expected = {Version("0.5.16+commit.9c3226ce"): {source}}
-    assert len(actual) == 1
-    assert actual == expected, f"Actual version: {[k for k in actual.keys()][0]}"
-
-
-def test_get_version_map_raises_on_non_solidity_sources(compiler, vyper_source_path):
-    with raises_because_not_sol:
-        compiler.get_version_map([vyper_source_path])
-
-
-def test_compiler_data_in_manifest(project):
-    def run_test(manifest):
-        compilers = [c for c in manifest.compilers if c.name == "solidity"]
-        latest_version = max(c.version for c in compilers)
-
-        compiler_latest = [c for c in compilers if str(c.version) == latest_version][0]
-        compiler_0812 = [c for c in compilers if str(c.version) == "0.8.12+commit.f00d7308"][0]
-        compiler_0612 = [c for c in compilers if str(c.version) == "0.6.12+commit.27d51765"][0]
-        compiler_0426 = [c for c in compilers if str(c.version) == "0.4.26+commit.4563c3fc"][0]
-
-        # Compiler name test
-        for compiler in (compiler_latest, compiler_0812, compiler_0612, compiler_0426):
-            assert compiler.name == "solidity"
-            assert compiler.settings["optimizer"] == DEFAULT_OPTIMIZER
-            assert compiler.settings["evmVersion"] == "constantinople"
-
-        # No remappings for sources in the following compilers
-        assert (
-            "remappings" not in compiler_0812.settings
-        ), f"Remappings found: {compiler_0812.settings['remappings']}"
-
-        assert (
-            "@openzeppelin/contracts=.cache/OpenZeppelin/v4.7.1"
-            in compiler_latest.settings["remappings"]
-        )
-        assert "@vault=.cache/vault/v0.4.5" in compiler_latest.settings["remappings"]
-        assert "@vaultmain=.cache/vault/master" in compiler_latest.settings["remappings"]
-        common_suffix = ".cache/TestDependency/local"
-        expected_remappings = (
-            "@remapping_2_brownie=.cache/BrownieDependency/local",
-            "@dependency_remapping=.cache/DependencyOfDependency/local",
-            f"@remapping_2={common_suffix}",
-            f"@remapping/contracts={common_suffix}",
-            "@styleofbrownie=.cache/BrownieStyleDependency/local",
-        )
-        actual_remappings = compiler_latest.settings["remappings"]
-        assert all(x in actual_remappings for x in expected_remappings)
-        assert all(
-            b >= a for a, b in zip(actual_remappings, actual_remappings[1:])
-        ), "Import remappings should be sorted"
-        assert f"@remapping/contracts={common_suffix}" in compiler_0426.settings["remappings"]
-        assert "UseYearn" in compiler_latest.contractTypes
-        assert "@gnosis=.cache/gnosis/v1.3.0" in compiler_latest.settings["remappings"]
-
-        # Compiler contract types test
-        assert set(compiler_0812.contractTypes) == {
-            "ImportSourceWithEqualSignVersion",
-            "ImportSourceWithNoPrefixVersion",
-            "ImportingLessConstrainedVersion",
-            "IndirectlyImportingMoreConstrainedVersion",
-            "IndirectlyImportingMoreConstrainedVersionCompanion",
-            "SpecificVersionNoPrefix",
-            "SpecificVersionRange",
-            "SpecificVersionWithEqualSign",
-            "CompilesOnce",
-            "IndirectlyImportingMoreConstrainedVersionCompanionImport",
-        }
-        assert set(compiler_0612.contractTypes) == {"RangedVersion", "VagueVersion"}
-        assert set(compiler_0426.contractTypes) == {
-            "ExperimentalABIEncoderV2",
-            "SpacesInPragma",
-            "ImportOlderDependency",
-        }
-
-    # Ensure compiled first so that the local cached manifest exists.
-    # We want to make ape-solidity has placed the compiler info in there.
-    project.load_contracts(use_cache=False)
-    if man := project.local_project.manifest:
-        run_test(man)
-    else:
-        pytest.fail("Manifest was not cached after loading.")
-
-    # The extracted manifest should produce the same result.
-    run_test(project.extract_manifest())
-
-
-def test_get_versions(compiler, project):
-    # NOTE: the expected versions **DO NOT** contain commit hashes here
-    # because we can only get the commit hash of installed compilers
-    # and this returns all versions including uninstalled.
-    versions = compiler.get_versions(project.source_paths)
-
-    # The "latest" version will always be in this list, but avoid
-    # asserting on it directly to handle new "latest"'s coming out.
-    expected = ("0.4.26", "0.5.16", "0.6.12", "0.8.12", "0.8.14")
-    assert all([e in versions for e in expected])
-
-
-def test_get_compiler_settings(compiler, project):
-    # We start with the following sources as inputs:
-    # `forced_812_*` are forced to compile using solc 0.8.12 because its
-    #  import is hard-pinned to it.
-    forced_812_0 = "ImportSourceWithEqualSignVersion.sol"
-    forced_812_1 = "SpecificVersionNoPrefix.sol"
-    # The following are unspecified and not used by the above.
-    # Thus are compiled on the latest.
-    latest_0 = "CompilesOnce.sol"
-    latest_1 = "Imports.sol"  # Uses mapped imports!
-    file_paths = [
-        project.contracts_folder / x for x in (forced_812_0, forced_812_1, latest_0, latest_1)
-    ]
-
-    # Actual should contain all the settings for every file used in a would-be compile.
-    actual = compiler.get_compiler_settings(file_paths)
-
-    # The following is indirectly used by 0.8.12 from an import.
-    forced_812_0_import = "SpecificVersionWithEqualSign.sol"
-
-    # These are the versions we are checking in our expectations.
-    v812 = Version("0.8.12+commit.f00d7308")
-    latest = max(list(actual.keys()))
-
-    expected_v812_contracts = [forced_812_0, forced_812_0_import, forced_812_1]
-    expected_latest_contracts = [
-        latest_0,
-        latest_1,
-        # The following are expected imported sources.
-        ".cache/BrownieDependency/local/BrownieContract.sol",
-        "CompilesOnce.sol",
-        ".cache/TestDependency/local/Dependency.sol",
-        ".cache/DependencyOfDependency/local/DependencyOfDependency.sol",
-        "subfolder/Relativecontract.sol",
-        ".cache/gnosis/v1.3.0/common/Enum.sol",
-    ]
-    expected_remappings = [
-        "@remapping_2_brownie=.cache/BrownieDependency/local",
-        "@dependency_remapping=.cache/DependencyOfDependency/local",
-        "@remapping_2=.cache/TestDependency/local",
-        "@remapping/contracts=.cache/TestDependency/local",
-        "@styleofbrownie=.cache/BrownieStyleDependency/local",
-        "@gnosis=.cache/gnosis/v1.3.0",
-    ]
-
-    # Shared compiler defaults tests
-    expected_source_lists = (expected_v812_contracts, expected_latest_contracts)
-    for version, expected_sources in zip((v812, latest), expected_source_lists):
-        expected_sources.sort()
-        output_selection = actual[version]["outputSelection"]
-        assert actual[version]["optimizer"] == DEFAULT_OPTIMIZER
-        for _, item_selection in output_selection.items():
-            for key, selection in item_selection.items():
-                if key == "*":  # All contracts
-                    assert selection == OUTPUT_SELECTION
-                elif key == "":  # All sources
-                    assert selection == ["ast"]
-
-        # Sort to help debug.
-        actual_sources = sorted([x for x in output_selection.keys()])
-
-        for expected_source_id in expected_sources:
-            assert (
-                expected_source_id in actual_sources
-            ), f"{expected_source_id} not one of {', '.join(actual_sources)}"
-
-    # Remappings test
-    actual_remappings = actual[latest]["remappings"]
-    assert isinstance(actual_remappings, list)
-    assert len(actual_remappings) == len(expected_remappings)
-    assert all(e in actual_remappings for e in expected_remappings)
-    assert all(
-        b >= a for a, b in zip(actual_remappings, actual_remappings[1:])
-    ), "Import remappings should be sorted"
-
-    # Tests against bug potentially preventing JSON decoding errors related
-    # to contract verification.
-    for key, output_json_dict in actual.items():
-        assert json.dumps(output_json_dict)
-
-
-def test_evm_version(compiler):
-    assert compiler.config.evm_version == "constantinople"
-
-
-def test_source_map(project, compiler):
-    source_path = project.contracts_folder / "MultipleDefinitions.sol"
-    result = list(compiler.compile([source_path]))[-1]
+def test_compile_produces_source_map(project, compiler):
+    path = project.sources.lookup("contracts/MultipleDefinitions.sol")
+    result = [c for c in compiler.compile((path,), project=project)][-1]
     assert result.sourcemap.root == "124:87:0:-:0;;;;;;;;;;;;;;;;;;;"
 
 
-def test_add_library(project, account, compiler, connection):
-    with pytest.raises(AttributeError):
-        # Does not exist yet because library is not deployed or known.
-        _ = project.C
-
-    library = project.Set.deploy(sender=account)
-    compiler.add_library(library)
-
-    # After deploying and adding the library, we can use contracts that need it.
-    assert project.C
-
-
-def test_enrich_error_when_custom(compiler, project, owner, not_owner, connection):
-    list(compiler.compile((project.contracts_folder / "HasError.sol",)))
-
-    # Deploy so Ape know about contract type.
-    contract = owner.deploy(project.HasError, 1)
-    with pytest.raises(contract.Unauthorized) as err:
-        contract.withdraw(sender=not_owner)
-
-    # TODO: Can remove hasattr check after race condition resolved in Core.
-    if hasattr(err.value, "inputs"):
-        assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
-
-
-def test_enrich_error_when_custom_in_constructor(compiler, project, owner, not_owner, connection):
-    # Deploy so Ape know about contract type.
-    with reverts(project.HasError.Unauthorized) as err:
-        not_owner.deploy(project.HasError, 0)
-
-    # TODO: After ape 0.6.14, try this again. It is working locally but there
-    #  may be a race condition causing it to fail? I added a fix to core that
-    #  may resolve but I am not sure.
-    if hasattr(err.value, "inputs"):
-        assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
-
-
-def test_enrich_error_when_builtin(project, owner, connection):
-    contract = project.BuiltinErrorChecker.deploy(sender=owner)
-    with pytest.raises(IndexOutOfBoundsError):
-        contract.checkIndexOutOfBounds(sender=owner)
-
-
-# TODO: Not yet used and super slow.
-# def test_ast(project, compiler):
-#     source_path = project.contracts_folder / "MultipleDefinitions.sol"
-#     actual = list(compiler.compile([source_path]))[-1].ast
-#     fn_node = actual.children[1].children[0]
-#     assert actual.ast_type == "SourceUnit"
-#     assert fn_node.classification == ASTClassification.FUNCTION
-
-
-def test_via_ir(project, compiler):
-    source_path = project.contracts_folder / "StackTooDeep.sol"
+def test_compile_via_ir(project, compiler):
+    path = project.contracts_folder / "StackTooDep.sol"
     source_code = """
 // SPDX-License-Identifier: MIT
 
@@ -584,28 +546,107 @@ contract StackTooDeep {
     """
 
     # write source code to file
-    source_path.write_text(source_code)
+    path.write_text(source_code)
 
     try:
-        list(compiler.compile([source_path]))
+        [c for c in compiler.compile((path,), project=project)]
     except Exception as e:
         assert "Stack too deep" in str(e)
 
-    compiler.config.via_ir = True
+    with project.temp_config(solidity={"via_ir": True}):
+        _ = [c for c in compiler.compile((path,), project=project)]
 
-    list(compiler.compile([source_path]))
-
-    # delete source code file
-    source_path.unlink()
-
-    # flip the via_ir flag back to False
-    compiler.config.via_ir = False
+        # delete source code file
+        path.unlink()
 
 
-def test_flatten(project, compiler, data_folder, caplog):
-    source_path = project.contracts_folder / "Imports.sol"
+#
+# def test_compile_missing_version(project, compiler, temp_solcx_path):
+#     """
+#     Test the compilation of a contract with no defined pragma spec.
+#
+#     The plugin should implicitly download the latest version to compile the
+#     contract with. `temp_solcx_path` is used to simulate an environment without
+#     compilers installed.
+#     """
+#     assert not solcx.get_installed_solc_versions()
+#     path = project.sources.lookup("contracts/MissingPragma.sol")
+#     contract_types = [c for c in compiler.compile((path,), project=project)]
+#     assert len(contract_types) == 1
+#     installed_versions = solcx.get_installed_solc_versions()
+#     assert len(installed_versions) == 1
+#     assert installed_versions[0] == max(solcx.get_installable_solc_versions())
+
+
+def test_compile_project(project, compiler):
+    """
+    Simple test showing the full project indeed compiles.
+    """
+    paths = [x for x in project.sources.paths if x.suffix == ".sol"]
+    actual = [c for c in compiler.compile(paths, project=project)]
+    assert len(actual) > 0
+
+
+def test_compile_outputs_compiler_data_to_manifest(project, compiler):
+    project.update_manifest(compilers=[])
+    path = project.sources.lookup("contracts/CompilesOnce.sol")
+    _ = [c for c in compiler.compile((path,), project=project)]
+    assert len(project.manifest.compilers or []) == 1
+    actual = project.manifest.compilers[0]
+    assert actual.name == "solidity"
+    assert "contracts/CompilesOnce.sol:CompilesOnce" in actual.contractTypes
+    assert actual.version == "0.8.25+commit.b61c2a91"
+    # Compiling again should not add the same compiler again.
+    _ = [c for c in compiler.compile((path,), project=project)]
+    length_again = len(project.manifest.compilers or [])
+    assert length_again == 1
+
+
+def test_add_library(project, account, compiler, connection):
+    # Does not exist yet because library is not deployed or known.
+    with pytest.raises(AttributeError):
+        _ = project.ContractUsingLibraryInSameSource
+    with pytest.raises(AttributeError):
+        _ = project.ContractUsingLibraryNotInSameSource
+
+    library = project.ExampleLibrary.deploy(sender=account)
+    compiler.add_library(library, project=project)
+
+    # After deploying and adding the library, we can use contracts that need it.
+    assert project.ContractUsingLibraryNotInSameSource
+    assert project.ContractUsingLibraryInSameSource
+
+
+def test_enrich_error_when_custom(compiler, project, owner, not_owner, connection):
+    path = project.sources.lookup("contracts/HasError.sol")
+    _ = [c for c in compiler.compile((path,), project=project)]
+
+    # Deploy so Ape know about contract type.
+    contract = owner.deploy(project.HasError, 1)
+    with pytest.raises(contract.Unauthorized) as err:
+        contract.withdraw(sender=not_owner)
+
+    assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
+
+
+def test_enrich_error_when_custom_in_constructor(compiler, project, owner, not_owner, connection):
+    # Deploy so Ape know about contract type.
+    with reverts(project.HasError.Unauthorized) as err:
+        not_owner.deploy(project.HasError, 0)
+
+    assert err.value.inputs == {"addr": not_owner.address, "counter": 123}
+
+
+def test_enrich_error_when_builtin(project, owner, connection):
+    contract = project.BuiltinErrorChecker.deploy(sender=owner)
+    with pytest.raises(IndexOutOfBoundsError):
+        contract.checkIndexOutOfBounds(sender=owner)
+
+
+def test_flatten(project, compiler, caplog):
+    path = project.sources.lookup("contracts/Imports.sol")
     with caplog.at_level(LogLevel.WARNING):
-        compiler.flatten_contract(source_path)
+        compiler.flatten_contract(path, project=project)
         actual = caplog.messages[-1]
         expected = (
             "Conflicting licenses found: 'LGPL-3.0-only, MIT'. "
@@ -613,15 +654,15 @@ def test_flatten(project, compiler, data_folder, caplog):
         )
         assert actual == expected
 
-    source_path = project.contracts_folder / "ImportingLessConstrainedVersion.sol"
-    flattened_source = compiler.flatten_contract(source_path)
-    flattened_source_path = data_folder / "ImportingLessConstrainedVersionFlat.sol"
-    actual = str(flattened_source)
-    expected = str(flattened_source_path.read_text())
-    assert actual == expected
+    path = project.sources.lookup("contracts/ImportingLessConstrainedVersion.sol")
+    flattened_source = compiler.flatten_contract(path, project=project)
+    flattened_source_path = (
+        Path(__file__).parent / "data" / "ImportingLessConstrainedVersionFlat.sol"
+    )
+    assert str(flattened_source) == str(flattened_source_path.read_text())
 
 
-def test_compile_code(compiler):
+def test_compile_code(project, compiler):
     code = """
 contract Contract {
     function snakes() pure public returns(bool) {
@@ -629,7 +670,7 @@ contract Contract {
     }
 }
 """
-    actual = compiler.compile_code(code, contractName="TestContractName")
+    actual = compiler.compile_code(code, project=project, contractName="TestContractName")
     assert actual.name == "TestContractName"
     assert len(actual.abi) > 0
     assert actual.ast is not None
