@@ -1111,7 +1111,7 @@ class SolidityCompiler(CompilerAPI):
             base_path = pm.path
         elif (pm.contracts_folder / import_str_value).is_file():
             base_path = pm.contracts_folder
-        elif key.startswith("@"):
+        elif key is not None and key.startswith("@"):
             nm = key[1:]
             for cfg_dep in pm.config.dependencies:
                 if (
