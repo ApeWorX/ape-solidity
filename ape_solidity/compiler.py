@@ -6,7 +6,7 @@ from typing import Any, Optional, Union
 
 from ape.api import CompilerAPI, PluginConfig
 from ape.contracts import ContractInstance
-from ape.exceptions import CompilerError, ConfigError, ContractLogicError
+from ape.exceptions import CompilerError, ConfigError, ContractLogicError, ProjectError
 from ape.logging import logger
 from ape.managers.project import ProjectManager
 from ape.types import AddressType, ContractType
@@ -276,7 +276,7 @@ class SolidityCompiler(CompilerAPI):
         pm = project or self.local_project
         prefix = f"{get_relative_path(pm.contracts_folder, pm.path)}"
 
-        pm.dependencies.install()
+        specified = pm.dependencies.install()
 
         # Ensure .cache folder is ready-to-go.
         cache_folder = pm.contracts_folder / ".cache"
@@ -292,6 +292,14 @@ class SolidityCompiler(CompilerAPI):
             return os.path.sep.join((prefix, ".cache", dep.name, dep.version))
 
         def unpack(dep):
+            # Ensure the dependency is installed.
+            try:
+                dep.project
+            except ProjectError:
+                # Try to compile anyway.
+                # Let the compiler fail on its own.
+                return
+
             for unpacked_dep in dep.unpack(pm.contracts_folder / ".cache"):
                 _key = key_map.get(unpacked_dep.name, f"@{unpacked_dep.name}")
                 if _key not in remapping:
@@ -329,7 +337,7 @@ class SolidityCompiler(CompilerAPI):
         # Add auto-remapped dependencies.
         # (Meaning, the dependencies are specified but their remappings
         # are not, so we auto-generate default ones).
-        for dependency in pm.dependencies.specified:
+        for dependency in specified:
             unpack(dependency)
 
         return remapping
@@ -339,18 +347,35 @@ class SolidityCompiler(CompilerAPI):
     ) -> dict[Version, dict]:
         pm = project or self.local_project
         _validate_can_compile(contract_filepaths)
-        files_by_solc_version = self.get_version_map(contract_filepaths, project=pm)
-        return self._get_settings_from_version_map(files_by_solc_version, project=pm, **kwargs)
+        remapping = self.get_import_remapping(project=pm)
+        imports = self.get_imports_from_remapping(contract_filepaths, remapping, project=pm)
+        return self._get_settings_from_imports(contract_filepaths, imports, remapping, project=pm)
+
+    def _get_settings_from_imports(
+        self,
+        contract_filepaths: Iterable[Path],
+        import_map: dict[str, list[str]],
+        remappings: dict[str, str],
+        project: Optional[ProjectManager] = None,
+    ):
+        pm = project or self.local_project
+        files_by_solc_version = self.get_version_map_from_imports(
+            contract_filepaths, import_map, project=pm
+        )
+        return self._get_settings_from_version_map(files_by_solc_version, remappings, project=pm)
 
     def _get_settings_from_version_map(
-        self, version_map: dict, project: Optional[ProjectManager] = None, **kwargs
+        self,
+        version_map: dict,
+        import_remappings: dict[str, str],
+        project: Optional[ProjectManager] = None,
+        **kwargs,
     ) -> dict[Version, dict]:
         pm = project or self.local_project
         if not version_map:
             return {}
 
         config = self.get_config(project=pm)
-        import_remappings = self.get_import_remapping(project=pm)
         settings: dict = {}
         for solc_version, sources in version_map.items():
             version_settings: dict[str, Union[Any, list[Any]]] = {
@@ -420,18 +445,38 @@ class SolidityCompiler(CompilerAPI):
         **overrides,
     ) -> dict[Version, dict]:
         pm = project or self.local_project
-        paths = list(contract_filepaths)  # Handle if given generator
-        version_map = self.get_version_map(paths, project=pm)
-        return self.get_standard_input_json_from_version_map(version_map, project=pm, **overrides)
+        paths = list(contract_filepaths)  # Handle if given generator=
+        remapping = self.get_import_remapping(project=pm)
+        import_map = self.get_imports_from_remapping(paths, remapping, project=pm)
+        version_map = self.get_version_map_from_imports(paths, import_map, project=pm)
+        return self.get_standard_input_json_from_version_map(
+            version_map, remapping, project=pm, **overrides
+        )
 
-    def get_standard_input_json_from_version_map(
+    def get_standard_input_json_from(
         self,
         version_map: dict[Version, set[Path]],
+        import_remappings: dict[str, str],
         project: Optional[ProjectManager] = None,
         **overrides,
     ):
         pm = project or self.local_project
-        settings = self._get_settings_from_version_map(version_map, project=pm, **overrides)
+        settings = self._get_settings_from_version_map(
+            version_map, import_remappings, project=pm, **overrides
+        )
+        return self.get_standard_input_json_from_settings(settings, version_map, project=pm)
+
+    def get_standard_input_json_from_version_map(
+        self,
+        version_map: dict[Version, set[Path]],
+        import_remapping: dict[str, str],
+        project: Optional[ProjectManager] = None,
+        **overrides,
+    ):
+        pm = project or self.local_project
+        settings = self._get_settings_from_version_map(
+            version_map, import_remapping, project=pm, **overrides
+        )
         return self.get_standard_input_json_from_settings(settings, version_map, project=pm)
 
     def get_standard_input_json_from_settings(
