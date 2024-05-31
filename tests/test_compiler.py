@@ -296,7 +296,7 @@ def test_get_version_map_version_specified_in_config_file(compiler):
 
 
 def test_get_version_map_raises_on_non_solidity_sources(project, compiler):
-    path = project.sources.lookup("contracts/RandomVyperFile.vy")
+    path = project.contracts_folder / "RandomVyperFile.vy"
     with raises_because_not_sol:
         compiler.get_version_map((path,), project=project)
 
@@ -480,7 +480,7 @@ def test_compile_only_returns_contract_types_for_inputs(project, compiler):
 
 
 def test_compile_vyper_contract(project, compiler):
-    path = project.sources.lookup("contracts/RandomVyperFile.vy")
+    path = project.contracts_folder / "RandomVyperFile.vy"
     with raises_because_not_sol:
         _ = [c for c in compiler.compile((path,), project=project)]
 
@@ -596,7 +596,7 @@ def test_compile_outputs_compiler_data_to_manifest(project, compiler):
     actual = project.manifest.compilers[0]
     assert actual.name == "solidity"
     assert "CompilesOnce" in actual.contractTypes
-    assert actual.version == "0.8.25+commit.b61c2a91"
+    assert actual.version == "0.8.26+commit.8a97fa7a"
     # Compiling again should not add the same compiler again.
     _ = [c for c in compiler.compile((path,), project=project)]
     length_again = len(project.manifest.compilers or [])
