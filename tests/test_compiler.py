@@ -237,7 +237,10 @@ def test_get_version_map_dependencies(project, compiler):
     older_example = "contracts/ImportOlderDependency.sol"
     paths = [project.sources.lookup(x) for x in (source_id, older_example)]
     actual = compiler.get_version_map(paths, project=project)
-    assert len(actual) == 2
+
+    fail_msg = f"versions: {', '.join([str(x) for x in actual])}"
+    assert len(actual) == 2, fail_msg
+
     versions = sorted(list(actual.keys()))
     older = versions[0]  # Via ImportOlderDependency
     latest = versions[1]  # via UseYearn
@@ -396,6 +399,13 @@ def test_get_standard_input_json(project, compiler):
     v0612 = Version("0.6.12+commit.27d51765")
     v0426 = Version("0.4.26+commit.4563c3fc")
     latest = sorted(list(actual.keys()), reverse=True)[0]
+
+    fail_msg = f"Versions: {', '.join([str(v) for v in actual])}"
+    assert v0812 in actual, fail_msg
+    assert v056 in actual, fail_msg
+    assert v0612 in actual, fail_msg
+    assert v0426 in actual, fail_msg
+    assert latest in actual, fail_msg
 
     v0812_sources = list(actual[v0812]["sources"].keys())
     v056_sources = list(actual[v056]["sources"].keys())
