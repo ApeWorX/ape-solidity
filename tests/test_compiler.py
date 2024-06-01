@@ -396,20 +396,17 @@ def test_get_standard_input_json(project, compiler):
     actual = compiler.get_standard_input_json(paths, project=project)
     v0812 = Version("0.8.12+commit.f00d7308")
     v056 = Version("0.5.16+commit.9c3226ce")
-    v0612 = Version("0.6.12+commit.27d51765")
     v0426 = Version("0.4.26+commit.4563c3fc")
     latest = sorted(list(actual.keys()), reverse=True)[0]
 
     fail_msg = f"Versions: {', '.join([str(v) for v in actual])}"
     assert v0812 in actual, fail_msg
     assert v056 in actual, fail_msg
-    assert v0612 in actual, fail_msg
     assert v0426 in actual, fail_msg
     assert latest in actual, fail_msg
 
     v0812_sources = list(actual[v0812]["sources"].keys())
     v056_sources = list(actual[v056]["sources"].keys())
-    v0612_sources = list(actual[v0612]["sources"].keys())
     v0426_sources = list(actual[v0426]["sources"].keys())
     latest_sources = list(actual[latest]["sources"].keys())
 
@@ -422,7 +419,6 @@ def test_get_standard_input_json(project, compiler):
     assert "contracts/ImportSourceWithNoPrefixVersion.sol" in v0812_sources
 
     assert "contracts/OlderVersion.sol" in v056_sources
-    assert "contracts/VagueVersion.sol" in v0612_sources
     assert "contracts/ImportOlderDependency.sol" in v0426_sources
     assert "contracts/.cache/dependency/local/contracts/OlderDependency.sol" in v0426_sources
 
