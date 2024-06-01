@@ -30,7 +30,10 @@ addopts = """
 """
 python_files = "test_*.py"
 testpaths = "tests"
-markers = "fuzzing: Run Hypothesis fuzz test suite"
+markers = """
+fuzzing: Run Hypothesis fuzz test suite
+install: Tests that will install a solc version (slow)
+"""
 
 [tool.isort]
 line_length = 100

@@ -572,7 +572,8 @@ contract StackTooDeep {
         path.unlink()
 
 
-def test_compile_missing_version(project, compiler, temp_solcx_path):
+@pytest.mark.install
+def test_installs_from_compile(project, compiler, temp_solcx_path):
     """
     Test the compilation of a contract with no defined pragma spec.
 
