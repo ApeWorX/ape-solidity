@@ -4,7 +4,7 @@ Compile Solidity contracts.
 
 ## Dependencies
 
-- [python3](https://www.python.org/downloads) version 3.8 up to 3.12.
+- [python3](https://www.python.org/downloads) version 3.9 up to 3.12.
 
 ## Installation
 
@@ -62,32 +62,32 @@ solidity:
 
 ### Dependency Mapping
 
-To configure import remapping, use your project's `ape-config.yaml` file:
-
-```yaml
-solidity:
-  import_remapping:
-    - "@openzeppelin=path/to/open_zeppelin/contracts"
-```
-
-If you are using the `dependencies:` key in your `ape-config.yaml`, `ape` can automatically
-search those dependencies for the path.
+By default, `ape-solidity` knows to look at installed dependencies for potential remapping-values and will use those when it notices you are importing them.
+For example, if you are using dependencies like:
 
 ```yaml
 dependencies:
-  - name: OpenZeppelin
+  - name: openzeppelin
     github: OpenZeppelin/openzeppelin-contracts
     version: 4.4.2
-
-solidity:
-  import_remapping:
-    - "@openzeppelin=OpenZeppelin/4.4.2"
 ```
 
-Once you have your dependencies configured, you can import packages using your import keys:
+And your source files import from `openzeppelin` this way:
 
 ```solidity
-import "@openzeppelin/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+```
+
+Ape knows how to resolve the `@openzeppelin` value and find the correct source.
+
+If you want to override this behavior or add new remappings that are not dependencies, you can add them to your `ape-config.yaml` under the `solidity:` key.
+For example, let's say you have downloaded `openzeppelin` somewhere and do not have it installed in Ape.
+You can map to your local install of `openzeppelin` this way:
+
+```yaml
+solidity:
+  import_remapping:
+    - "@openzeppelin=path/to/openzeppelin"
 ```
 
 ### Library Linking
