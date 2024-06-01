@@ -1,5 +1,5 @@
 from enum import IntEnum
-from typing import Dict, Type, Union
+from typing import Union
 
 from ape.exceptions import CompilerError, ConfigError, ContractLogicError
 from ape.logging import LogLevel, logger
@@ -169,7 +169,7 @@ RuntimeErrorUnion = Union[
     PopOnEmptyArrayError,
     ZeroInitializedVariableError,
 ]
-RUNTIME_ERROR_MAP: Dict[RuntimeErrorType, Type[RuntimeErrorUnion]] = {
+RUNTIME_ERROR_MAP: dict[RuntimeErrorType, type[RuntimeErrorUnion]] = {
     RuntimeErrorType.ASSERTION_ERROR: SolidityAssertionError,
     RuntimeErrorType.ARITHMETIC_UNDER_OR_OVERFLOW: SolidityArithmeticError,
     RuntimeErrorType.DIVISION_BY_ZERO_ERROR: DivisionByZeroError,

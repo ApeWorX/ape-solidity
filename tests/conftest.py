@@ -1,21 +1,15 @@
 import shutil
 from contextlib import contextmanager
 from pathlib import Path
-from shutil import copytree
 from tempfile import mkdtemp
 from unittest import mock
 
 import ape
 import pytest
 import solcx
+from ape.utils.os import create_tempdir
 
-from ape_solidity.compiler import Extension
-
-# NOTE: Ensure that we don't use local paths for these
-DATA_FOLDER = Path(mkdtemp()).resolve()
-PROJECT_FOLDER = Path(mkdtemp()).resolve()
-ape.config.DATA_FOLDER = DATA_FOLDER
-ape.config.PROJECT_FOLDER = PROJECT_FOLDER
+from ape_solidity._utils import Extension
 
 
 @contextmanager
@@ -54,44 +48,51 @@ def temp_solcx_path(monkeypatch):
         yield path
 
 
-@pytest.fixture(autouse=True)
-def data_folder():
-    base_path = Path(__file__).parent / "data"
-    copytree(base_path, DATA_FOLDER, dirs_exist_ok=True)
-    return DATA_FOLDER
+@pytest.fixture(scope="session")
+def project(config):
+    _ = config  # Ensure temp data folder gets set first.
+    root = Path(__file__).parent
 
-
-@pytest.fixture
-def config():
-    return ape.config
-
-
-@pytest.fixture(autouse=True)
-def project(data_folder, config):
-    _ = data_folder  # Ensure happens first.
-    project_source_dir = Path(__file__).parent
-    project_dest_dir = PROJECT_FOLDER / project_source_dir.name
-
-    # Delete build / .cache that may exist pre-copy
-    project_path = Path(__file__).parent
+    # Delete .build / .cache that may exist pre-copy
     for path in (
-        project_path,
-        project_path / "BrownieProject",
-        project_path / "BrownieStyleDependency",
-        project_path / "Dependency",
-        project_path / "DependencyOfDependency",
-        project_path / "ProjectWithinProject",
-        project_path / "VersionSpecifiedInConfig",
+        root,
+        root / "BrownieProject",
+        root / "BrownieStyleDependency",
+        root / "Dependency",
+        root / "DependencyOfDependency",
+        root / "ProjectWithinProject",
+        root / "VersionSpecifiedInConfig",
     ):
         for cache in (path / ".build", path / "contracts" / ".cache"):
             if cache.is_dir():
                 shutil.rmtree(cache)
 
-    copytree(project_source_dir, project_dest_dir, dirs_exist_ok=True)
-    with config.using_project(project_dest_dir) as project:
-        yield project
-        if project.local_project._cache_folder.is_dir():
-            shutil.rmtree(project.local_project._cache_folder)
+    root_project = ape.Project(root)
+    with root_project.isolate_in_tempdir() as tmp_project:
+        yield tmp_project
+
+
+@pytest.fixture(scope="session", autouse=True)
+def config():
+    cfg = ape.config
+
+    # Uncomment to install dependencies in actual data folder.
+    # This will save time running tests.
+    # project = ape.Project(Path(__file__).parent)
+    # project.dependencies.install()
+
+    # Ensure we don't persist any .ape data.
+    real_data_folder = cfg.DATA_FOLDER
+    with create_tempdir() as path:
+        cfg.DATA_FOLDER = path
+
+        # Copy in existing packages to save test time
+        # when running locally.
+        packages = real_data_folder / "packages"
+        packages.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(packages, path / "packages", dirs_exist_ok=True)
+
+        yield cfg
 
 
 @pytest.fixture
@@ -123,11 +124,6 @@ def ignore_other_compilers(mocker, compiler_manager, compiler):
 
     # Only ethpm (.json) and Solidity extensions allowed.
     mock_registered_compilers.return_value = {".json": ape_pm, **valid_compilers}
-
-
-@pytest.fixture
-def vyper_source_path(project):
-    return project.contracts_folder / "RandomVyperFile.vy"
 
 
 @pytest.fixture

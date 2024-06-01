@@ -1,7 +1,3 @@
 dependencies:
-  - name: TestDependencyOfDependency
+  - name: dependencyofdependency
     local: ../DependencyOfDependency
-
-solidity:
-  import_remapping:
-    - "@dependency_remapping=TestDependencyOfDependency/local"

@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.4;
 
-import "@remapping/contracts/Dependency.sol";
+import "@dependency/contracts/Dependency.sol";
 
 contract UsingDependencyWithinSubFolder {
     function foo() pure public returns(bool) {
