@@ -110,6 +110,14 @@ class SolidityConfig(PluginConfig):
     Compile with optimization. Defaults to ``True``.
     """
 
+    optimization_runs: int = DEFAULT_OPTIMIZATION_RUNS
+    """
+    The number of runs specifies roughly how often each opcode of the
+    deployed code will be executed across the lifetime of the contract.
+    Lower values will optimize more for initial deployment cost, higher
+    values will optimize more for high-frequency usage.
+    """
+
     version: Optional[str] = None
     """
     Hardcode a Solidity version to use. When not set,
@@ -379,7 +387,7 @@ class SolidityCompiler(CompilerAPI):
         settings: dict = {}
         for solc_version, sources in version_map.items():
             version_settings: dict[str, Union[Any, list[Any]]] = {
-                "optimizer": {"enabled": config.optimize, "runs": DEFAULT_OPTIMIZATION_RUNS},
+                "optimizer": {"enabled": config.optimize, "runs": config.optimization_runs},
                 "outputSelection": {
                     str(get_relative_path(p, pm.path)): {"*": OUTPUT_SELECTION, "": ["ast"]}
                     for p in sorted(sources)
