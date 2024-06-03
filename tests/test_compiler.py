@@ -335,6 +335,10 @@ def test_get_version_map_full_project(project, compiler):
 
 def test_get_compiler_settings(project, compiler):
     path = project.sources.lookup("contracts/Imports.sol")
+
+    # Set this setting using an adhoc approach.
+    compiler.compiler_settings["optimization_runs"] = 190
+
     actual = compiler.get_compiler_settings((path,), project=project)
     # No reason (when alone) to not use
     assert len(actual) == 1
@@ -344,7 +348,7 @@ def test_get_compiler_settings(project, compiler):
     assert version > Version("0.8.12+commit.f00d7308")
 
     settings = actual[version]
-    assert settings["optimizer"] == {"enabled": True, "runs": 200}
+    assert settings["optimizer"] == {"enabled": True, "runs": 190}
 
     # NOTE: These should be sorted!
     assert settings["remappings"] == [
