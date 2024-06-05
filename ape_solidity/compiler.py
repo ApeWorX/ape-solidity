@@ -8,7 +8,7 @@ from ape.api import CompilerAPI, PluginConfig
 from ape.contracts import ContractInstance
 from ape.exceptions import CompilerError, ConfigError, ContractLogicError, ProjectError
 from ape.logging import logger
-from ape.managers.project import ProjectManager
+from ape.managers.project import ProjectManager, LocalProject
 from ape.types import AddressType, ContractType
 from ape.utils import cached_property, get_full_extension, get_relative_path
 from ape.version import version
@@ -309,10 +309,11 @@ class SolidityCompiler(CompilerAPI):
                 return
 
             for unpacked_dep in dep.unpack(pm.contracts_folder / ".cache"):
-                _key = key_map.get(unpacked_dep.name, f"@{unpacked_dep.name}")
-                if _key not in remapping:
-                    remapping[_key] = get_cache_id(unpacked_dep)
-                # else, was specified or configured more appropriately.
+                keys = key_map.get(unpacked_dep.name, (f"@{unpacked_dep.name}", unpacked_dep.name))
+                for _key in keys:
+                    if _key not in remapping:
+                        remapping[_key] = get_cache_id(unpacked_dep)
+                    # else, was specified or configured more appropriately.
 
         remapping: dict[str, str] = {}
         for key, value in cfg_remappings.items():
@@ -510,23 +511,64 @@ class SolidityCompiler(CompilerAPI):
             if missing_sources := [
                 x for x in vers_settings["outputSelection"] if not (pm.path / x).is_file()
             ]:
-                # See if the missing sources are from dependencies (they likely are)
-                # and cater the error message accordingly.
-                if dependencies_needed := [x for x in missing_sources if str(x).startswith("@")]:
-                    # Missing dependencies. Should only get here if dependencies are found
-                    # in import-strs but are not installed anywhere (not in project or globally).
-                    missing_str = ", ".join(dependencies_needed)
-                    raise CompilerError(
-                        f"Missing required dependencies '{missing_str}'. "
-                        "Install them using `dependencies:` "
-                        "in an ape-config.yaml or using the `ape pm install` command."
-                    )
+                # Potentially remappings are missing or wrongfully-including a contracts key.
+                # Attempt to fix so things "just work".
+                for missing_src in missing_sources:
+                    if ".cache" not in missing_src:
+                        continue
 
-                # Otherwise, we are missing project-level source files for some reason.
-                # This would only happen if the user passes in unexpected files outside
-                # of core.
-                missing_src_str = ", ".join(missing_sources)
-                raise CompilerError(f"Sources '{missing_src_str}' not found in '{pm.name}'.")
+                    corrected = False
+                    adjusted_remapping: list[str] = []
+                    for remapping in vers_settings.get("remappings", []):
+                        key, value = remapping.split("=")
+                        missing_src_pth = Path(missing_src)
+                        parent = pm.path / missing_src_pth.parent
+                        remapping_adjusted = False
+                        if missing_src.startswith(value) and parent.is_dir():
+                            parts = missing_src.split("/")
+                            dependency = pm.dependencies.get_dependency(parts[-3], parts[-2])
+                            dep_project = dependency.project
+                            if isinstance(dep_project, LocalProject):
+                                contracts_folder_name = f"{get_relative_path(dep_project.contracts_folder, dep_project.path)}"
+                                new_path = parent / contracts_folder_name / missing_src_pth.name
+                                if new_path.is_file():
+                                    selection = vers_settings["outputSelection"][missing_src]
+                                    new_source_id = f"{get_relative_path(new_path, pm.path)}"
+                                    vers_settings["outputSelection"][new_source_id] = selection
+                                    adjusted_remapping.append(
+                                        f"{key}={get_relative_path(new_path.parent, pm.path)}"
+                                    )
+                                    corrected = True
+                                    remapping_adjusted = True
+
+                        if not remapping_adjusted:
+                            adjusted_remapping.append(remapping)
+
+                    if corrected:
+                        del vers_settings["outputSelection"][missing_src]
+                        missing_sources.remove(missing_src)
+
+                    if adj_remap := adjusted_remapping:
+                        vers_settings["remappings"] = adj_remap
+
+                if missing_sources:
+                    # See if the missing sources are from dependencies (they likely are)
+                    # and cater the error message accordingly.
+                    if dependencies_needed := [x for x in missing_sources if str(x).startswith("@")]:
+                        # Missing dependencies. Should only get here if dependencies are found
+                        # in import-strs but are not installed anywhere (not in project or globally).
+                        missing_str = ", ".join(dependencies_needed)
+                        raise CompilerError(
+                            f"Missing required dependencies '{missing_str}'. "
+                            "Install them using `dependencies:` "
+                            "in an ape-config.yaml or using the `ape pm install` command."
+                        )
+
+                    # Otherwise, we are missing project-level source files for some reason.
+                    # This would only happen if the user passes in unexpected files outside
+                    # of core.
+                    missing_src_str = ", ".join(missing_sources)
+                    raise CompilerError(f"Sources '{missing_src_str}' not found in '{pm.name}'.")
 
             sources = {
                 x: {"content": (pm.path / x).read_text()}
