@@ -28,3 +28,7 @@ dependencies:
 solidity:
   # Using evm_version compatible with older and newer solidity versions.
   evm_version: constantinople
+
+  import_remapping:
+    # Legacy support test (missing contracts key in import test)
+    - "@noncompilingdependency=noncompilingdependency"
