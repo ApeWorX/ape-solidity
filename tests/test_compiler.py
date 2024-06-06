@@ -248,7 +248,7 @@ def test_get_version_map_dependencies(project, compiler):
     if actual_len > expected_len:
         # Weird anomaly in CI/CD tests sometimes (at least at the time of write).
         # Including additional debug information.
-        alt_map = {}
+        alt_map: dict = {}
         for version, src_ids in actual.items():
             for src_id in src_ids:
                 if src_id in alt_map:
