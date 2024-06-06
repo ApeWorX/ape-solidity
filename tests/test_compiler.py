@@ -240,7 +240,29 @@ def test_get_version_map_dependencies(project, compiler):
     actual = compiler.get_version_map(paths, project=project)
 
     fail_msg = f"versions: {', '.join([str(x) for x in actual])}"
-    assert len(actual) == 2, fail_msg
+    actual_len = len(actual)
+
+    # Expecting one old version for ImportOlderDependency and one version for Yearn stuff.
+    expected_len = 2
+
+    if actual_len > expected_len:
+        # Weird anomaly in CI/CD tests sometimes (at least at the time of write).
+        # Including additional debug information.
+        alt_map = {}
+        for version, src_ids in actual.items():
+            for src_id in src_ids:
+                if src_id in alt_map:
+                    other_version = alt_map[src_id]
+                    versions_str = ", ".join([other_version, version])
+                    pytest.fail(f"{src_id} in multiple version '{versions_str}'")
+                else:
+                    alt_map[src_id] = version
+
+        # No duplicated versions found but still have unexpected extras.
+        pytest.fail(f"Unexpected number of versions. {fail_msg}")
+
+    elif actual_len < expected_len:
+        pytest.fail(fail_msg)
 
     versions = sorted(list(actual.keys()))
     older = versions[0]  # Via ImportOlderDependency
