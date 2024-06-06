@@ -121,6 +121,7 @@ def test_get_imports_complex(project, compiler):
             "contracts/.cache/dependency/local/contracts/Dependency.sol",
             "contracts/.cache/dependencyofdependency/local/contracts/DependencyOfDependency.sol",
             "contracts/.cache/noncompilingdependency/local/contracts/CompilingContract.sol",
+            "contracts/.cache/noncompilingdependency/local/contracts/subdir/SubCompilingContract.sol",  # noqa: E501
             "contracts/.cache/safe/1.3.0/contracts/common/Enum.sol",
             "contracts/CompilesOnce.sol",
             "contracts/MissingPragma.sol",
@@ -355,8 +356,13 @@ def test_get_compiler_settings(project, compiler):
         "@browniedependency=contracts/.cache/browniedependency/local",
         "@dependency=contracts/.cache/dependency/local",
         "@dependencyofdependency=contracts/.cache/dependencyofdependency/local",
-        "@noncompilingdependency=contracts/.cache/noncompilingdependency/local",
+        # This remapping below was auto-corrected because imports were excluding contracts/ suffix.
+        "@noncompilingdependency=contracts/.cache/noncompilingdependency/local/contracts",
         "@safe=contracts/.cache/safe/1.3.0",
+        "browniedependency=contracts/.cache/browniedependency/local",
+        "dependency=contracts/.cache/dependency/local",
+        "dependencyofdependency=contracts/.cache/dependencyofdependency/local",
+        "safe=contracts/.cache/safe/1.3.0",
     ]
 
     # Set in config.
@@ -369,6 +375,7 @@ def test_get_compiler_settings(project, compiler):
         "contracts/.cache/dependency/local/contracts/Dependency.sol",
         "contracts/.cache/dependencyofdependency/local/contracts/DependencyOfDependency.sol",
         "contracts/.cache/noncompilingdependency/local/contracts/CompilingContract.sol",
+        "contracts/.cache/noncompilingdependency/local/contracts/subdir/SubCompilingContract.sol",
         "contracts/.cache/safe/1.3.0/contracts/common/Enum.sol",
         "contracts/CompilesOnce.sol",
         "contracts/Imports.sol",

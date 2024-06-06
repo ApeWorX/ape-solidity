@@ -309,10 +309,8 @@ class SolidityCompiler(CompilerAPI):
                 return
 
             for unpacked_dep in dep.unpack(pm.contracts_folder / ".cache"):
-                keys = key_map.get(unpacked_dep.name, (f"@{unpacked_dep.name}", unpacked_dep.name))
-                if isinstance(keys, str):
-                    keys = (keys,)
-
+                main_key = key_map.get(unpacked_dep.name)
+                keys = (main_key,) if main_key else (f"@{unpacked_dep.name}", unpacked_dep.name)
                 for _key in keys:
                     if _key not in remapping:
                         remapping[_key] = get_cache_id(unpacked_dep)
@@ -514,78 +512,17 @@ class SolidityCompiler(CompilerAPI):
             if missing_sources := [
                 x for x in vers_settings["outputSelection"] if not (pm.path / x).is_file()
             ]:
-                # Potentially remappings are missing or wrongfully-including a contracts key.
-                # Attempt to fix so things "just work".
-                handled_missing_srcs = set()
-                adjusted_remapping: set[str] = set()
-                for missing_src in missing_sources:
-                    if ".cache" not in missing_src:
-                        continue
-
-                    for remapping in vers_settings.get("remappings", []):
-                        key, value = remapping.split("=")
-                        if not missing_src.startswith(value):
-                            continue
-
-                        parts = missing_src.split("/")
-                        if ".cache" not in parts:
-                            continue
-
-                        cache_index = parts.index(".cache")
-                        if cache_index + 2 >= len(parts):
-                            continue
-
-                        name = parts[cache_index + 1]
-                        _version = parts[cache_index + 2]
-                        dependency = pm.dependencies.get_dependency(name, _version)
-                        dep_project = dependency.project
-                        if not isinstance(dep_project, LocalProject):
-                            continue
-
-                        contracts_dir = dep_project.contracts_folder
-                        dep_path = dep_project.path
-                        contracts_folder_name = f"{get_relative_path(contracts_dir, dep_path)}"
-                        prefix_pth = dep_path / contracts_folder_name
-                        if _version not in missing_src:
-                            continue
-
-                        parent_parts = missing_src.split("/")
-                        start_idx = parent_parts.index(_version) + 1
-                        suffix = "/".join(parent_parts[start_idx:])
-                        new_path = prefix_pth / suffix
-                        if not new_path.is_file():
-                            continue
-
-                        adjusted_value = "/".join(parent_parts[:4])
-                        contracts_path_id = (
-                            f"{get_relative_path(dep_project.contracts_folder, dep_project.path)}"
-                        )
-                        new_source_id_end = f"{contracts_path_id}/{suffix}"
-                        new_source_id = f"{adjusted_value}/{new_source_id_end}"
-                        selection = vers_settings["outputSelection"][missing_src]
-                        vers_settings["outputSelection"][new_source_id] = selection
-                        adjusted_remapping.add(f"{key}={adjusted_value}/{contracts_path_id}")
-                        del vers_settings["outputSelection"][missing_src]
-                        handled_missing_srcs.add(missing_src)
-
-                if adj_remap := adjusted_remapping:
-                    vers_settings["remappings"] = list(adj_remap)
-
-                missing_sources = {x for x in missing_sources if x not in handled_missing_srcs}
-                if missing_sources:
-                    # See if the missing sources are from dependencies (they likely are)
-                    # and cater the error message accordingly.
-                    if dependencies_needed := [
-                        x for x in missing_sources if str(x).startswith("@")
-                    ]:
-                        # Missing dependencies. Should only get here if dependencies are found
-                        # in import-strs but are not installed (not in project or globally).
-                        missing_str = ", ".join(dependencies_needed)
-                        raise CompilerError(
-                            f"Missing required dependencies '{missing_str}'. "
-                            "Install them using `dependencies:` "
-                            "in an ape-config.yaml or using the `ape pm install` command."
-                        )
+                # See if the missing sources are from dependencies (they likely are)
+                # and cater the error message accordingly.
+                if dependencies_needed := [x for x in missing_sources if str(x).startswith("@")]:
+                    # Missing dependencies. Should only get here if dependencies are found
+                    # in import-strs but are not installed (not in project or globally).
+                    missing_str = ", ".join(dependencies_needed)
+                    raise CompilerError(
+                        f"Missing required dependencies '{missing_str}'. "
+                        "Install them using `dependencies:` "
+                        "in an ape-config.yaml or using the `ape pm install` command."
+                    )
 
                     # Otherwise, we are missing project-level source files for some reason.
                     # This would only happen if the user passes in unexpected files outside
@@ -1202,6 +1139,7 @@ class SolidityCompiler(CompilerAPI):
     ) -> str:
         pm = project or self.local_project
         quote = '"' if '"' in _import_str else "'"
+        sep = "\\" if "\\" in _import_str else "/"
 
         try:
             end_index = _import_str.index(quote) + 1
@@ -1215,17 +1153,17 @@ class SolidityCompiler(CompilerAPI):
 
         # Get all matches.
         valid_matches: list[tuple[str, str]] = []
-        key = None
+        import_remap_key = None
         base_path = None
-        for key, value in import_remapping.items():
-            if key not in import_str_value:
+        for check_remap_key, check_remap_value in import_remapping.items():
+            if check_remap_key not in import_str_value:
                 continue
 
-            valid_matches.append((key, value))
+            valid_matches.append((check_remap_key, check_remap_value))
 
         if valid_matches:
-            key, value = max(valid_matches, key=lambda x: len(x[0]))
-            import_str_value = import_str_value.replace(key, value)
+            import_remap_key, import_remap_value = max(valid_matches, key=lambda x: len(x[0]))
+            import_str_value = import_str_value.replace(import_remap_key, import_remap_value)
 
         if import_str_value.startswith("."):
             base_path = source_path.parent
@@ -1233,8 +1171,8 @@ class SolidityCompiler(CompilerAPI):
             base_path = pm.path
         elif (pm.contracts_folder / import_str_value).is_file():
             base_path = pm.contracts_folder
-        elif key is not None and key.startswith("@"):
-            nm = key[1:]
+        elif import_remap_key is not None and import_remap_key.startswith("@"):
+            nm = import_remap_key[1:]
             for cfg_dep in pm.config.dependencies:
                 if (
                     cfg_dep.get("name") == nm
@@ -1243,8 +1181,53 @@ class SolidityCompiler(CompilerAPI):
                 ):
                     base_path = Path(cfg_dep["project"])
 
-        if base_path is None:
-            # No base_path, do as-is.
+        import_str_parts = import_str_value.split(sep)
+        if base_path is None and ".cache" in import_str_parts:
+            # No base_path, do as-is. First, check if the `contracts/` folder is missing,
+            # which is the case when compiling older Ape projects and some Foundry
+            # projects as well.
+            cache_index = import_str_parts.index(".cache")
+            nm_index = cache_index + 1
+            version_index = nm_index + 1
+            if version_index >= len(import_str_parts):
+                # Not sure.
+                return import_str_value
+
+            cache_folder_name = import_str_parts[nm_index]
+            cache_folder_version = import_str_parts[version_index]
+            dm = pm.dependencies
+            dependency = dm.get_dependency(cache_folder_name, cache_folder_version)
+            dep_project = dependency.project
+
+            if not isinstance(dep_project, LocalProject):
+                # TODO: Handle manifest-based projects as well.
+                #   to work with old compiled manifests.
+                return import_str_value
+
+            contracts_dir = dep_project.contracts_folder
+            dep_path = dep_project.path
+            contracts_folder_name = f"{get_relative_path(contracts_dir, dep_path)}"
+            prefix_pth = dep_path / contracts_folder_name
+            start_idx = version_index + 1
+            suffix = sep.join(import_str_parts[start_idx:])
+            new_path = prefix_pth / suffix
+
+            if not new_path.is_file():
+                # Maybe this source is actually missing...
+                return import_str_value
+
+            adjusted_base_path = f"{sep.join(import_str_parts[:4])}{sep}{contracts_folder_name}"
+            adjusted_src_id = f"{adjusted_base_path}{sep}{suffix}"
+
+            # Also, correct import remappings now, since it didn't work.
+            if key := import_remap_key:
+                # Base path will now included the missing contracts name.
+                import_remapping[key] = adjusted_base_path
+
+            return adjusted_src_id
+
+        elif base_path is None:
+            # No base_path, return as-is.
             return import_str_value
 
         path = (base_path / import_str_value).resolve()
