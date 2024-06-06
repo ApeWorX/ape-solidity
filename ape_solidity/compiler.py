@@ -941,8 +941,8 @@ class SolidityCompiler(CompilerAPI):
         result = {add_commit_hash(v): ls for v, ls in files_by_solc_version.items()}
 
         # Sort, so it is a nicer version map and the rest of the compilation flow
-        # is more predictable.
-        return {k: result[k] for k in sorted(result)}
+        # is more predictable. Also, remove any lingering empties.
+        return {k: result[k] for k in sorted(result) if result[k]}
 
     def _get_imported_source_paths(
         self,
