@@ -1183,7 +1183,7 @@ class SolidityCompiler(CompilerAPI):
 
         import_str_parts = import_str_value.split(sep)
         if base_path is None and ".cache" in import_str_parts:
-            # No base_path, do as-is. First, check if the `contracts/` folder is missing,
+            # No base_path. First, check if the `contracts/` folder is missing,
             # which is the case when compiling older Ape projects and some Foundry
             # projects as well.
             cache_index = import_str_parts.index(".cache")
