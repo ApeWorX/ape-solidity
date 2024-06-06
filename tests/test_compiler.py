@@ -253,7 +253,7 @@ def test_get_version_map_dependencies(project, compiler):
             for src_id in src_ids:
                 if src_id in alt_map:
                     other_version = alt_map[src_id]
-                    versions_str = ", ".join([other_version, version])
+                    versions_str = ", ".join([str(other_version), str(version)])
                     pytest.fail(f"{src_id} in multiple version '{versions_str}'")
                 else:
                     alt_map[src_id] = version
