@@ -1,5 +1,6 @@
 import os
 import re
+from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -916,29 +917,38 @@ class SolidityCompiler(CompilerAPI):
 
         # If being used in another version AND no imports in this version require it,
         # remove it from this version.
-        for solc_version, files in files_by_solc_version.copy().items():
-            for file in files.copy():
-                used_in_other_version = any(
-                    [file in ls for v, ls in files_by_solc_version.items() if v != solc_version]
-                )
-                if not used_in_other_version:
+        cleaned_mapped: dict[Version, set[Path]] = defaultdict(set)
+        for solc_version, files in files_by_solc_version.items():
+            other_versions = {v: ls for v, ls in files_by_solc_version.items() if v != solc_version}
+            for file in files:
+                other_versions_used_in = {v for v in other_versions if file in other_versions[v]}
+                if not other_versions_used_in:
+                    # This file is only in 1 version, which is perfect.
+                    cleaned_mapped[solc_version].add(file)
                     continue
 
-                other_files = [f for f in files_by_solc_version[solc_version] if f != file]
-                used_in_imports = False
-                for other_file in other_files:
-                    source_id = str(get_relative_path(other_file, pm.path))
-                    import_paths = [pm.path / i for i in import_map.get(source_id, []) if i]
-                    if file in import_paths:
-                        used_in_imports = True
-                        break
+                # This file is in multiple versions. Attempt to clean.
+                for other_version in other_versions_used_in:
+                    # Other files that may need this file are any file that is not this file as well
+                    # any file that is not also found the other version. We want to make sure
+                    # before removing this file that it won't be needed.
+                    other_files_that_may_need_this_file = [
+                        f for f in files if f != file and f not in other_versions[other_version]
+                    ]
+                    if other_files_that_may_need_this_file:
+                        # This file is used by other files in this version, so we must keep it.
+                        cleaned_mapped[solc_version].add(file)
+                        continue
 
-                if not used_in_imports:
-                    files_by_solc_version[solc_version].remove(file)
-                    if not files_by_solc_version[solc_version]:
-                        del files_by_solc_version[solc_version]
+                    # Remove other the rest of files.
+                    other_files_can_remove = [
+                        f for f in files if f != file and f in other_versions[other_version]
+                    ]
+                    for other_file in other_files_can_remove:
+                        if other_file in cleaned_mapped[solc_version]:
+                            cleaned_mapped[solc_version].remove(other_file)
 
-        result = {add_commit_hash(v): ls for v, ls in files_by_solc_version.items()}
+        result = {add_commit_hash(v): ls for v, ls in cleaned_mapped.items()}
 
         # Sort, so it is a nicer version map and the rest of the compilation flow
         # is more predictable. Also, remove any lingering empties.
