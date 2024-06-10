@@ -5,6 +5,7 @@ import solcx
 from ape import Project, reverts
 from ape.exceptions import CompilerError
 from ape.logging import LogLevel
+from ape.utils import get_full_extension
 from ethpm_types import ContractType
 from packaging.version import Version
 
@@ -126,6 +127,7 @@ def test_get_imports_complex(project, compiler):
             "contracts/CompilesOnce.sol",
             "contracts/MissingPragma.sol",
             "contracts/NumerousDefinitions.sol",
+            "contracts/Source.extra.ext.sol",
             "contracts/subfolder/Relativecontract.sol",
         ],
         "contracts/MissingPragma.sol": [],
@@ -623,7 +625,7 @@ def test_compile_project(project, compiler):
     """
     Simple test showing the full project indeed compiles.
     """
-    paths = [x for x in project.sources.paths if x.suffix == ".sol"]
+    paths = [x for x in project.sources.paths if get_full_extension(x) == ".sol"]
     actual = [c for c in compiler.compile(paths, project=project)]
     assert len(actual) > 0
 

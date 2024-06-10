@@ -373,12 +373,15 @@ class SolidityCompiler(CompilerAPI):
         files_by_solc_version = self.get_version_map_from_imports(
             contract_filepaths, import_map, project=pm
         )
-        return self._get_settings_from_version_map(files_by_solc_version, remappings, project=pm)
+        return self._get_settings_from_version_map(
+            files_by_solc_version, remappings, import_map=import_map, project=pm
+        )
 
     def _get_settings_from_version_map(
         self,
         version_map: dict,
         import_remappings: dict[str, str],
+        import_map: Optional[dict[str, list[str]]] = None,
         project: Optional[ProjectManager] = None,
         **kwargs,
     ) -> dict[Version, dict]:
@@ -397,7 +400,9 @@ class SolidityCompiler(CompilerAPI):
                 },
                 **kwargs,
             }
-            if remappings_used := self._get_used_remappings(sources, import_remappings, project=pm):
+            if remappings_used := self._get_used_remappings(
+                sources, import_remappings, import_map=import_map, project=pm
+            ):
                 remappings_str = [f"{k}={v}" for k, v in remappings_used.items()]
 
                 # Standard JSON input requires remappings to be sorted.
@@ -421,6 +426,7 @@ class SolidityCompiler(CompilerAPI):
         self,
         sources: Iterable[Path],
         remappings: dict[str, str],
+        import_map: Optional[dict[str, list[str]]] = None,
         project: Optional[ProjectManager] = None,
     ) -> dict[str, str]:
         pm = project or self.local_project
@@ -435,7 +441,8 @@ class SolidityCompiler(CompilerAPI):
         # Filter out unused import remapping.
         result = {}
         sources = list(sources)
-        imports = self.get_imports(sources, project=pm).values()
+        import_map = import_map or self.get_imports(sources, project=pm)
+        imports = import_map.values()
 
         for source_list in imports:
             for src in source_list:
@@ -461,7 +468,7 @@ class SolidityCompiler(CompilerAPI):
         import_map = self.get_imports_from_remapping(paths, remapping, project=pm)
         version_map = self.get_version_map_from_imports(paths, import_map, project=pm)
         return self.get_standard_input_json_from_version_map(
-            version_map, remapping, project=pm, **overrides
+            version_map, remapping, project=pm, import_map=import_map, **overrides
         )
 
     def get_standard_input_json_from(
@@ -481,12 +488,13 @@ class SolidityCompiler(CompilerAPI):
         self,
         version_map: dict[Version, set[Path]],
         import_remapping: dict[str, str],
+        import_map: Optional[dict[str, list[str]]] = None,
         project: Optional[ProjectManager] = None,
         **overrides,
     ):
         pm = project or self.local_project
         settings = self._get_settings_from_version_map(
-            version_map, import_remapping, project=pm, **overrides
+            version_map, import_remapping, import_map=import_map, project=pm, **overrides
         )
         return self.get_standard_input_json_from_settings(settings, version_map, project=pm)
 
@@ -571,8 +579,16 @@ class SolidityCompiler(CompilerAPI):
         settings: Optional[dict] = None,
     ):
         pm = project or self.local_project
-        input_jsons = self.get_standard_input_json(
-            contract_filepaths, project=pm, **(settings or {})
+        remapping = self.get_import_remapping(project=pm)
+        paths = list(contract_filepaths)  # Handle if given generator=
+        import_map = self.get_imports_from_remapping(paths, remapping, project=pm)
+        version_map = self.get_version_map_from_imports(paths, import_map, project=pm)
+        input_jsons = self.get_standard_input_json_from_version_map(
+            version_map,
+            remapping,
+            project=pm,
+            import_map=import_map,
+            **(settings or {}),
         )
         contract_versions: dict[str, Version] = {}
         contract_types: list[ContractType] = []
@@ -608,7 +624,7 @@ class SolidityCompiler(CompilerAPI):
                 for name, _ in contracts_out.items():
                     # Filter source files that the user did not ask for, such as
                     # imported relative files that are not part of the input.
-                    for input_file_path in contract_filepaths:
+                    for input_file_path in paths:
                         if source_id in str(input_file_path):
                             input_contract_names.append(name)
 
