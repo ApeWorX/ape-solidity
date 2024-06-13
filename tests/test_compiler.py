@@ -4,12 +4,10 @@ import pytest
 import solcx
 from ape import Project, reverts
 from ape.exceptions import CompilerError
-from ape.logging import LogLevel
 from ape.utils import get_full_extension
 from ethpm_types import ContractType
 from packaging.version import Version
 
-from ape_solidity.compiler import logger
 from ape_solidity.exceptions import IndexOutOfBoundsError
 
 EXPECTED_NON_SOLIDITY_ERR_MSG = "Unable to compile 'RandomVyperFile.vy' using Solidity compiler."
@@ -688,25 +686,21 @@ def test_enrich_error_when_builtin(project, owner, connection):
         contract.checkIndexOutOfBounds(sender=owner)
 
 
-def test_flatten(project, compiler, caplog):
+def test_flatten(mocker, project, compiler):
     path = project.sources.lookup("contracts/Imports.sol")
-    with caplog.at_level(LogLevel.WARNING):
-        res = compiler.flatten_contract(path, project=project)
 
-        # Ensure logger was flushed.
-        for handler in logger._logger.handlers:
-            handler.flush()
+    # NOTE: caplog for some reason is inconsistent and causes flakey tests.
+    #  Thus, we are using our own "logger_spy".
+    logger_spy = mocker.patch("ape_solidity.compiler.logger")
 
-        messages = caplog.messages
-        if len(messages) == 0:
-            pytest.fail(f"Missing captured logs for conflicting license. Result: {res}")
-
-        actual = messages[-1]
-        expected = (
-            "Conflicting licenses found: 'LGPL-3.0-only, MIT'. "
-            "Using the root file's license 'MIT'."
-        )
-        assert actual == expected
+    res = compiler.flatten_contract(path, project=project)
+    actual_logs = logger_spy.warning.call_args[0]
+    assert actual_logs, f"Missing warning logs from dup-licenses, res: {res}"
+    actual = actual_logs[-1]
+    expected = (
+        "Conflicting licenses found: 'LGPL-3.0-only, MIT'. Using the root file's license 'MIT'."
+    )
+    assert actual == expected
 
     path = project.sources.lookup("contracts/ImportingLessConstrainedVersion.sol")
     flattened_source = compiler.flatten_contract(path, project=project)
