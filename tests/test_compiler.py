@@ -405,6 +405,7 @@ def test_get_compiler_settings(project, compiler):
         "contracts/Imports.sol",
         "contracts/MissingPragma.sol",
         "contracts/NumerousDefinitions.sol",
+        "contracts/Source.extra.ext.sol",
         "contracts/subfolder/Relativecontract.sol",
     ]
     assert actual_files == expected_files
