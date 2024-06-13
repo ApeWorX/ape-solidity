@@ -9,6 +9,7 @@ from ape.utils import get_full_extension
 from ethpm_types import ContractType
 from packaging.version import Version
 
+from ape_solidity.compiler import logger
 from ape_solidity.exceptions import IndexOutOfBoundsError
 
 EXPECTED_NON_SOLIDITY_ERR_MSG = "Unable to compile 'RandomVyperFile.vy' using Solidity compiler."
@@ -690,8 +691,17 @@ def test_enrich_error_when_builtin(project, owner, connection):
 def test_flatten(project, compiler, caplog):
     path = project.sources.lookup("contracts/Imports.sol")
     with caplog.at_level(LogLevel.WARNING):
-        compiler.flatten_contract(path, project=project)
-        actual = caplog.messages[-1]
+        res = compiler.flatten_contract(path, project=project)
+
+        # Ensure logger was flushed.
+        for handler in logger._logger.handlers:
+            handler.flush()
+
+        messages = caplog.messages
+        if len(messages) == 0:
+            pytest.fail(f"Missing captured logs for conflicting license. Result: {res}")
+
+        actual = messages[-1]
         expected = (
             "Conflicting licenses found: 'LGPL-3.0-only, MIT'. "
             "Using the root file's license 'MIT'."
