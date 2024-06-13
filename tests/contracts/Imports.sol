@@ -26,6 +26,10 @@ import "@safe/contracts/common/Enum.sol";
 // Purposely exclude the contracts folder to test older Ape-style project imports.
 import "@noncompilingdependency/subdir/SubCompilingContract.sol";
 
+// Showing sources with extra extensions are by default excluded,
+// unless used as an import somewhere in a non-excluded source.
+import "./Source.extra.ext.sol";
+
 contract Imports {
     function foo() pure public returns(bool) {
         return true;

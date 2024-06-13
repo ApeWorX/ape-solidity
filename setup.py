@@ -69,7 +69,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "py-solc-x>=2.0.2,<3",
-        "eth-ape>=0.8.1,<0.9",
+        "eth-ape>=0.8.4,<0.9",
         "ethpm-types",  # Use the version ape requires
         "eth-pydantic-types",  # Use the version ape requires
         "packaging",  # Use the version ape requires

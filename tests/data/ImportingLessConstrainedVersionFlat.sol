@@ -3,8 +3,6 @@ pragma solidity =0.8.12;
 
 // File: ./SpecificVersionRange.sol
 
-
-
 contract SpecificVersionRange {
     function foo() pure public returns(bool) {
         return true;
@@ -12,8 +10,6 @@ contract SpecificVersionRange {
 }
 
 // File: ImportingLessConstrainedVersion.sol
-
-
 
 // The file we are importing specific range '>=0.8.12 <0.8.15';
 // This means on its own, the plugin would use 0.8.14 if its installed.

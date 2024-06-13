@@ -4,7 +4,7 @@ import pytest
 import solcx
 from ape import Project, reverts
 from ape.exceptions import CompilerError
-from ape.logging import LogLevel
+from ape.utils import get_full_extension
 from ethpm_types import ContractType
 from packaging.version import Version
 
@@ -126,6 +126,7 @@ def test_get_imports_complex(project, compiler):
             "contracts/CompilesOnce.sol",
             "contracts/MissingPragma.sol",
             "contracts/NumerousDefinitions.sol",
+            "contracts/Source.extra.ext.sol",
             "contracts/subfolder/Relativecontract.sol",
         ],
         "contracts/MissingPragma.sol": [],
@@ -403,6 +404,7 @@ def test_get_compiler_settings(project, compiler):
         "contracts/Imports.sol",
         "contracts/MissingPragma.sol",
         "contracts/NumerousDefinitions.sol",
+        "contracts/Source.extra.ext.sol",
         "contracts/subfolder/Relativecontract.sol",
     ]
     assert actual_files == expected_files
@@ -623,7 +625,7 @@ def test_compile_project(project, compiler):
     """
     Simple test showing the full project indeed compiles.
     """
-    paths = [x for x in project.sources.paths if x.suffix == ".sol"]
+    paths = [x for x in project.sources.paths if get_full_extension(x) == ".sol"]
     actual = [c for c in compiler.compile(paths, project=project)]
     assert len(actual) > 0
 
@@ -684,23 +686,33 @@ def test_enrich_error_when_builtin(project, owner, connection):
         contract.checkIndexOutOfBounds(sender=owner)
 
 
-def test_flatten(project, compiler, caplog):
-    path = project.sources.lookup("contracts/Imports.sol")
-    with caplog.at_level(LogLevel.WARNING):
-        compiler.flatten_contract(path, project=project)
-        actual = caplog.messages[-1]
-        expected = (
-            "Conflicting licenses found: 'LGPL-3.0-only, MIT'. "
-            "Using the root file's license 'MIT'."
-        )
-        assert actual == expected
+def test_flatten(mocker, project, compiler):
+    path = project.contracts_folder / "Imports.sol"
+    base_expected = Path(__file__).parent / "data"
 
-    path = project.sources.lookup("contracts/ImportingLessConstrainedVersion.sol")
-    flattened_source = compiler.flatten_contract(path, project=project)
-    flattened_source_path = (
-        Path(__file__).parent / "data" / "ImportingLessConstrainedVersionFlat.sol"
+    # NOTE: caplog for some reason is inconsistent and causes flakey tests.
+    #  Thus, we are using our own "logger_spy".
+    logger_spy = mocker.patch("ape_solidity.compiler.logger")
+
+    res = compiler.flatten_contract(path, project=project)
+    call_args = logger_spy.warning.call_args
+    actual_logs = call_args[0] if call_args else ()
+    assert actual_logs, f"Missing warning logs from dup-licenses, res: {res}"
+    actual = actual_logs[-1]
+    # NOTE: MIT coming from Imports.sol and LGPL-3.0-only coming from
+    #   @safe/contracts/common/Enum.sol.
+    expected = (
+        "Conflicting licenses found: 'LGPL-3.0-only, MIT'. Using the root file's license 'MIT'."
     )
-    assert str(flattened_source) == str(flattened_source_path.read_text())
+    assert actual == expected
+
+    path = project.contracts_folder / "ImportingLessConstrainedVersion.sol"
+    flattened_source = compiler.flatten_contract(path, project=project)
+    flattened_source_path = base_expected / "ImportingLessConstrainedVersionFlat.sol"
+
+    actual = str(flattened_source)
+    expected = str(flattened_source_path.read_text())
+    assert actual == expected
 
 
 def test_compile_code(project, compiler):
