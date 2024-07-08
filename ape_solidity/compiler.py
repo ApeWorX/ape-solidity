@@ -828,7 +828,10 @@ class SolidityCompiler(CompilerAPI):
                             result[source_id].append(sub_import)
 
                     # Keep sorted.
-                    result[source_id] = sorted((result[source_id]))
+                    if include_raw:
+                        result[source_id] = sorted((result[source_id]), key=lambda x: x[1])
+                    else:
+                        result[source_id] = sorted((result[source_id]))
 
             # Combine results. This ends up like a tree-structure.
             result = {**result, **sub_imports}
@@ -1289,14 +1292,21 @@ def remove_imports(source_code: str) -> str:
             result_lines.append(line)
             continue
 
-        # Skip import statements in non-comment lines
+        # Skip import statements in non-comment lines.
+        # NOTE: multi-line imports not handled until after loop.
         if IMPORTS_PATTERN.search(line):
             continue
 
         # Add the line to the result if it's not an import statement
         result_lines.append(line)
 
-    return "\n".join(result_lines)
+    result = "\n".join(result_lines)
+
+    # Remove multi-line imports.
+    while IMPORTS_PATTERN.search(result):
+        result = IMPORTS_PATTERN.sub("", result)
+
+    return result
 
 
 def remove_version_pragmas(flattened_contract: str) -> str:
