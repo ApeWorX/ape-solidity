@@ -51,11 +51,6 @@ from ape_solidity.exceptions import (
     SolcInstallError,
 )
 
-# Define a regex pattern that matches import statements
-# Both single and multi-line imports will be matched
-IMPORTS_PATTERN = re.compile(
-    r"import\s+(([\s\S]*?)(?=;)|[\s\S]*?from\s+([^\s;]+));\s*", flags=re.MULTILINE
-)
 LICENSES_PATTERN = re.compile(r"(// SPDX-License-Identifier:\s*([^\n]*)\s)")
 
 # Comment patterns
@@ -828,7 +823,10 @@ class SolidityCompiler(CompilerAPI):
                             result[source_id].append(sub_import)
 
                     # Keep sorted.
-                    result[source_id] = sorted((result[source_id]))
+                    if include_raw:
+                        result[source_id] = sorted((result[source_id]), key=lambda x: x[1])
+                    else:
+                        result[source_id] = sorted((result[source_id]))
 
             # Combine results. This ends up like a tree-structure.
             result = {**result, **sub_imports}
@@ -1123,7 +1121,11 @@ class SolidityCompiler(CompilerAPI):
 
         final_source = ""
 
-        for import_str, source_id in relevant_imports.items():  # type: ignore
+        # type-ignore note: we know it is a dict because of `include_raw=True`.
+        import_items = relevant_imports.items()  # type: ignore
+
+        import_iter = sorted(import_items, key=lambda x: f"{x[1]}{x[0]}")
+        for import_str, source_id in import_iter:
             if source_id in handled:
                 continue
 
@@ -1267,8 +1269,30 @@ class SolidityCompiler(CompilerAPI):
 
 
 def remove_imports(source_code: str) -> str:
+    code = remove_comments(source_code)
+    result_lines: list[str] = []
+    in_multiline_import = False
+    for line in code.splitlines():
+        if line.lstrip().startswith("import ") or line.strip() == "import":
+            if not line.rstrip().endswith(";"):
+                in_multiline_import = True
+
+            continue
+
+        elif in_multiline_import:
+            if line.rstrip().endswith(";"):
+                in_multiline_import = False
+
+            continue
+
+        result_lines.append(line)
+
+    return "\n".join(result_lines)
+
+
+def remove_comments(source_code: str) -> str:
     in_multi_line_comment = False
-    result_lines = []
+    result_lines: list[str] = []
 
     lines = source_code.splitlines()
     for line in lines:
@@ -1287,10 +1311,6 @@ def remove_imports(source_code: str) -> str:
         # Skip single-line comments
         if SINGLE_LINE_COMMENT_PATTERN.match(line):
             result_lines.append(line)
-            continue
-
-        # Skip import statements in non-comment lines
-        if IMPORTS_PATTERN.search(line):
             continue
 
         # Add the line to the result if it's not an import statement

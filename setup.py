@@ -78,6 +78,11 @@ setup(
     python_requires=">=3.9,<4",
     extras_require=extras_require,
     py_modules=["ape_solidity"],
+    entry_points={
+        "ape_cli_subcommands": [
+            "ape_solidity=ape_solidity._cli:cli",
+        ],
+    },
     license="Apache-2.0",
     zip_safe=False,
     keywords="ethereum",

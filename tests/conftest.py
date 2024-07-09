@@ -8,6 +8,7 @@ import ape
 import pytest
 import solcx
 from ape.utils.os import create_tempdir
+from click.testing import CliRunner
 
 from ape_solidity._utils import Extension
 
@@ -145,3 +146,8 @@ def not_owner():
 def connection():
     with ape.networks.ethereum.local.use_provider("test") as provider:
         yield provider
+
+
+@pytest.fixture
+def cli_runner():
+    return CliRunner()
