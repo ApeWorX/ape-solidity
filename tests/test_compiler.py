@@ -149,12 +149,12 @@ def test_get_imports_dependencies(project, compiler):
     path = project.sources.lookup(source_id)
     import_ls = compiler.get_imports((path,), project=project)
     actual = import_ls[source_id]
-    
+
     # NOTE: Both Yearn-vaults master branch and yearn-vaults 0.4.5
     #   use OpenZeppelin 4.7.1. However, the root project for these
     #   tests uses OpenZeppelin 4.5.0. This proves we are handling
     #   dependencies-of-dependencies correctly.
-    
+
     token_path = "contracts/.cache/openzeppelin/4.7.1/contracts/token"
     expected = [
         f"{token_path}/ERC20/ERC20.sol",

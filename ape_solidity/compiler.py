@@ -29,6 +29,7 @@ from solcx import (
 from solcx.exceptions import SolcError
 from solcx.install import get_executable
 
+from ape_solidity._models import ImportRemappingCache, SourceTree
 from ape_solidity._utils import (
     OUTPUT_SELECTION,
     Extension,
@@ -48,7 +49,6 @@ from ape_solidity.exceptions import (
     SolcCompileError,
     SolcInstallError,
 )
-from ape_solidity._models import ImportRemappingCache, SourceTree
 
 LICENSES_PATTERN = re.compile(r"(// SPDX-License-Identifier:\s*([^\n]*)\s)")
 
