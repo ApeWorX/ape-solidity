@@ -490,8 +490,15 @@ def test_compile_performance(benchmark, compiler, project):
         args=((path,),),
         kwargs={"project": project},
         rounds=1,
+        warmup_rounds=1,
     )
     assert len(result) > 0
+
+    # Currently seeing '~0.08; on macOS locally.
+    # Was seeing '~0.68' before https://github.com/ApeWorX/ape-solidity/pull/151
+    threshold = 0.2
+
+    assert benchmark.stats["median"] < threshold
 
 
 def test_compile_multiple_definitions_in_source(project, compiler):

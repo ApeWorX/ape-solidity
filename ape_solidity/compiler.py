@@ -912,7 +912,7 @@ class SolidityCompiler(CompilerAPI):
         path = Path(path)
         source_id = f"{get_relative_path(path, pm.path)}" if path.is_absolute() else f"{path}"
         handled.add(source_id)
-        relevant_imports = list(import_tree[path])
+        relevant_imports = sorted(list(import_tree[path]), key=lambda x: x.raw_value)
 
         final_source = ""
         for import_metadata in relevant_imports:

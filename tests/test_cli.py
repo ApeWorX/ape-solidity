@@ -8,70 +8,6 @@ EXPECTED_FLATTENED_CONTRACT = """
 pragma solidity ^0.8.4;
 // SPDX-License-Identifier: MIT
 
-// File: @browniedependency/contracts/BrownieContract.sol
-
-contract CompilingContract {
-    function foo() pure public returns(bool) {
-        return true;
-    }
-}
-// File: @dependencyofdependency/contracts/DependencyOfDependency.sol
-
-contract DependencyOfDependency {
-    function foo() pure public returns(bool) {
-        return true;
-    }
-}
-
-// File: @dependency/contracts/Dependency.sol" as Depend2
-
-struct DependencyStruct {
-    string name;
-    uint value;
-}
-
-contract Dependency {
-    function foo() pure public returns(bool) {
-        return true;
-    }
-}
-// File: @noncompilingdependency/CompilingContract.sol
-
-contract BrownieStyleDependency {
-    function foo() pure public returns(bool) {
-        return true;
-    }
-}
-// File: @noncompilingdependency/subdir/SubCompilingContract.sol
-
-contract SubCompilingContract {
-    function foo() pure public returns(bool) {
-        return true;
-    }
-}
-// File: @safe/contracts/common/Enum.sol
-
-/// @title Enum - Collection of enums
-/// @author Richard Meissner - <richard@gnosis.pm>
-contract Enum {
-    enum Operation {Call, DelegateCall}
-}
-// File: { MyStruct } from "contracts/CompilesOnce.sol
-
-struct MyStruct {
-    string name;
-    uint value;
-}
-
-contract CompilesOnce {
-    // This contract tests the scenario when we have a contract with
-    // a similar compiler version to more than one other contract's.
-    // This ensures we don't compile the same contract more than once.
-
-    function foo() pure public returns(bool) {
-        return true;
-    }
-}
 // File: ./././././././././././././././././././././././././././././././././././MissingPragma.sol
 
 contract MissingPragma {
@@ -79,7 +15,7 @@ contract MissingPragma {
         return true;
     }
 }
-// File: { Struct0, Struct1, Struct2, Struct3, Struct4, Struct5 } from "./NumerousDefinitions.sol
+// File: ./NumerousDefinitions.sol
 
 struct Struct0 {
     string name;
@@ -133,6 +69,70 @@ contract Relativecontract {
         return true;
     }
 }
+// File: @browniedependency/contracts/BrownieContract.sol
+
+contract CompilingContract {
+    function foo() pure public returns(bool) {
+        return true;
+    }
+}
+// File: @dependencyofdependency/contracts/DependencyOfDependency.sol
+
+contract DependencyOfDependency {
+    function foo() pure public returns(bool) {
+        return true;
+    }
+}
+
+// File: @dependency/contracts/Dependency.sol
+
+struct DependencyStruct {
+    string name;
+    uint value;
+}
+
+contract Dependency {
+    function foo() pure public returns(bool) {
+        return true;
+    }
+}
+// File: @noncompilingdependency/CompilingContract.sol
+
+contract BrownieStyleDependency {
+    function foo() pure public returns(bool) {
+        return true;
+    }
+}
+// File: @noncompilingdependency/subdir/SubCompilingContract.sol
+
+contract SubCompilingContract {
+    function foo() pure public returns(bool) {
+        return true;
+    }
+}
+// File: @safe/contracts/common/Enum.sol
+
+/// @title Enum - Collection of enums
+/// @author Richard Meissner - <richard@gnosis.pm>
+contract Enum {
+    enum Operation {Call, DelegateCall}
+}
+// File: contracts/CompilesOnce.sol
+
+struct MyStruct {
+    string name;
+    uint value;
+}
+
+contract CompilesOnce {
+    // This contract tests the scenario when we have a contract with
+    // a similar compiler version to more than one other contract's.
+    // This ensures we don't compile the same contract more than once.
+
+    function foo() pure public returns(bool) {
+        return true;
+    }
+}
 
 // File: Imports.sol
 
@@ -152,11 +152,12 @@ contract Imports {
 
 
 def test_cli_flatten(project, cli_runner):
-    path = project.contracts_folder / "Imports.sol"
+    filename = "Imports.sol"
+    path = project.contracts_folder / filename
     arguments = ["flatten", str(path)]
     end = ("--project", str(project.path))
     with create_tempdir() as tmpdir:
-        file = tmpdir / "Imports.sol"
+        file = tmpdir / filename
         arguments.extend([str(file), *end])
         result = cli_runner.invoke(cli, arguments, catch_exceptions=False)
         assert result.exit_code == 0, result.stderr_bytes
