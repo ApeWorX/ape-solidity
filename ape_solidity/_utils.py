@@ -30,32 +30,36 @@ class Extension(Enum):
 def get_import_lines(source_paths: Iterable[Path]) -> dict[Path, list[str]]:
     imports_dict: dict[Path, list[str]] = {}
     for filepath in source_paths:
-        import_set = set()
-        if not filepath or not filepath.is_file():
-            continue
-
-        source_lines = filepath.read_text().splitlines()
-        num_lines = len(source_lines)
-        for line_number, ln in enumerate(source_lines):
-            if not ln.startswith("import"):
-                continue
-
-            import_str = ln
-            second_line_number = line_number
-            while ";" not in import_str:
-                second_line_number += 1
-                if second_line_number >= num_lines:
-                    raise CompilerError("Import statement missing semicolon.")
-
-                next_line = source_lines[second_line_number]
-                import_str += f" {next_line.strip()}"
-
-            import_set.add(import_str)
-            line_number += 1
-
-        imports_dict[filepath] = list(import_set)
+        imports_dict[filepath] = get_single_import_lines(filepath)
 
     return imports_dict
+
+
+def get_single_import_lines(source_path: Path) -> list[str]:
+    import_set = set()
+    if not source_path.is_file():
+        return []
+
+    source_lines = source_path.read_text(encoding="utf8").splitlines()
+    num_lines = len(source_lines)
+    for line_number, ln in enumerate(source_lines):
+        if not ln.startswith("import"):
+            continue
+
+        import_str = ln
+        second_line_number = line_number
+        while ";" not in import_str:
+            second_line_number += 1
+            if second_line_number >= num_lines:
+                raise CompilerError("Import statement missing semicolon.")
+
+            next_line = source_lines[second_line_number]
+            import_str += f" {next_line.strip()}"
+
+        import_set.add(import_str)
+        line_number += 1
+
+    return list(import_set)
 
 
 def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> Optional[SpecifierSet]:
@@ -72,7 +76,7 @@ def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> Optional[Sp
     if not path.is_file():
         return None
 
-    source_str = path.read_text()
+    source_str = path.read_text(encoding="utf8")
     return get_pragma_spec_from_str(source_str)
 
 

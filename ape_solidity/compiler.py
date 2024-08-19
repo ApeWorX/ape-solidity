@@ -1,13 +1,12 @@
-import os
 import re
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Any, Optional, Union
 
 from ape.api import CompilerAPI, PluginConfig
 from ape.contracts import ContractInstance
-from ape.exceptions import CompilerError, ConfigError, ContractLogicError, ProjectError
+from ape.exceptions import CompilerError, ConfigError, ContractLogicError
 from ape.logging import logger
 from ape.managers.project import LocalProject, ProjectManager
 from ape.types import AddressType, ContractType
@@ -30,11 +29,11 @@ from solcx import (
 from solcx.exceptions import SolcError
 from solcx.install import get_executable
 
+from ape_solidity._models import ImportRemappingCache, SourceTree
 from ape_solidity._utils import (
     OUTPUT_SELECTION,
     Extension,
     add_commit_hash,
-    get_import_lines,
     get_pragma_spec_from_path,
     get_pragma_spec_from_str,
     get_versions_can_use,
@@ -143,7 +142,7 @@ class SolidityConfig(PluginConfig):
 def _get_flattened_source(path: Path, name: Optional[str] = None) -> str:
     name = name or path.name
     result = f"// File: {name}\n"
-    result += f"{path.read_text().rstrip()}\n"
+    result += f"{path.read_text(encoding='utf8').rstrip()}\n"
     return result
 
 
@@ -199,6 +198,10 @@ class SolidityCompiler(CompilerAPI):
         If ``solc`` is not installed at all, returns ``None``.
         """
         return _try_max(self.installed_versions)
+
+    @cached_property
+    def _import_remapping_cache(self) -> ImportRemappingCache:
+        return ImportRemappingCache()
 
     def _get_configured_version(
         self, project: Optional[ProjectManager] = None
@@ -263,7 +266,7 @@ class SolidityCompiler(CompilerAPI):
                 pm.update_manifest(contract_types=all_types)
 
     def get_versions(self, all_paths: Iterable[Path]) -> set[str]:
-        _validate_can_compile(all_paths)
+        all_paths = _validate_can_compile(all_paths)
         versions = set()
         for path in all_paths:
             # Make sure we have the compiler available to compile this
@@ -284,105 +287,42 @@ class SolidityCompiler(CompilerAPI):
             e.g. `".cache/openzeppelin/4.4.2".
         """
         pm = project or self.local_project
-        prefix = f"{get_relative_path(pm.contracts_folder, pm.path)}"
-
-        specified = pm.dependencies.install()
-
-        # Ensure .cache folder is ready-to-go.
-        cache_folder = pm.contracts_folder / ".cache"
-        cache_folder.mkdir(exist_ok=True, parents=True)
-
-        # Start with explicitly configured remappings.
-        cfg_remappings: dict[str, str] = {
-            m.key: m.value for m in pm.config.solidity.import_remapping
-        }
-        key_map: dict[str, str] = {}
-
-        def get_cache_id(dep) -> str:
-            return os.path.sep.join((prefix, ".cache", dep.name, dep.version))
-
-        def unpack(dep):
-            # Ensure the dependency is installed.
-            try:
-                dep.project
-            except ProjectError:
-                # Try to compile anyway.
-                # Let the compiler fail on its own.
-                return
-
-            for unpacked_dep in dep.unpack(pm.contracts_folder / ".cache"):
-                main_key = key_map.get(unpacked_dep.name)
-                keys = (main_key,) if main_key else (f"@{unpacked_dep.name}", unpacked_dep.name)
-                for _key in keys:
-                    if _key not in remapping:
-                        remapping[_key] = get_cache_id(unpacked_dep)
-                    # else, was specified or configured more appropriately.
-
-        remapping: dict[str, str] = {}
-        for key, value in cfg_remappings.items():
-            # Check if legacy-style and still accept it.
-            parts = value.split(os.path.sep)
-            name = parts[0]
-            _version = None
-            if len(parts) > 2:
-                # Clearly, not pointing at a dependency.
-                remapping[key] = value
-                continue
-
-            elif len(parts) == 2:
-                _version = parts[1]
-
-            if _version is None:
-                matching_deps = [d for d in pm.dependencies.installed if d.name == name]
-                if len(matching_deps) == 1:
-                    _version = matching_deps[0].version
-                else:
-                    # Not obvious if it is pointing at one of these dependencies.
-                    remapping[key] = value
-                    continue
-
-            # Dependency found. Map to it using the provider key.
-            dependency = pm.dependencies.get_dependency(name, _version)
-            key_map[dependency.name] = key
-            unpack(dependency)
-
-        # Add auto-remapped dependencies.
-        # (Meaning, the dependencies are specified but their remappings
-        # are not, so we auto-generate default ones).
-        for dependency in specified:
-            unpack(dependency)
-
+        # Always get a fresh remapping when calling the top-level method.
+        remapping = self._import_remapping_cache.get_import_remapping(pm)
+        # Cache, so all lower-level methods don't have to recalculate.
+        self._import_remapping_cache.add(pm, remapping)
         return remapping
 
     def get_compiler_settings(
         self, contract_filepaths: Iterable[Path], project: Optional[ProjectManager] = None, **kwargs
     ) -> dict[Version, dict]:
         pm = project or self.local_project
-        _validate_can_compile(contract_filepaths)
-        remapping = self.get_import_remapping(project=pm)
-        imports = self.get_imports_from_remapping(contract_filepaths, remapping, project=pm)
-        return self._get_settings_from_imports(contract_filepaths, imports, remapping, project=pm)
+        paths = _validate_can_compile(contract_filepaths)
+        imports = SourceTree.from_source_files(paths, pm)
+        return self._get_settings_from_imports(paths, imports, project=pm, **kwargs)
 
     def _get_settings_from_imports(
         self,
         contract_filepaths: Iterable[Path],
-        import_map: dict[str, list[str]],
-        remappings: dict[str, str],
+        import_tree: SourceTree,
         project: Optional[ProjectManager] = None,
+        **kwargs,
     ):
         pm = project or self.local_project
         files_by_solc_version = self.get_version_map_from_imports(
-            contract_filepaths, import_map, project=pm
+            contract_filepaths, import_tree, project=pm
         )
         return self._get_settings_from_version_map(
-            files_by_solc_version, remappings, import_map=import_map, project=pm
+            files_by_solc_version,
+            import_tree=import_tree,
+            project=pm,
+            **kwargs,
         )
 
     def _get_settings_from_version_map(
         self,
-        version_map: dict,
-        import_remappings: dict[str, str],
-        import_map: Optional[dict[str, list[str]]] = None,
+        version_map: dict[Version, set[Path]],
+        import_tree: SourceTree,
         project: Optional[ProjectManager] = None,
         **kwargs,
     ) -> dict[Version, dict]:
@@ -401,9 +341,7 @@ class SolidityCompiler(CompilerAPI):
                 },
                 **kwargs,
             }
-            if remappings_used := self._get_used_remappings(
-                sources, import_remappings, import_map=import_map, project=pm
-            ):
+            if remappings_used := import_tree.get_remappings_used(sources):
                 remappings_str = [f"{k}={v}" for k, v in remappings_used.items()]
 
                 # Standard JSON input requires remappings to be sorted.
@@ -423,40 +361,6 @@ class SolidityCompiler(CompilerAPI):
 
         return settings
 
-    def _get_used_remappings(
-        self,
-        sources: Iterable[Path],
-        remappings: dict[str, str],
-        import_map: Optional[dict[str, list[str]]] = None,
-        project: Optional[ProjectManager] = None,
-    ) -> dict[str, str]:
-        pm = project or self.local_project
-        if not remappings:
-            # No remappings used at all.
-            return {}
-
-        cache_path = (
-            f"{get_relative_path(pm.contracts_folder.absolute(), pm.path)}{os.path.sep}.cache"
-        )
-
-        # Filter out unused import remapping.
-        result = {}
-        sources = list(sources)
-        import_map = import_map or self.get_imports(sources, project=pm)
-        imports = import_map.values()
-
-        for source_list in imports:
-            for src in source_list:
-                if not src.startswith(cache_path):
-                    continue
-
-                parent_key = os.path.sep.join(src.split(os.path.sep)[:3])
-                for k, v in remappings.items():
-                    if parent_key in v:
-                        result[k] = v
-
-        return result
-
     def get_standard_input_json(
         self,
         contract_filepaths: Iterable[Path],
@@ -465,24 +369,22 @@ class SolidityCompiler(CompilerAPI):
     ) -> dict[Version, dict]:
         pm = project or self.local_project
         paths = list(contract_filepaths)  # Handle if given generator=
-        remapping = self.get_import_remapping(project=pm)
-        import_map = self.get_imports_from_remapping(paths, remapping, project=pm)
-        version_map = self.get_version_map_from_imports(paths, import_map, project=pm)
+        import_tree = SourceTree.from_source_files(paths, pm)
+        version_map = self.get_version_map_from_imports(paths, import_tree, project=pm)
         return self.get_standard_input_json_from_version_map(
-            version_map, remapping, project=pm, import_map=import_map, **overrides
+            version_map, project=pm, import_tree=import_tree, **overrides
         )
 
     def get_standard_input_json_from_version_map(
         self,
         version_map: dict[Version, set[Path]],
-        import_remapping: dict[str, str],
-        import_map: Optional[dict[str, list[str]]] = None,
+        import_tree: SourceTree,
         project: Optional[ProjectManager] = None,
         **overrides,
     ):
         pm = project or self.local_project
         settings = self._get_settings_from_version_map(
-            version_map, import_remapping, import_map=import_map, project=pm, **overrides
+            version_map, import_tree, project=pm, **overrides
         )
         return self.get_standard_input_json_from_settings(settings, version_map, project=pm)
 
@@ -506,6 +408,10 @@ class SolidityCompiler(CompilerAPI):
             if solc_version >= Version("0.6.9"):
                 arguments["base_path"] = pm.path
 
+            vers_settings["outputSelection"] = {
+                k: v for k, v in vers_settings["outputSelection"].items() if (pm.path / k).is_file()
+            }
+
             if missing_sources := [
                 x for x in vers_settings["outputSelection"] if not (pm.path / x).is_file()
             ]:
@@ -521,14 +427,14 @@ class SolidityCompiler(CompilerAPI):
                         "in an ape-config.yaml or using the `ape pm install` command."
                     )
 
-                    # Otherwise, we are missing project-level source files for some reason.
-                    # This would only happen if the user passes in unexpected files outside
-                    # of core.
-                    missing_src_str = ", ".join(missing_sources)
-                    raise CompilerError(f"Sources '{missing_src_str}' not found in '{pm.name}'.")
+                # Otherwise, we are missing project-level source files for some reason.
+                # This would only happen if the user passes in unexpected files outside
+                # of core.
+                missing_src_str = ", ".join(missing_sources)
+                raise CompilerError(f"Sources '{missing_src_str}' not found in '{pm.name}'.")
 
             sources = {
-                x: {"content": (pm.path / x).read_text()}
+                x: {"content": (pm.path / x).read_text(encoding="utf8")}
                 for x in sorted(vers_settings["outputSelection"])
             }
 
@@ -567,15 +473,13 @@ class SolidityCompiler(CompilerAPI):
         settings: Optional[dict] = None,
     ):
         pm = project or self.local_project
-        remapping = self.get_import_remapping(project=pm)
         paths = list(contract_filepaths)  # Handle if given generator=
-        import_map = self.get_imports_from_remapping(paths, remapping, project=pm)
-        version_map = self.get_version_map_from_imports(paths, import_map, project=pm)
+        import_tree = SourceTree.from_source_files(paths, pm)
+        version_map = self.get_version_map_from_imports(paths, import_tree, project=pm)
         input_jsons = self.get_standard_input_json_from_version_map(
             version_map,
-            remapping,
+            import_tree,
             project=pm,
-            import_map=import_map,
             **(settings or {}),
         )
         contract_versions: dict[str, Version] = {}
@@ -752,87 +656,9 @@ class SolidityCompiler(CompilerAPI):
         project: Optional[ProjectManager] = None,
     ) -> dict[str, list[str]]:
         pm = project or self.local_project
-        remapping = self.get_import_remapping(project=pm)
-        _validate_can_compile(contract_filepaths)
-        paths = [x for x in contract_filepaths]  # Handle if given generator.
-        return self.get_imports_from_remapping(paths, remapping, project=pm)
-
-    def get_imports_from_remapping(
-        self,
-        paths: Iterable[Path],
-        remapping: dict[str, str],
-        project: Optional[ProjectManager] = None,
-    ) -> dict[str, list[str]]:
-        pm = project or self.local_project
-        return self._get_imports(paths, remapping, pm, tracked=set())  # type: ignore
-
-    def _get_imports(
-        self,
-        paths: Iterable[Path],
-        remapping: dict[str, str],
-        pm: "ProjectManager",
-        tracked: set[str],
-        include_raw: bool = False,
-    ) -> dict[str, Union[dict[str, str], list[str]]]:
-        result: dict = {}
-
-        for src_path, import_strs in get_import_lines(paths).items():
-            source_id = str(get_relative_path(src_path, pm.path))
-            if source_id in tracked:
-                # We have already accumulated imports from this source.
-                continue
-
-            tracked.add(source_id)
-
-            # Init with all top-level imports.
-            import_map = {
-                x: self._import_str_to_source_id(x, src_path, remapping, project=pm)
-                for x in import_strs
-            }
-            import_source_ids = list(set(list(import_map.values())))
-
-            # NOTE: Add entry even if empty here.
-            result[source_id] = import_map if include_raw else import_source_ids
-
-            # Add imports of imports.
-            if not result[source_id]:
-                # Nothing else imported.
-                continue
-
-            # Add known imports.
-            known_imports = {p: result[p] for p in import_source_ids if p in result}
-            imp_paths = [pm.path / p for p in import_source_ids if p not in result]
-            unknown_imports = self._get_imports(
-                imp_paths,
-                remapping,
-                pm,
-                tracked=tracked,
-                include_raw=include_raw,
-            )
-            sub_imports = {**known_imports, **unknown_imports}
-
-            # All imported sources from imported sources are imported sources.
-            for sub_set in sub_imports.values():
-                if isinstance(sub_set, dict):
-                    for import_str, sub_import in sub_set.items():
-                        result[source_id][import_str] = sub_import
-
-                else:
-                    for sub_import in sub_set:
-                        if sub_import not in result[source_id]:
-                            result[source_id].append(sub_import)
-
-                    # Keep sorted.
-                    if include_raw:
-                        result[source_id] = sorted((result[source_id]), key=lambda x: x[1])
-                    else:
-                        result[source_id] = sorted((result[source_id]))
-
-            # Combine results. This ends up like a tree-structure.
-            result = {**result, **sub_imports}
-
-        # Sort final keys and import lists for more predictable compiler behavior.
-        return {k: result[k] for k in sorted(result.keys())}
+        paths = _validate_can_compile(contract_filepaths)
+        tree = SourceTree.from_source_files(paths, pm)
+        return tree.model_dump(mode="json")["import_statements"]
 
     def get_version_map(
         self,
@@ -846,15 +672,15 @@ class SolidityCompiler(CompilerAPI):
             else [p for p in contract_filepaths]
         )
         _validate_can_compile(paths)
-        imports = self.get_imports(paths, project=pm)
-        return self.get_version_map_from_imports(paths, imports, project=pm)
+        import_tree = SourceTree.from_source_files(paths, pm)
+        return self.get_version_map_from_imports(paths, import_tree, project=pm)
 
     def get_version_map_from_imports(
         self,
         contract_filepaths: Union[Path, Iterable[Path]],
-        import_map: dict[str, list[str]],
+        import_tree: SourceTree,
         project: Optional[ProjectManager] = None,
-    ):
+    ) -> dict[Version, set[Path]]:
         pm = project or self.local_project
         paths = (
             [contract_filepaths]
@@ -865,11 +691,10 @@ class SolidityCompiler(CompilerAPI):
 
         # Add imported source files to list of contracts to compile.
         for source_path in paths:
-            source_id = f"{get_relative_path(source_path, pm.path)}"
-            if source_id not in import_map or len(import_map[source_id]) == 0:
+            if source_path not in import_tree or len(import_tree[source_path]) == 0:
                 continue
 
-            import_set = {pm.path / src_id for src_id in import_map[source_id]}
+            import_set = import_tree.get_imported_paths(source_path)
             path_set = path_set.union(import_set)
 
         # Use specified version if given one
@@ -893,9 +718,7 @@ class SolidityCompiler(CompilerAPI):
         files_by_solc_version: dict[Version, set[Path]] = {}
         for source_file_path in path_set:
             solc_version = self._get_best_version(source_file_path, pragma_map)
-            imported_source_paths = self._get_imported_source_paths(
-                source_file_path, pm.path, import_map
-            )
+            imported_source_paths = import_tree.get_imported_paths(source_file_path)
 
             for imported_source_path in imported_source_paths:
                 if imported_source_path not in pragma_map:
@@ -960,31 +783,6 @@ class SolidityCompiler(CompilerAPI):
         # Sort, so it is a nicer version map and the rest of the compilation flow
         # is more predictable. Also, remove any lingering empties.
         return {k: result[k] for k in sorted(result) if result[k]}
-
-    def _get_imported_source_paths(
-        self,
-        path: Path,
-        base_path: Path,
-        imports: dict,
-        source_ids_checked: Optional[list[str]] = None,
-    ) -> set[Path]:
-        source_ids_checked = source_ids_checked or []
-        source_identifier = str(get_relative_path(path, base_path))
-        if source_identifier in source_ids_checked:
-            # Already got this source's imports
-            return set()
-
-        source_ids_checked.append(source_identifier)
-        import_file_paths = [base_path / i for i in imports.get(source_identifier, []) if i]
-        return_set = {i for i in import_file_paths}
-        for import_path in import_file_paths:
-            indirect_imports = self._get_imported_source_paths(
-                import_path, base_path, imports, source_ids_checked=source_ids_checked
-            )
-            for indirect_import in indirect_imports:
-                return_set.add(indirect_import)
-
-        return return_set
 
     def _get_pramga_spec_from_str(self, source_str: str) -> Optional[SpecifierSet]:
         if not (pragma_spec := get_pragma_spec_from_str(source_str)):
@@ -1104,37 +902,31 @@ class SolidityCompiler(CompilerAPI):
     def _flatten_source(
         self,
         path: Union[Path, str],
+        import_tree: SourceTree,
         project: Optional[ProjectManager] = None,
         raw_import_name: Optional[str] = None,
         handled: Optional[set[str]] = None,
     ) -> str:
         pm = project or self.local_project
         handled = handled or set()
-
         path = Path(path)
         source_id = f"{get_relative_path(path, pm.path)}" if path.is_absolute() else f"{path}"
-
         handled.add(source_id)
-        remapping = self.get_import_remapping(project=project)
-        imports = self._get_imports((path,), remapping, pm, tracked=set(), include_raw=True)
-        relevant_imports = imports.get(source_id, {})
+        relevant_imports = sorted(list(import_tree[path]), key=lambda x: x.raw_value)
 
         final_source = ""
-
-        # type-ignore note: we know it is a dict because of `include_raw=True`.
-        import_items = relevant_imports.items()  # type: ignore
-
-        import_iter = sorted(import_items, key=lambda x: f"{x[1]}{x[0]}")
-        for import_str, source_id in import_iter:
-            if source_id in handled:
+        for import_metadata in relevant_imports:
+            if import_metadata.source_id in handled:
+                continue
+            elif not (sub_path := import_metadata.path):
                 continue
 
-            sub_import_name = import_str.replace("import ", "").strip(" \n\t;\"'")
             sub_source = self._flatten_source(
-                pm.path / source_id,
+                sub_path,
+                import_tree,
                 project=pm,
-                raw_import_name=sub_import_name,
                 handled=handled,
+                raw_import_name=import_metadata.raw_value,
             )
             final_source += sub_source
 
@@ -1149,11 +941,13 @@ class SolidityCompiler(CompilerAPI):
     def flatten_contract(
         self, path: Path, project: Optional[ProjectManager] = None, **kwargs
     ) -> Content:
-        res = self._flatten_source(path, project=project)
+        pm = project or self.local_project
+        tree = SourceTree.from_source_files((path,), pm)
+        res = self._flatten_source(path, tree, project=pm)
         res = remove_imports(res)
         res = process_licenses(res)
         res = remove_version_pragmas(res)
-        pragma = get_first_version_pragma(path.read_text())
+        pragma = get_first_version_pragma(path.read_text(encoding="utf8"))
         res = "\n".join([pragma, res])
 
         # Simple auto-format.
@@ -1168,7 +962,6 @@ class SolidityCompiler(CompilerAPI):
         self,
         _import_str: str,
         source_path: Path,
-        import_remapping: dict[str, str],
         project: Optional[ProjectManager] = None,
     ) -> str:
         pm = project or self.local_project
@@ -1189,6 +982,7 @@ class SolidityCompiler(CompilerAPI):
         valid_matches: list[tuple[str, str]] = []
         import_remap_key = None
         base_path = None
+        import_remapping = self._import_remapping_cache[pm]
         for check_remap_key, check_remap_value in import_remapping.items():
             if check_remap_key not in import_str_value:
                 continue
@@ -1395,9 +1189,15 @@ def _try_max(ls: list[Any]):
     return max(ls) if ls else None
 
 
-def _validate_can_compile(paths: Iterable[Path]):
-    extensions = {get_full_extension(p): p for p in paths if p}
+def _validate_can_compile(paths: Iterable[Path]) -> Sequence[Path]:
+    path_ls = []
+    valid_extensions = [e.value for e in Extension]
 
-    for ext, file in extensions.items():
-        if ext not in [e.value for e in Extension]:
-            raise CompilerError(f"Unable to compile '{file.name}' using Solidity compiler.")
+    for path in paths:
+        ext = get_full_extension(path)
+        if ext not in valid_extensions:
+            raise CompilerError(f"Unable to compile '{path.name}' using Solidity compiler.")
+
+        path_ls.append(path)
+
+    return path_ls
