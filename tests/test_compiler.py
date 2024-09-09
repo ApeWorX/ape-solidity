@@ -130,6 +130,7 @@ def test_get_imports_complex(project, compiler):
             "contracts/MissingPragma.sol",
             "contracts/NumerousDefinitions.sol",
             "contracts/Source.extra.ext.sol",
+            "contracts/safe/ThisIsNotGnosisSafe.sol",
             "contracts/subfolder/Relativecontract.sol",
         ],
         "contracts/MissingPragma.sol": [],
@@ -413,6 +414,7 @@ def test_get_compiler_settings(project, compiler):
         "contracts/MissingPragma.sol",
         "contracts/NumerousDefinitions.sol",
         "contracts/Source.extra.ext.sol",
+        "contracts/safe/ThisIsNotGnosisSafe.sol",
         "contracts/subfolder/Relativecontract.sol",
     ]
     assert actual_files == expected_files
@@ -653,7 +655,7 @@ def test_compile_outputs_compiler_data_to_manifest(project, compiler):
     actual = project.manifest.compilers[0]
     assert actual.name == "solidity"
     assert "CompilesOnce" in actual.contractTypes
-    assert actual.version == "0.8.26+commit.8a97fa7a"
+    assert actual.version == "0.8.27+commit.40a35a09"
     # Compiling again should not add the same compiler again.
     _ = [c for c in compiler.compile((path,), project=project)]
     length_again = len(project.manifest.compilers or [])
