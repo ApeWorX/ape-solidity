@@ -130,6 +130,7 @@ def test_get_imports_complex(project, compiler):
             "contracts/MissingPragma.sol",
             "contracts/NumerousDefinitions.sol",
             "contracts/Source.extra.ext.sol",
+            "contracts/safe/ThisIsNotGnosisSafe.sol",
             "contracts/subfolder/Relativecontract.sol",
         ],
         "contracts/MissingPragma.sol": [],
@@ -413,6 +414,7 @@ def test_get_compiler_settings(project, compiler):
         "contracts/MissingPragma.sol",
         "contracts/NumerousDefinitions.sol",
         "contracts/Source.extra.ext.sol",
+        "contracts/safe/ThisIsNotGnosisSafe.sol",
         "contracts/subfolder/Relativecontract.sol",
     ]
     assert actual_files == expected_files

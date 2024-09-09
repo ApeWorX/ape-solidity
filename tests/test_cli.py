@@ -61,6 +61,15 @@ contract SourceExtraExt {
         return true;
     }
 }
+// File: ./safe/ThisIsNotGnosisSafe.sol
+// The point of this file is show we can have contracts in folders
+// where the folder is the same name as a dependency.
+
+contract ThisIsNotGnosisSafe {
+    constructor(){
+
+    }
+}
 // File: ./subfolder/Relativecontract.sol
 
 contract Relativecontract {
@@ -137,6 +146,8 @@ contract CompilesOnce {
 // File: Imports.sol
 
 // Purposely repeat an import to test how the plugin handles that.
+
+// Show we can import a local contract with the same name (sin-@) as a dependency.
 
 // Purposely exclude the contracts folder to test older Ape-style project imports.
 

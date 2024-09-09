@@ -194,6 +194,10 @@ class ImportStatementMetadata(ApeSolidityModel):
             self._resolve_path(reference, project)
 
     def _resolve_import_remapping(self, project: ProjectManager):
+        if self.value.startswith("."):
+            # Relative paths should not use import-remappings.
+            return
+
         import_remapping = self.solidity._import_remapping_cache[project]
 
         # Get all matches.
