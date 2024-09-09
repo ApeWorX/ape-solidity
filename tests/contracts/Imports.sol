@@ -22,6 +22,8 @@ import "@noncompilingdependency/CompilingContract.sol";
 import "@noncompilingdependency/CompilingContract.sol";
 
 import "@safe/contracts/common/Enum.sol";
+// Show we can import a local contract with the same name (sin-@) as a dependency.
+import "./safe/ThisIsNotGnosisSafe.sol";
 
 // Purposely exclude the contracts folder to test older Ape-style project imports.
 import "@noncompilingdependency/subdir/SubCompilingContract.sol";
