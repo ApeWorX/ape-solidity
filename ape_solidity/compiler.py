@@ -521,8 +521,6 @@ class SolidityCompiler(CompilerAPI):
                             input_contract_names.append(name)
 
             for source_id, contracts_out in contracts.items():
-                # ast_data = output["sources"][source_id]["ast"]
-
                 for contract_name, ct_data in contracts_out.items():
                     if contract_name not in input_contract_names:
                         # Only return ContractTypes explicitly asked for.
