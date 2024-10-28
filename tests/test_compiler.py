@@ -655,7 +655,7 @@ def test_compile_outputs_compiler_data_to_manifest(project, compiler):
     actual = project.manifest.compilers[0]
     assert actual.name == "solidity"
     assert "CompilesOnce" in actual.contractTypes
-    assert actual.version == "0.8.27+commit.40a35a09"
+    assert actual.version == "0.8.28+commit.7893614a"
     # Compiling again should not add the same compiler again.
     _ = [c for c in compiler.compile((path,), project=project)]
     length_again = len(project.manifest.compilers or [])
