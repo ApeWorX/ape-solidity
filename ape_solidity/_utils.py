@@ -3,14 +3,17 @@ import re
 from collections.abc import Iterable
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from ape.exceptions import CompilerError
 from ape.utils import pragma_str_to_specifier_set
-from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 from solcx.install import get_executable
 from solcx.wrapper import get_solc_version as get_solc_version_from_binary
+
+if TYPE_CHECKING:
+    from packaging.specifiers import SpecifierSet
+
 
 OUTPUT_SELECTION = [
     "abi",
@@ -62,7 +65,7 @@ def get_single_import_lines(source_path: Path) -> list[str]:
     return list(import_set)
 
 
-def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> Optional[SpecifierSet]:
+def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> Optional["SpecifierSet"]:
     """
     Extracts pragma information from Solidity source code.
 
@@ -80,7 +83,7 @@ def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> Optional[Sp
     return get_pragma_spec_from_str(source_str)
 
 
-def get_pragma_spec_from_str(source_str: str) -> Optional[SpecifierSet]:
+def get_pragma_spec_from_str(source_str: str) -> Optional["SpecifierSet"]:
     if not (
         pragma_match := next(
             re.finditer(r"(?:\n|^)\s*pragma\s*solidity\s*([^;\n]*)", source_str), None
@@ -106,11 +109,11 @@ def add_commit_hash(version: Union[str, Version]) -> Version:
     return get_solc_version_from_binary(solc, with_commit_hash=True)
 
 
-def get_versions_can_use(pragma_spec: SpecifierSet, options: Iterable[Version]) -> list[Version]:
+def get_versions_can_use(pragma_spec: "SpecifierSet", options: Iterable[Version]) -> list[Version]:
     return sorted(list(pragma_spec.filter(options)), reverse=True)
 
 
-def select_version(pragma_spec: SpecifierSet, options: Iterable[Version]) -> Optional[Version]:
+def select_version(pragma_spec: "SpecifierSet", options: Iterable[Version]) -> Optional[Version]:
     choices = get_versions_can_use(pragma_spec, options)
     return choices[0] if choices else None
 

@@ -2,10 +2,9 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from ape.api import CompilerAPI, PluginConfig
-from ape.contracts import ContractInstance
 from ape.exceptions import CompilerError, ConfigError, ContractLogicError
 from ape.logging import logger
 from ape.managers.project import LocalProject, ProjectManager
@@ -15,7 +14,6 @@ from ape.version import version
 from eth_pydantic_types import HexBytes
 from eth_utils import add_0x_prefix, is_0x_prefixed
 from ethpm_types.source import Compiler, Content
-from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 from pydantic import model_validator
 from requests.exceptions import ConnectionError
@@ -49,6 +47,11 @@ from ape_solidity.exceptions import (
     SolcCompileError,
     SolcInstallError,
 )
+
+if TYPE_CHECKING:
+    from ape.contracts import ContractInstance
+    from packaging.specifiers import SpecifierSet
+
 
 LICENSES_PATTERN = re.compile(r"(// SPDX-License-Identifier:\s*([^\n]*)\s)")
 
@@ -234,7 +237,7 @@ class SolidityCompiler(CompilerAPI):
     def _ape_version(self) -> Version:
         return Version(version.split(".dev")[0].strip())
 
-    def add_library(self, *contracts: ContractInstance, project: Optional[ProjectManager] = None):
+    def add_library(self, *contracts: "ContractInstance", project: Optional[ProjectManager] = None):
         """
         Set a library contract type address. This is useful when deploying a library
         in a local network and then adding the address afterward. Now, when
@@ -782,7 +785,7 @@ class SolidityCompiler(CompilerAPI):
         # is more predictable. Also, remove any lingering empties.
         return {k: result[k] for k in sorted(result) if result[k]}
 
-    def _get_pramga_spec_from_str(self, source_str: str) -> Optional[SpecifierSet]:
+    def _get_pramga_spec_from_str(self, source_str: str) -> Optional["SpecifierSet"]:
         if not (pragma_spec := get_pragma_spec_from_str(source_str)):
             return None
 

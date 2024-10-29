@@ -17,6 +17,8 @@ extras_require = {
         "types-requests",  # Needed for mypy type shed
         "types-setuptools",  # Needed for mypy type shed
         "flake8>=7.1.1,<8",  # Style linter
+        "flake8-pydantic",  # For detecting issues with Pydantic models
+        "flake8-type-checking",  # Detect imports to move in/out of type-checking blocks
         "isort>=5.13.2,<6",  # Import sorting linter
         "mdformat>=0.7.18",  # Auto-formatter for markdown
         "mdformat-gfm>=0.3.5",  # Needed for formatting GitHub-flavored markdown
