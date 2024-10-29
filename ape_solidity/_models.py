@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from ape.exceptions import CompilerError, ProjectError
-from ape.managers import ProjectManager
 from ape.utils.basemodel import BaseModel, ManagerAccessMixin, classproperty
 from ape.utils.os import get_relative_path
 from pydantic import field_serializer
@@ -13,6 +12,8 @@ from pydantic import field_serializer
 from ape_solidity._utils import get_single_import_lines
 
 if TYPE_CHECKING:
+    from ape.managers.project import ProjectManager
+
     from ape_solidity.compiler import SolidityCompiler
 
 
@@ -26,7 +27,7 @@ class ApeSolidityModel(BaseModel, ApeSolidityMixin):
     pass
 
 
-def _create_import_remapping(project: ProjectManager) -> dict[str, str]:
+def _create_import_remapping(project: "ProjectManager") -> dict[str, str]:
     prefix = f"{get_relative_path(project.contracts_folder, project.path)}"
     specified = project.dependencies.install()
 
@@ -102,22 +103,22 @@ class ImportRemappingCache(ApeSolidityMixin):
         # Cache project paths to import remapping.
         self._cache: dict[str, dict[str, str]] = {}
 
-    def __getitem__(self, project: ProjectManager) -> dict[str, str]:
+    def __getitem__(self, project: "ProjectManager") -> dict[str, str]:
         if remapping := self._cache.get(f"{project.path}"):
             return remapping
 
         return self.add_project(project)
 
-    def add_project(self, project: ProjectManager) -> dict[str, str]:
+    def add_project(self, project: "ProjectManager") -> dict[str, str]:
         remapping = _create_import_remapping(project)
         return self.add(project, remapping)
 
-    def add(self, project: ProjectManager, remapping: dict[str, str]):
+    def add(self, project: "ProjectManager", remapping: dict[str, str]):
         self._cache[f"{project.path}"] = remapping
         return remapping
 
     @classmethod
-    def get_import_remapping(cls, project: ProjectManager):
+    def get_import_remapping(cls, project: "ProjectManager"):
         return _create_import_remapping(project)
 
 
@@ -147,7 +148,7 @@ class ImportStatementMetadata(ApeSolidityModel):
         return self.raw_value
 
     @property
-    def dependency(self) -> Optional[ProjectManager]:
+    def dependency(self) -> Optional["ProjectManager"]:
         if name := self.dependency_name:
             if version := self.dependency_version:
                 return self.local_project.dependencies[name][version]
@@ -159,8 +160,8 @@ class ImportStatementMetadata(ApeSolidityModel):
         cls,
         value: str,
         reference: Path,
-        project: ProjectManager,
-        dependency: Optional[ProjectManager] = None,
+        project: "ProjectManager",
+        dependency: Optional["ProjectManager"] = None,
     ) -> "ImportStatementMetadata":
         quote = '"' if '"' in value else "'"
         sep = "\\" if "\\" in value else "/"
@@ -186,14 +187,17 @@ class ImportStatementMetadata(ApeSolidityModel):
         return hash(path)
 
     def _resolve_source(
-        self, reference: Path, project: ProjectManager, dependency: Optional[ProjectManager] = None
+        self,
+        reference: Path,
+        project: "ProjectManager",
+        dependency: Optional["ProjectManager"] = None,
     ):
         if not self._resolve_dependency(project, dependency=dependency):
             # Handle non-dependencies.
             self._resolve_import_remapping(project)
             self._resolve_path(reference, project)
 
-    def _resolve_import_remapping(self, project: ProjectManager):
+    def _resolve_import_remapping(self, project: "ProjectManager"):
         if self.value.startswith("."):
             # Relative paths should not use import-remappings.
             return
@@ -213,7 +217,7 @@ class ImportStatementMetadata(ApeSolidityModel):
                 valid_matches, key=lambda x: len(x[0])
             )
 
-    def _resolve_path(self, reference: Path, project: ProjectManager):
+    def _resolve_path(self, reference: Path, project: "ProjectManager"):
         base_path = None
         if self.value.startswith("."):
             base_path = reference.parent
@@ -236,7 +240,7 @@ class ImportStatementMetadata(ApeSolidityModel):
             self.source_id = f"{get_relative_path(self.path, project.path)}"
 
     def _resolve_dependency(
-        self, project: ProjectManager, dependency: Optional[ProjectManager] = None
+        self, project: "ProjectManager", dependency: Optional["ProjectManager"] = None
     ) -> bool:
         config_project = dependency or project
         # NOTE: Dependency is set if we are getting dependencies of dependencies.
@@ -340,9 +344,9 @@ class SourceTree(ApeSolidityModel):
     def from_source_files(
         cls,
         source_files: Iterable[Path],
-        project: ProjectManager,
+        project: "ProjectManager",
         statements: Optional[dict[tuple[Path, str], set[ImportStatementMetadata]]] = None,
-        dependency: Optional[ProjectManager] = None,
+        dependency: Optional["ProjectManager"] = None,
     ) -> "SourceTree":
         statements = statements or {}
         for path in source_files:

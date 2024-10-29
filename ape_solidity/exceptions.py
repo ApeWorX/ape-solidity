@@ -1,9 +1,11 @@
 from enum import IntEnum
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 from ape.exceptions import CompilerError, ConfigError, ContractLogicError
 from ape.logging import LogLevel, logger
-from solcx.exceptions import SolcError
+
+if TYPE_CHECKING:
+    from solcx.exceptions import SolcError
 
 
 class SolcInstallError(CompilerError):
@@ -25,7 +27,7 @@ class SolcCompileError(CompilerError):
     account Ape's logging verbosity.
     """
 
-    def __init__(self, solc_error: SolcError):
+    def __init__(self, solc_error: "SolcError"):
         self.solc_error = solc_error
 
     def __str__(self) -> str:
