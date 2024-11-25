@@ -1,5 +1,3 @@
-from typing import Any
-
 from ape import plugins
 
 
@@ -18,7 +16,7 @@ def register_compiler():
     return (Extension.SOL.value,), SolidityCompiler
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str):
     if name == "Extension":
         from ._utils import Extension
 
