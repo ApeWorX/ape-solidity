@@ -31,7 +31,7 @@ extras_require = {
         "towncrier>=19.2.0,<20",  # Generate release notes
     ],
     "release": [  # `release` GitHub Action job uses this
-        "setuptools",  # Installation tool
+        "setuptools>=75.6.0",  # Installation tool
         "setuptools-scm",  # Installation tool
         "wheel",  # Packaging tool
         "twine==3.8",  # Package upload tool
@@ -101,5 +101,6 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
 )
