@@ -12,15 +12,15 @@ extras_require = {
         "pytest-benchmark",  # For performance tests
     ],
     "lint": [
-        "black>=24.10.0,<25",  # Auto-formatter and linter
-        "mypy>=1.13.0,<2",  # Static type analyzer
+        "black>=25.1.0,<26",  # Auto-formatter and linter
+        "mypy>=1.15.0,<2",  # Static type analyzer
         "types-requests",  # Needed for mypy type shed
         "types-setuptools",  # Needed for mypy type shed
-        "flake8>=7.1.1,<8",  # Style linter
+        "flake8>=7.1.2,<8",  # Style linter
         "flake8-pydantic",  # For detecting issues with Pydantic models
         "flake8-type-checking",  # Detect imports to move in/out of type-checking blocks
         "isort>=5.13.2,<6",  # Import sorting linter
-        "mdformat>=0.7.19",  # Auto-formatter for markdown
+        "mdformat>=0.7.22",  # Auto-formatter for markdown
         "mdformat-gfm>=0.3.5",  # Needed for formatting GitHub-flavored markdown
         "mdformat-frontmatter>=0.4.1",  # Needed for frontmatters-style headers in issue templates
         "mdformat-pyproject>=0.0.2",  # Allows configuring in pyproject.toml

@@ -64,6 +64,11 @@ VERSION_PRAGMA_PATTERN = re.compile(r"pragma solidity[^;]*;")
 DEFAULT_OPTIMIZATION_RUNS = 200
 
 
+def _install_solc(version: Version) -> Version:
+    logger.info(f"Installing solc '{version}'.")
+    return install_solc(version, show_progress=True)
+
+
 class ImportRemapping(PluginConfig):
     """
     A remapped import set in the config.
@@ -222,7 +227,7 @@ class SolidityCompiler(CompilerAPI):
         specified_commit_hash = "+" in version
         base_version = strip_commit_hash(version)
         if base_version not in installed_versions:
-            install_solc(base_version, show_progress=True)
+            _install_solc(base_version)
 
         settings_version = add_commit_hash(base_version)
         if specified_commit_hash and settings_version != version:
@@ -608,7 +613,7 @@ class SolidityCompiler(CompilerAPI):
             else:
                 if selected_version := select_version(pragma, self.available_versions):
                     version = selected_version
-                    install_solc(version, show_progress=True)
+                    _install_solc(version)
                 else:
                     raise SolcInstallError()
 
@@ -616,7 +621,7 @@ class SolidityCompiler(CompilerAPI):
             version = latest_installed
 
         elif latest := self.latest_version:
-            install_solc(latest, show_progress=True)
+            _install_solc(latest)
             version = latest
 
         else:
@@ -713,7 +718,7 @@ class SolidityCompiler(CompilerAPI):
             and not any(pragma_map.values())
             and (latest := self.latest_version)
         ):
-            install_solc(latest, show_progress=True)
+            _install_solc(latest)
 
         # Adjust best-versions based on imports.
         files_by_solc_version: dict[Version, set[Path]] = {}
@@ -794,7 +799,7 @@ class SolidityCompiler(CompilerAPI):
             return pragma_spec
 
         elif compiler_version := select_version(pragma_spec, self.available_versions):
-            install_solc(compiler_version, show_progress=True)
+            _install_solc(compiler_version)
 
         else:
             # Attempt to use the best-installed version.
@@ -837,7 +842,7 @@ class SolidityCompiler(CompilerAPI):
             elif selected := select_version(pragma_spec, self.available_versions):
                 # Install missing version.
                 # NOTE: Must be installed before adding commit hash.
-                install_solc(selected, show_progress=True)
+                _install_solc(selected)
                 compiler_version = add_commit_hash(selected)
 
         elif latest_installed := self.latest_installed_version:
@@ -845,7 +850,7 @@ class SolidityCompiler(CompilerAPI):
 
         elif latest := self.latest_version:
             # Download latest version.
-            install_solc(latest, show_progress=True)
+            _install_solc(latest)
             compiler_version = latest
 
         else:
