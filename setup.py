@@ -83,6 +83,9 @@ setup(
         "ape_cli_subcommands": [
             "ape_solidity=ape_solidity._cli:cli",
         ],
+        "pytest11": [
+            "soltest=ape_solidity._pytest",
+        ],
     },
     license="Apache-2.0",
     zip_safe=False,
