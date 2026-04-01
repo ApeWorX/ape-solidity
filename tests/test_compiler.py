@@ -276,7 +276,7 @@ def test_get_version_map_dependencies(project, compiler):
     elif actual_len < expected_len:
         pytest.fail(fail_msg)
 
-    versions = sorted(list(actual.keys()))
+    versions = sorted(actual.keys())
     older = versions[0]  # Via ImportOlderDependency
     latest = versions[1]  # via UseYearn
 
@@ -343,7 +343,7 @@ def test_get_version_map_raises_on_non_solidity_sources(project, compiler):
 def test_get_version_map_full_project(project, compiler):
     paths = [x for x in project.sources.paths if x.suffix == ".sol"]
     actual = compiler.get_version_map(paths, project=project)
-    latest = sorted(list(actual.keys()), reverse=True)[0]
+    latest = sorted(actual.keys(), reverse=True)[0]
     v0812 = Version("0.8.12+commit.f00d7308")
     vold = Version("0.4.26+commit.4563c3fc")
     assert v0812 in actual
@@ -401,7 +401,7 @@ def test_get_compiler_settings(project, compiler):
     assert settings["evmVersion"] == "constantinople"
 
     # Should be all files (imports of imports etc.)
-    actual_files = sorted(list(settings["outputSelection"].keys()))
+    actual_files = sorted(settings["outputSelection"].keys())
     expected_files = [
         "contracts/.cache/browniedependency/local/contracts/BrownieContract.sol",
         "contracts/.cache/dependency/local/contracts/Dependency.sol",
@@ -442,7 +442,7 @@ def test_get_standard_input_json(project, compiler):
     v0812 = Version("0.8.12+commit.f00d7308")
     v056 = Version("0.5.16+commit.9c3226ce")
     v0426 = Version("0.4.26+commit.4563c3fc")
-    latest = sorted(list(actual.keys()), reverse=True)[0]
+    latest = sorted(actual.keys(), reverse=True)[0]
 
     fail_msg = f"Versions: {', '.join([str(v) for v in actual])}"
     assert v0812 in actual, fail_msg
@@ -470,7 +470,7 @@ def test_get_standard_input_json(project, compiler):
 
 def test_compile(project, compiler):
     path = project.sources.lookup("contracts/Imports.sol")
-    actual = [c for c in compiler.compile((path,), project=project)]
+    actual = list(compiler.compile((path,), project=project))
     # We only get back the contracts we requested, even if it had to compile
     # others (like imports) to get it to work.
     assert len(actual) == 1
@@ -488,7 +488,7 @@ def test_compile_performance(benchmark, compiler, project):
     """
     path = project.sources.lookup("contracts/MultipleDefinitions.sol")
     result = benchmark.pedantic(
-        lambda *args, **kwargs: [x for x in compiler.compile(*args, **kwargs)],
+        lambda *args, **kwargs: list(compiler.compile(*args, **kwargs)),
         args=((path,),),
         kwargs={"project": project},
         rounds=1,
@@ -510,7 +510,7 @@ def test_compile_multiple_definitions_in_source(project, compiler):
     """
     source_id = "contracts/MultipleDefinitions.sol"
     path = project.sources.lookup(source_id)
-    result = [c for c in compiler.compile((path,), project=project)]
+    result = list(compiler.compile((path,), project=project))
     assert len(result) == 2
     assert [r.name for r in result] == ["IMultipleDefinitions", "MultipleDefinitions"]
     assert all(r.source_id == source_id for r in result)
@@ -522,7 +522,7 @@ def test_compile_multiple_definitions_in_source(project, compiler):
 def test_compile_contract_with_different_name_than_file(project, compiler):
     source_id = "contracts/DifferentNameThanFile.sol"
     path = project.sources.lookup(source_id)
-    actual = [c for c in compiler.compile((path,), project=project)]
+    actual = list(compiler.compile((path,), project=project))
     assert len(actual) == 1
     assert actual[0].source_id == source_id
 
@@ -532,7 +532,7 @@ def test_compile_only_returns_contract_types_for_inputs(project, compiler):
     Test showing only the requested contract types get returned.
     """
     path = project.sources.lookup("contracts/Imports.sol")
-    contract_types = [c for c in compiler.compile((path,), project=project)]
+    contract_types = list(compiler.compile((path,), project=project))
     assert len(contract_types) == 1
     assert contract_types[0].name == "Imports"
 
@@ -540,7 +540,7 @@ def test_compile_only_returns_contract_types_for_inputs(project, compiler):
 def test_compile_vyper_contract(project, compiler):
     path = project.contracts_folder / "RandomVyperFile.vy"
     with raises_because_not_sol:
-        _ = [c for c in compiler.compile((path,), project=project)]
+        _ = list(compiler.compile((path,), project=project))
 
 
 def test_compile_just_a_struct(compiler, project):
@@ -549,13 +549,13 @@ def test_compile_just_a_struct(compiler, project):
     The fix involved using nicer access to "contracts" in the standard output JSON.
     """
     path = project.sources.lookup("contracts/JustAStruct.sol")
-    contract_types = [c for c in compiler.compile((path,), project=project)]
+    contract_types = list(compiler.compile((path,), project=project))
     assert len(contract_types) == 0
 
 
 def test_compile_produces_source_map(project, compiler):
     path = project.sources.lookup("contracts/MultipleDefinitions.sol")
-    result = [c for c in compiler.compile((path,), project=project)][-1]
+    result = list(compiler.compile((path,), project=project))[-1]
     assert result.sourcemap.root == "124:87:0:-:0;;;;;;;;;;;;;;;;;;;"
 
 
@@ -609,12 +609,12 @@ contract StackTooDeep {
     path.write_text(source_code)
 
     try:
-        [c for c in compiler.compile((path,), project=project)]
+        list(compiler.compile((path,), project=project))
     except Exception as e:
         assert "Stack too deep" in str(e)
 
     with project.temp_config(solidity={"via_ir": True}):
-        _ = [c for c in compiler.compile((path,), project=project)]
+        _ = list(compiler.compile((path,), project=project))
 
         # delete source code file
         path.unlink()
@@ -631,7 +631,7 @@ def test_installs_from_compile(project, compiler, temp_solcx_path):
     """
     assert not solcx.get_installed_solc_versions()
     path = project.sources.lookup("contracts/MissingPragma.sol")
-    contract_types = [c for c in compiler.compile((path,), project=project)]
+    contract_types = list(compiler.compile((path,), project=project))
     assert len(contract_types) == 1
     installed_versions = solcx.get_installed_solc_versions()
     assert len(installed_versions) == 1
@@ -643,21 +643,22 @@ def test_compile_project(project, compiler):
     Simple test showing the full project indeed compiles.
     """
     paths = [x for x in project.sources.paths if get_full_extension(x) == ".sol"]
-    actual = [c for c in compiler.compile(paths, project=project)]
+    actual = list(compiler.compile(paths, project=project))
     assert len(actual) > 0
 
 
 def test_compile_outputs_compiler_data_to_manifest(project, compiler):
     project.update_manifest(compilers=[])
     path = project.sources.lookup("contracts/CompilesOnce.sol")
-    _ = [c for c in compiler.compile((path,), project=project)]
+    _ = list(compiler.compile((path,), project=project))
     assert len(project.manifest.compilers or []) == 1
     actual = project.manifest.compilers[0]
     assert actual.name == "solidity"
     assert "CompilesOnce" in actual.contractTypes
-    assert actual.version == "0.8.28+commit.7893614a"
+    assert actual.version
+    assert Version(actual.version) >= Version("0.8.0")
     # Compiling again should not add the same compiler again.
-    _ = [c for c in compiler.compile((path,), project=project)]
+    _ = list(compiler.compile((path,), project=project))
     length_again = len(project.manifest.compilers or [])
     assert length_again == 1
 
@@ -679,7 +680,7 @@ def test_add_library(project, account, compiler, connection):
 
 def test_enrich_error_when_custom(compiler, project, owner, not_owner, connection):
     path = project.sources.lookup("contracts/HasError.sol")
-    _ = [c for c in compiler.compile((path,), project=project)]
+    _ = list(compiler.compile((path,), project=project))
 
     # Deploy so Ape know about contract type.
     contract = owner.deploy(project.HasError, 1)

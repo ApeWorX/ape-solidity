@@ -128,3 +128,5 @@ version.py
 
 tests/node_modules
 .benchmarks/
+
+uv.lock

@@ -4,7 +4,7 @@ Compile Solidity contracts.
 
 ## Dependencies
 
-- [python3](https://www.python.org/downloads) version 3.9 up to 3.12.
+- [Python 3](https://www.python.org/downloads) version 3.10 or greater.
 
 ## Installation
 
@@ -23,7 +23,10 @@ You can clone the repository and use [`setuptools`](https://github.com/pypa/setu
 ```bash
 git clone https://github.com/ApeWorX/ape-solidity.git
 cd ape-solidity
-python3 setup.py install
+git clone https://github.com/ApeWorX/ape-solidity.git
+cd ape-solidity
+uv sync --group dev
+uv run prek install
 ```
 
 ## Quick Usage
