@@ -31,6 +31,7 @@ from ape_solidity._models import ImportRemappingCache, SourceTree
 from ape_solidity._utils import (
     OUTPUT_SELECTION,
     Extension,
+    SolidityVersionSpecifier,
     add_commit_hash,
     get_pragma_spec_from_path,
     get_pragma_spec_from_str,
@@ -50,7 +51,6 @@ from ape_solidity.exceptions import (
 
 if TYPE_CHECKING:
     from ape.contracts import ContractInstance
-    from packaging.specifiers import SpecifierSet
 
 
 LICENSES_PATTERN = re.compile(r"(// SPDX-License-Identifier:\s*([^\n]*)\s)")
@@ -720,69 +720,35 @@ class SolidityCompiler(CompilerAPI):
         ):
             _install_solc(latest)
 
-        # Adjust best-versions based on imports.
-        files_by_solc_version: dict[Version, set[Path]] = {}
-        for source_file_path in path_set:
-            solc_version = self._get_best_version(source_file_path, pragma_map)
+        # Select a compiler for each requested source plus the full transitive import closure
+        # that solc must compile with it.
+        files_by_solc_version: dict[Version, set[Path]] = defaultdict(set)
+        required_imports_by_solc_version: dict[Version, set[Path]] = defaultdict(set)
+        for source_file_path in paths:
             imported_source_paths = import_tree.get_imported_paths(source_file_path)
+            source_closure = {source_file_path, *imported_source_paths}
+            solc_version = self._get_best_version_for_source_set(source_closure, pragma_map, pm)
+            files_by_solc_version[solc_version].update(source_closure)
+            required_imports_by_solc_version[solc_version].update(imported_source_paths)
 
-            for imported_source_path in imported_source_paths:
-                if imported_source_path not in pragma_map:
-                    continue
+        # If a requested source also appears in a more constrained import closure, compile it in
+        # the constrained closure only. If it is imported by roots in multiple version groups,
+        # keep it in each group because solc needs it in each standard-json input.
+        versions_by_file: dict[Path, set[Version]] = defaultdict(set)
+        for solc_version, files in files_by_solc_version.items():
+            for file in files:
+                versions_by_file[file].add(solc_version)
 
-                imported_pragma_spec = pragma_map[imported_source_path]
-                imported_version = self._get_best_version(imported_source_path, pragma_map)
-
-                if imported_pragma_spec is not None and (
-                    str(imported_pragma_spec)[0].startswith("=")
-                    or str(imported_pragma_spec)[0].isdigit()
-                ):
-                    # Have to use this version.
-                    solc_version = imported_version
-                    break
-
-                elif imported_version < solc_version:
-                    # If we get here, the highest version of an import is lower than the reference.
-                    solc_version = imported_version
-
-            if solc_version not in files_by_solc_version:
-                files_by_solc_version[solc_version] = set()
-
-            for path in (source_file_path, *imported_source_paths):
-                files_by_solc_version[solc_version].add(path)
-
-        # If being used in another version AND no imports in this version require it,
-        # remove it from this version.
         cleaned_mapped: dict[Version, set[Path]] = defaultdict(set)
         for solc_version, files in files_by_solc_version.items():
-            other_versions = {v: ls for v, ls in files_by_solc_version.items() if v != solc_version}
             for file in files:
-                other_versions_used_in = {v for v in other_versions if file in other_versions[v]}
-                if not other_versions_used_in:
-                    # This file is only in 1 version, which is perfect.
-                    cleaned_mapped[solc_version].add(file)
+                if (
+                    len(versions_by_file[file]) > 1
+                    and file not in required_imports_by_solc_version[solc_version]
+                ):
                     continue
 
-                # This file is in multiple versions. Attempt to clean.
-                for other_version in other_versions_used_in:
-                    # Other files that may need this file are any file that is not this file as well
-                    # any file that is not also found the other version. We want to make sure
-                    # before removing this file that it won't be needed.
-                    other_files_that_may_need_this_file = [
-                        f for f in files if f != file and f not in other_versions[other_version]
-                    ]
-                    if other_files_that_may_need_this_file:
-                        # This file is used by other files in this version, so we must keep it.
-                        cleaned_mapped[solc_version].add(file)
-                        continue
-
-                    # Remove other the rest of files.
-                    other_files_can_remove = [
-                        f for f in files if f != file and f in other_versions[other_version]
-                    ]
-                    for other_file in other_files_can_remove:
-                        if other_file in cleaned_mapped[solc_version]:
-                            cleaned_mapped[solc_version].remove(other_file)
+                cleaned_mapped[solc_version].add(file)
 
         result = {add_commit_hash(v): ls for v, ls in cleaned_mapped.items()}
 
@@ -790,7 +756,67 @@ class SolidityCompiler(CompilerAPI):
         # is more predictable. Also, remove any lingering empties.
         return {k: result[k] for k in sorted(result) if result[k]}
 
-    def _get_pramga_spec_from_str(self, source_str: str) -> Optional["SpecifierSet"]:
+    def _get_best_version_for_source_set(
+        self,
+        source_paths: set[Path],
+        source_by_pragma_spec: dict[Path, Optional[SolidityVersionSpecifier]],
+        project: ProjectManager,
+    ) -> Version:
+        pragma_map = {
+            path: pragma_spec
+            for path in sorted(source_paths)
+            if (pragma_spec := source_by_pragma_spec.get(path))
+        }
+        if not pragma_map:
+            return self._get_best_version_without_pragma()
+
+        if selected := self._select_version_for_pragmas(
+            pragma_map.values(), self.installed_versions
+        ):
+            return add_commit_hash(selected)
+
+        if selected := self._select_version_for_pragmas(
+            pragma_map.values(), self.available_versions
+        ):
+            _install_solc(selected)
+            return add_commit_hash(selected)
+
+        source_ids = ", ".join(
+            f"{get_relative_path(path, project.path)} ({pragma_spec})"
+            for path, pragma_spec in pragma_map.items()
+        )
+        raise CompilerError(
+            "No installed or available Solidity compiler version satisfies "
+            f"the combined pragma constraints: {source_ids}."
+        )
+
+    def _select_version_for_pragmas(
+        self,
+        pragma_specs: Iterable[SolidityVersionSpecifier],
+        options: Iterable[Version],
+    ) -> Optional[Version]:
+        candidates = list(options)
+        for pragma_spec in pragma_specs:
+            candidates = get_versions_can_use(pragma_spec, candidates)
+            if not candidates:
+                return None
+
+        return candidates[0] if candidates else None
+
+    def _get_best_version_without_pragma(self) -> Version:
+        if latest_installed := self.latest_installed_version:
+            compiler_version = latest_installed
+
+        elif latest := self.latest_version:
+            _install_solc(latest)
+            compiler_version = latest
+
+        else:
+            raise SolcInstallError()
+
+        return add_commit_hash(compiler_version)
+
+    def _get_pramga_spec_from_str(self, source_str: str) -> Optional[SolidityVersionSpecifier]:
         if not (pragma_spec := get_pragma_spec_from_str(source_str)):
             return None
 

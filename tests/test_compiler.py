@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import solcx
@@ -8,10 +9,159 @@ from ape.utils import get_full_extension
 from ethpm_types import ContractType
 from packaging.version import Version
 
+from ape_solidity._utils import add_commit_hash, get_pragma_spec_from_str
 from ape_solidity.exceptions import IndexOutOfBoundsError
 
 EXPECTED_NON_SOLIDITY_ERR_MSG = "Unable to compile 'RandomVyperFile.vy' using Solidity compiler."
 raises_because_not_sol = pytest.raises(CompilerError, match=EXPECTED_NON_SOLIDITY_ERR_MSG)
+
+SOLC_SEMVER_POSITIVE_CASES = (
+    ("*", "1.2.3-foo"),
+    ("1.0.0 - 2.0.0", "1.2.3"),
+    ("1.0.0", "1.0.0"),
+    ("1.0", "1.0.0"),
+    ("1", "1.0.0"),
+    (">=*", "0.2.4"),
+    ("*", "1.2.3"),
+    (">=1.0.0", "1.0.0"),
+    (">=1.0.0", "1.0.1"),
+    (">=1.0.0", "1.1.0"),
+    (">1.0.0", "1.0.1"),
+    (">1.0.0", "1.1.0"),
+    ("<=2.0.0", "2.0.0"),
+    ("<=2.0.0", "1.9999.9999"),
+    ("<=2.0.0", "0.2.9"),
+    ("<2.0.0", "1.9999.9999"),
+    ("<2.0.0", "0.2.9"),
+    ("<1.0", "1.0.0-pre"),
+    ("<1", "1.0.0-pre"),
+    (">= 1.0.0", "1.0.0"),
+    (">=  1.0.0", "1.0.1"),
+    (">=   1.0.0", "1.1.0"),
+    ("> 1.0.0", "1.0.1"),
+    (">  1.0.0", "1.1.0"),
+    ("<=   2.0.0", "2.0.0"),
+    ("<= 2.0.0", "1.9999.9999"),
+    ("<=  2.0.0", "0.2.9"),
+    ("<    2.0.0", "1.9999.9999"),
+    ("<\t2.0.0", "0.2.9"),
+    (">=0.1.97", "0.1.97"),
+    ("0.1.20 || 1.2.4", "1.2.4"),
+    (">=0.2.3 || <0.0.1", "0.0.0"),
+    (">=0.2.3 || <0.0.1", "0.2.3"),
+    (">=0.2.3 || <0.0.1", "0.2.4"),
+    ('"2.x.x"', "2.1.3"),
+    ("1.2.x", "1.2.3"),
+    ('"1.2.x" || "2.x"', "2.1.3"),
+    ('"1.2.x" || "2.x"', "1.2.3"),
+    ("x", "1.2.3"),
+    ("2.*.*", "2.1.3"),
+    ("1.2.*", "1.2.3"),
+    ("1.2.* || 2.*", "2.1.3"),
+    ("1.2.* || 2.*", "1.2.3"),
+    ("*", "1.2.3"),
+    ("2", "2.1.2"),
+    ("2.3", "2.3.1"),
+    ("~2.4", "2.4.0"),
+    ("~2.4", "2.4.5"),
+    ("~1", "1.2.3"),
+    ("~1.0", "1.0.2"),
+    ("~ 1.0", "1.0.2"),
+    ("~ 1.0.3", "1.0.12"),
+    (">=1", "1.0.0"),
+    (">= 1", "1.0.0"),
+    ("<1.2", "1.1.1"),
+    ("< 1.2", "1.1.1"),
+    ("=0.7.x", "0.7.2"),
+    ("<=0.7.x", "0.7.2"),
+    (">=0.7.x", "0.7.2"),
+    ("<=0.7.x", "0.6.2"),
+    ("~1.2.1 >=1.2.3", "1.2.3"),
+    ("~1.2.1 =1.2.3", "1.2.3"),
+    ("~1.2.1 1.2.3", "1.2.3"),
+    ("~1.2.1 >=1.2.3 1.2.3", "1.2.3"),
+    ("~1.2.1 1.2.3 >=1.2.3", "1.2.3"),
+    ('>="1.2.1" 1.2.3', "1.2.3"),
+    ("1.2.3 >=1.2.1", "1.2.3"),
+    (">=1.2.3 >=1.2.1", "1.2.3"),
+    (">=1.2.1 >=1.2.3", "1.2.3"),
+    (">=1.2", "1.2.8"),
+    ("^1.2.3", "1.8.1"),
+    ("^0.1.2", "0.1.2"),
+    ("^0.1", "0.1.2"),
+    ("^1.2", "1.4.2"),
+    ("^1.2", "1.2.0"),
+    ("^1", "1.2.0"),
+    ("<=1.2.3", "1.2.3-beta"),
+    (">1.2", "1.3.0-beta"),
+    ("<1.2.3", "1.2.3-beta"),
+    ("^1.2 ^1", "1.4.2"),
+    ("^0", "0.5.1"),
+    ("^0", "0.1.1"),
+)
+
+SOLC_SEMVER_NEGATIVE_CASES = (
+    ("^0^1", "0.0.0"),
+    ("^0^1", "1.0.0"),
+    ("1.0.0 - 2.0.0", "2.2.3"),
+    ("1.0", "1.0.0-pre"),
+    ("1", "1.0.0-pre"),
+    ("^1.2.3", "1.2.3-pre"),
+    ("^1.2", "1.2.0-pre"),
+    ("^1.2", "1.2.1-pre"),
+    ("^1.2.3", "1.2.3-beta"),
+    ("=0.7.x", "0.7.0-asdf"),
+    (">=0.7.x", "0.7.0-asdf"),
+    ("1.0.0", "1.0.1"),
+    (">=1.0.0", "0.0.0"),
+    (">=1.0.0", "0.0.1"),
+    (">=1.0.0", "0.1.0"),
+    (">1.0.0", "0.0.1"),
+    (">1.0.0", "0.1.0"),
+    ("<=2.0.0", "3.0.0"),
+    ("<=2.0.0", "2.9999.9999"),
+    ("<=2.0.0", "2.2.9"),
+    ("<2.0.0", "2.9999.9999"),
+    ("<2.0.0", "2.2.9"),
+    (">=0.1.97", "0.1.93"),
+    ("0.1.20 || 1.2.4", "1.2.3"),
+    (">=0.2.3 || <0.0.1", "0.0.3"),
+    (">=0.2.3 || <0.0.1", "0.2.2"),
+    ('"2.x.x"', "1.1.3"),
+    ('"2.x.x"', "3.1.3"),
+    ("1.2.x", "1.3.3"),
+    ('"1.2.x" || "2.x"', "3.1.3"),
+    ('"1.2.x" || "2.x"', "1.1.3"),
+    ("2.*.*", "1.1.3"),
+    ("2.*.*", "3.1.3"),
+    ("1.2.*", "1.3.3"),
+    ("1.2.* || 2.*", "3.1.3"),
+    ("1.2.* || 2.*", "1.1.3"),
+    ("2", "1.1.2"),
+    ("2.3", "2.4.1"),
+    ("~2.4", "2.5.0"),
+    ("~2.4", "2.3.9"),
+    ("~1", "0.2.3"),
+    ("~1.0", "1.1.0"),
+    ("<1", "1.0.0"),
+    (">=1.2", "1.1.1"),
+    ("=0.7.x", "0.8.2"),
+    (">=0.7.x", "0.6.2"),
+    ("<0.7.x", "0.7.2"),
+    ("=1.2.3", "1.2.3-beta"),
+    (">1.2", "1.2.8"),
+    ("^1.2.3", "2.0.0-alpha"),
+    ("^0.6", "0.6.2-alpha"),
+    ("^0.6", "0.6.0-alpha"),
+    ("^1.2", "1.2.1-pre"),
+    ("^1.2.3", "1.2.2"),
+    ("^1", "1.2.0-pre"),
+    ("^1", "1.2.0-pre"),
+    ("^1.2", "1.1.9"),
+    ("^0", "0.5.1-pre"),
+    ("^0", "0.0.0-pre"),
+    ("^0", "1.0.0"),
+)
 
 
 def test_get_config(project, compiler):
@@ -188,6 +338,47 @@ def test_get_imports_full_project(project, compiler):
             assert source_id in actual, f"{source_id}'s imports not present."
 
 
+@pytest.mark.parametrize(
+    ("pragma", "matching_version"),
+    (
+        (">= 0.4.19 < 0.7.0", "0.6.12"),
+        (">=0.8.0 <0.9.0", "0.8.28"),
+        ("^0.8.20 || ^0.9.0", "0.9.0"),
+        ("=0.8.12", "0.8.12"),
+        ("0.8.12", "0.8.12"),
+    ),
+)
+def test_get_pragma_spec_supports_solc_style_ranges(pragma, matching_version):
+    spec = get_pragma_spec_from_str(f"pragma solidity {pragma};")
+    assert spec is not None
+    assert Version(matching_version) in spec
+
+
+@pytest.mark.parametrize(("pragma", "matching_version"), SOLC_SEMVER_POSITIVE_CASES)
+def test_get_pragma_spec_matches_solc_semver_positive_examples(pragma, matching_version):
+    spec = get_pragma_spec_from_str(f"pragma solidity {pragma};")
+    assert spec is not None
+    assert matching_version in spec
+
+
+@pytest.mark.parametrize(("pragma", "non_matching_version"), SOLC_SEMVER_NEGATIVE_CASES)
+def test_get_pragma_spec_matches_solc_semver_negative_examples(pragma, non_matching_version):
+    spec = get_pragma_spec_from_str(f"pragma solidity {pragma};")
+    assert spec is not None
+    assert non_matching_version not in spec
+
+
+def create_solidity_project(tmp_path, sources):
+    project_path = tmp_path / "SolidityProject"
+    contracts_path = project_path / "contracts"
+    contracts_path.mkdir(parents=True)
+    (project_path / "ape-config.yaml").write_text("name: SolidityProject\n", encoding="utf8")
+    for name, source in sources.items():
+        (contracts_path / name).write_text(source, encoding="utf8")
+
+    return Project(project_path)
+
+
 def test_get_version_map(project, compiler):
     """
     Test that a strict version pragma is recognized in the version map.
@@ -214,6 +405,109 @@ def test_get_version_map_importing_more_constrained_version(project, compiler):
     actual = compiler.get_version_map((path,), project=project)
     expected_version = Version("0.8.12+commit.f00d7308")
     expected_sources = ("ImportSourceWithEqualSignVersion", "SpecificVersionWithEqualSign")
+    assert expected_version in actual
+
+    actual_ids = [x.stem for x in actual[expected_version]]
+    assert all(e in actual_ids for e in expected_sources)
+
+
+def test_get_version_map_imported_source_has_stricter_upper_bound(tmp_path, compiler):
+    project = create_solidity_project(
+        tmp_path,
+        {
+            "ImportSourceWithUpperBound.sol": """// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.8.0 <0.9.0;
+
+import "./UpperBoundImport.sol";
+
+contract ImportSourceWithUpperBound is UpperBoundImport {}
+""",
+            "UpperBoundImport.sol": """// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.8.0 <0.8.13;
+
+contract UpperBoundImport {}
+""",
+        },
+    )
+    path = project.sources.lookup("contracts/ImportSourceWithUpperBound.sol")
+
+    actual = compiler.get_version_map((path,), project=project)
+    expected_version = Version("0.8.12+commit.f00d7308")
+    expected_sources = ("ImportSourceWithUpperBound", "UpperBoundImport")
+    assert expected_version in actual
+
+    actual_ids = [x.stem for x in actual[expected_version]]
+    assert all(e in actual_ids for e in expected_sources)
+
+
+def test_get_version_map_raises_for_incompatible_import_constraints(compiler, mocker, tmp_path):
+    mocker.patch.object(
+        type(compiler),
+        "installed_versions",
+        new_callable=mock.PropertyMock,
+        return_value=[Version("0.8.28"), Version("0.7.6")],
+    )
+    mocker.patch.object(
+        type(compiler),
+        "available_versions",
+        new_callable=mock.PropertyMock,
+        return_value=[Version("0.8.28"), Version("0.7.6")],
+    )
+    project = create_solidity_project(
+        tmp_path,
+        {
+            "IncompatibleImport.sol": """// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.8.20;
+
+import "./IncompatibleImportDependency.sol";
+
+contract IncompatibleImport is IncompatibleImportDependency {}
+""",
+            "IncompatibleImportDependency.sol": """// SPDX-License-Identifier: MIT
+
+pragma solidity <0.8.0;
+
+contract IncompatibleImportDependency {}
+""",
+        },
+    )
+    path = project.sources.lookup("contracts/IncompatibleImport.sol")
+
+    with pytest.raises(CompilerError) as err:
+        compiler.get_version_map((path,), project=project)
+
+    message = str(err.value)
+    assert "combined pragma constraints" in message
+    assert "contracts/IncompatibleImport.sol" in message
+    assert "contracts/IncompatibleImportDependency.sol" in message
+
+
+def test_get_version_map_no_pragma_importer_uses_import_constraints(tmp_path, compiler):
+    project = create_solidity_project(
+        tmp_path,
+        {
+            "MissingPragmaImportsStrict.sol": """// SPDX-License-Identifier: MIT
+
+import "./SpecificVersionWithEqualSign.sol";
+
+contract MissingPragmaImportsStrict is SpecificVersionWithEqualSign {}
+""",
+            "SpecificVersionWithEqualSign.sol": """// SPDX-License-Identifier: MIT
+
+pragma solidity =0.8.12;
+
+contract SpecificVersionWithEqualSign {}
+""",
+        },
+    )
+    path = project.sources.lookup("contracts/MissingPragmaImportsStrict.sol")
+
+    actual = compiler.get_version_map((path,), project=project)
+    expected_version = Version("0.8.12+commit.f00d7308")
+    expected_sources = ("MissingPragmaImportsStrict", "SpecificVersionWithEqualSign")
     assert expected_version in actual
 
     actual_ids = [x.stem for x in actual[expected_version]]
@@ -655,7 +949,7 @@ def test_compile_outputs_compiler_data_to_manifest(project, compiler):
     actual = project.manifest.compilers[0]
     assert actual.name == "solidity"
     assert "CompilesOnce" in actual.contractTypes
-    assert actual.version == "0.8.28+commit.7893614a"
+    assert actual.version == f"{add_commit_hash(compiler.latest_installed_version)}"
     # Compiling again should not add the same compiler again.
     _ = [c for c in compiler.compile((path,), project=project)]
     length_again = len(project.manifest.compilers or [])
