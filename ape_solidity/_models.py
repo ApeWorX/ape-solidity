@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import os
-from collections.abc import Iterable
 from functools import singledispatchmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from ape.exceptions import CompilerError, ProjectError
 from ape.utils.basemodel import BaseModel, ManagerAccessMixin, classproperty
@@ -12,6 +13,8 @@ from pydantic import field_serializer
 from ape_solidity._utils import get_single_import_lines
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from ape.managers.project import ProjectManager
 
     from ape_solidity.compiler import SolidityCompiler
@@ -19,15 +22,15 @@ if TYPE_CHECKING:
 
 class ApeSolidityMixin(ManagerAccessMixin):
     @classproperty
-    def solidity(cls) -> "SolidityCompiler":
-        return cls.compiler_manager.solidity
+    def solidity(self) -> SolidityCompiler:
+        return self.compiler_manager.solidity
 
 
 class ApeSolidityModel(BaseModel, ApeSolidityMixin):
     pass
 
 
-def _create_import_remapping(project: "ProjectManager") -> dict[str, str]:
+def _create_import_remapping(project: ProjectManager) -> dict[str, str]:
     prefix = f"{get_relative_path(project.contracts_folder, project.path)}"
     specified = project.dependencies.install()
 
@@ -47,7 +50,7 @@ def _create_import_remapping(project: "ProjectManager") -> dict[str, str]:
     def unpack(dep):
         # Ensure the dependency is installed.
         try:
-            dep.project
+            _ = dep.project
         except ProjectError:
             # Try to compile anyway.
             # Let the compiler fail on its own.
@@ -72,11 +75,14 @@ def _create_import_remapping(project: "ProjectManager") -> dict[str, str]:
             remapping[key] = value
             continue
 
-        elif len(parts) == 2:
+        if len(parts) == 2:
             _version = parts[1]
 
         if _version is None:
             matching_deps = [d for d in project.dependencies.installed if d.name == name]
+            if len(matching_deps) != 1:
+                matching_deps = [d for d in specified if d.name == name]
+
             if len(matching_deps) == 1:
                 _version = matching_deps[0].version
             else:
@@ -87,6 +93,7 @@ def _create_import_remapping(project: "ProjectManager") -> dict[str, str]:
         # Dependency found. Map to it using the provider key.
         dependency = project.dependencies.get_dependency(name, _version)
         key_map[dependency.name] = key
+        remapping[key] = get_cache_id(dependency)
         unpack(dependency)
 
     # Add auto-remapped dependencies.
@@ -103,22 +110,22 @@ class ImportRemappingCache(ApeSolidityMixin):
         # Cache project paths to import remapping.
         self._cache: dict[str, dict[str, str]] = {}
 
-    def __getitem__(self, project: "ProjectManager") -> dict[str, str]:
+    def __getitem__(self, project: ProjectManager) -> dict[str, str]:
         if remapping := self._cache.get(f"{project.path}"):
             return remapping
 
         return self.add_project(project)
 
-    def add_project(self, project: "ProjectManager") -> dict[str, str]:
+    def add_project(self, project: ProjectManager) -> dict[str, str]:
         remapping = _create_import_remapping(project)
         return self.add(project, remapping)
 
-    def add(self, project: "ProjectManager", remapping: dict[str, str]):
+    def add(self, project: ProjectManager, remapping: dict[str, str]):
         self._cache[f"{project.path}"] = remapping
         return remapping
 
     @classmethod
-    def get_import_remapping(cls, project: "ProjectManager"):
+    def get_import_remapping(cls, project: ProjectManager):
         return _create_import_remapping(project)
 
 
@@ -128,17 +135,17 @@ class ImportStatementMetadata(ApeSolidityModel):
     raw_value: str
 
     # Only set when remappings are involved.
-    import_remap_key: Optional[str] = None
-    import_remap_value: Optional[str] = None
+    import_remap_key: str | None = None
+    import_remap_value: str | None = None
 
     # Only set when import-remapping resolves to a dependency.
-    dependency_name: Optional[str] = None
-    dependency_version: Optional[str] = None
+    dependency_name: str | None = None
+    dependency_version: str | None = None
 
     # Set once a source-file is located. This happens _after_
     # dependency related properties.
-    source_id: Optional[str] = None
-    path: Optional[Path] = None
+    source_id: str | None = None
+    path: Path | None = None
 
     @property
     def value(self) -> str:
@@ -148,10 +155,9 @@ class ImportStatementMetadata(ApeSolidityModel):
         return self.raw_value
 
     @property
-    def dependency(self) -> Optional["ProjectManager"]:
-        if name := self.dependency_name:
-            if version := self.dependency_version:
-                return self.local_project.dependencies[name][version]
+    def dependency(self) -> ProjectManager | None:
+        if (name := self.dependency_name) and (version := self.dependency_version):
+            return self.local_project.dependencies[name][version]
 
         return None
 
@@ -160,9 +166,9 @@ class ImportStatementMetadata(ApeSolidityModel):
         cls,
         value: str,
         reference: Path,
-        project: "ProjectManager",
-        dependency: Optional["ProjectManager"] = None,
-    ) -> "ImportStatementMetadata":
+        project: ProjectManager,
+        dependency: ProjectManager | None = None,
+    ) -> ImportStatementMetadata:
         quote = '"' if '"' in value else "'"
         sep = "\\" if "\\" in value else "/"
 
@@ -189,15 +195,15 @@ class ImportStatementMetadata(ApeSolidityModel):
     def _resolve_source(
         self,
         reference: Path,
-        project: "ProjectManager",
-        dependency: Optional["ProjectManager"] = None,
+        project: ProjectManager,
+        dependency: ProjectManager | None = None,
     ):
         if not self._resolve_dependency(project, dependency=dependency):
             # Handle non-dependencies.
             self._resolve_import_remapping(project)
             self._resolve_path(reference, project)
 
-    def _resolve_import_remapping(self, project: "ProjectManager"):
+    def _resolve_import_remapping(self, project: ProjectManager):
         if self.value.startswith("."):
             # Relative paths should not use import-remappings.
             return
@@ -217,7 +223,7 @@ class ImportStatementMetadata(ApeSolidityModel):
                 valid_matches, key=lambda x: len(x[0])
             )
 
-    def _resolve_path(self, reference: Path, project: "ProjectManager"):
+    def _resolve_path(self, reference: Path, project: ProjectManager):
         base_path = None
         if self.value.startswith("."):
             base_path = reference.parent
@@ -240,7 +246,7 @@ class ImportStatementMetadata(ApeSolidityModel):
             self.source_id = f"{get_relative_path(self.path, project.path)}"
 
     def _resolve_dependency(
-        self, project: "ProjectManager", dependency: Optional["ProjectManager"] = None
+        self, project: ProjectManager, dependency: ProjectManager | None = None
     ) -> bool:
         config_project = dependency or project
         # NOTE: Dependency is set if we are getting dependencies of dependencies.
@@ -336,7 +342,7 @@ class SourceTree(ApeSolidityModel):
         imports_by_source_id = {k[1]: v for k, v in statements.items()}
         keys = sorted(imports_by_source_id.keys())
         return {
-            k: sorted(list({i.source_id for i in imports_by_source_id[k] if i.source_id}))
+            k: sorted({i.source_id for i in imports_by_source_id[k] if i.source_id})
             for k in keys
         }
 
@@ -344,10 +350,10 @@ class SourceTree(ApeSolidityModel):
     def from_source_files(
         cls,
         source_files: Iterable[Path],
-        project: "ProjectManager",
-        statements: Optional[dict[tuple[Path, str], set[ImportStatementMetadata]]] = None,
-        dependency: Optional["ProjectManager"] = None,
-    ) -> "SourceTree":
+        project: ProjectManager,
+        statements: dict[tuple[Path, str], set[ImportStatementMetadata]] | None = None,
+        dependency: ProjectManager | None = None,
+    ) -> SourceTree:
         statements = statements or {}
         for path in source_files:
             key = (path, f"{get_relative_path(path.absolute(), project.path)}")

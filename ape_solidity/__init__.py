@@ -22,18 +22,17 @@ def __getattr__(name: str):
 
         return Extension
 
-    elif name == "SolidityCompiler":
+    if name == "SolidityCompiler":
         from .compiler import SolidityCompiler
 
         return SolidityCompiler
 
-    elif name == "SolidityConfig":
+    if name == "SolidityConfig":
         from .compiler import SolidityConfig
 
         return SolidityConfig
 
-    else:
-        raise AttributeError(name)
+    raise AttributeError(name)
 
 
 __all__ = [

@@ -1,11 +1,104 @@
 [build-system]
-requires = ["setuptools>=75.6.0", "wheel", "setuptools_scm[toml]>=5.0"]
+requires = ["setuptools>=75.6.0", "setuptools_scm[toml]>=5.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = 'ape-solidity'
+description = 'Plugin for Ape Ethereum Framework for compiling Solidity contracts'
+readme = "README.md"
+license = {text = 'Apache-2.0'}
+authors = [
+    {name = "ApeWorX Ltd.", email = "admin@apeworx.io"}
+]
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: MIT License',
+    'Natural Language :: English',
+    'Operating System :: MacOS',
+    'Operating System :: POSIX',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
+    'Programming Language :: Python :: 3.14',
+]
+requires-python = ">=3.10"
+dependencies = [
+    'py-solc-x>=2.0.2,<3',
+    'eth-ape>=0.8.4,<0.9',
+    'ethpm-types',
+    'eth-pydantic-types',
+    'packaging',
+    'requests',
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = 'https://github.com/ApeWorX/ape-solidity'
+Documentation = 'https://github.com/ApeWorX/ape-solidity/blob/main/README.md'
+Source = 'https://github.com/ApeWorX/ape-solidity'
+Tracker = 'https://github.com/ApeWorX/ape-solidity/issues'
+
+[project.entry-points."ape_cli_subcommands"]
+ape_solidity = 'ape_solidity._cli:cli'
+
+[dependency-groups]
+test = [
+    'pytest>=6.0',
+    'pytest-xdist',
+    'pytest-cov',
+    'pytest-mock',
+    'hypothesis>=6.2.0,<7.0',
+    'pytest-benchmark',
+]
+lint = [
+    'mypy>=1.15.0,<2',
+    'ruff>=0.8.0,<1',
+    'types-requests',
+    'types-setuptools',
+    'mdformat>=0.7.22',
+    'mdformat-gfm>=0.3.5',
+    'mdformat-frontmatter>=0.4.1',
+    'mdformat-pyproject>=0.0.2',
+]
+docs = [
+    'Sphinx>=6.1.3,<7',
+    'sphinx_rtd_theme>=1.2.0,<2',
+    'towncrier>=19.2.0,<20',
+]
+release = [
+    'setuptools>=75.6.0',
+    'setuptools-scm',
+    'wheel',
+    'twine==3.8',
+]
+dev = [
+    {include-group = "test"},
+    {include-group = "lint"},
+    {include-group = "docs"},
+    {include-group = "release"},
+    "commitizen>=2.40,<2.41",
+    "prek",
+    "pytest-watch",
+    "IPython",
+    "ipdb",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+ape_solidity = ['py.typed']
 
 [tool.mypy]
 exclude = "build/"
 check_untyped_defs = true
 plugins = ["pydantic.mypy"]
-
 [tool.setuptools_scm]
 write_to = "ape_solidity/version.py"
 
@@ -13,12 +106,6 @@ write_to = "ape_solidity/version.py"
 # It's the equivalent of r-strings in Python.  Multiline strings are treated as
 # verbose regular expressions by Black.  Use [ ] to denote a significant space
 # character.
-
-[tool.black]
-line-length = 100
-target-version = ['py39', 'py310', 'py311', 'py312', 'py313']
-include = '\.pyi?$'
-
 [tool.pytest.ini_options]
 addopts = """
     -p no:ape_test
@@ -34,13 +121,61 @@ markers = """
 fuzzing: Run Hypothesis fuzz test suite
 install: Tests that will install a solc version (slow)
 """
-
-[tool.isort]
-line_length = 100
-force_grid_wrap = 0
-include_trailing_comma = true
-multi_line_output = 3
-use_parentheses = true
-
 [tool.mdformat]
-number = true
+number = false
+wrap = 100
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "B",
+    "C4",
+    "DTZ",
+    "T10",
+    "T20",
+    "PYI",
+    "PT",
+    "RET",
+    "SIM",
+    "TC",
+    "ARG",
+]
+ignore = [
+    "E501",
+    "ARG001",
+    "ARG002",
+    "ARG005",
+    "B017",
+    "B904",
+    "N812",
+    "N815",
+    "PT011",
+    "PT017",
+    "PYI051",
+    "SIM102",
+    "SIM105",
+    "SIM108",
+    "SIM117",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "E402"]
+"version.py" = ["T201"]
+"exceptions.py" = ["N818"]
+"tests/*" = ["T201", "ARG"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
+known-first-party = ['ape_solidity']
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

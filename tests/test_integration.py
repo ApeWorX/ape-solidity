@@ -26,12 +26,12 @@ def test_compile_using_cli(ape_cli, runner, project):
 
 @pytest.mark.parametrize(
     "contract_path",
-    (
+    [
         "CompilesOnce",
         "CompilesOnce.sol",
         "contracts/CompilesOnce",
         "contracts/CompilesOnce.sol",
-    ),
+    ],
 )
 def test_compile_specified_contracts(ape_cli, runner, contract_path, project):
     arguments = ("compile", "--project", f"{project.path}", contract_path, "--force")

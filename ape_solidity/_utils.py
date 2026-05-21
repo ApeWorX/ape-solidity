@@ -3,7 +3,7 @@ import re
 from collections.abc import Iterable
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 from ape.exceptions import CompilerError
 from ape.utils import pragma_str_to_specifier_set
@@ -65,15 +65,15 @@ def get_single_import_lines(source_path: Path) -> list[str]:
     return list(import_set)
 
 
-def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> Optional["SpecifierSet"]:
+def get_pragma_spec_from_path(source_file_path: Path | str) -> "SpecifierSet | None":
     """
     Extracts pragma information from Solidity source code.
 
     Args:
-        source_file_path (Union[Path, str]): Solidity source file path.
+        source_file_path (Path | str): Solidity source file path.
 
     Returns:
-        ``Optional[packaging.specifiers.SpecifierSet]``
+        ``packaging.specifiers.SpecifierSet | None``
     """
     path = Path(source_file_path)
     if not path.is_file():
@@ -83,7 +83,7 @@ def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> Optional["S
     return get_pragma_spec_from_str(source_str)
 
 
-def get_pragma_spec_from_str(source_str: str) -> Optional["SpecifierSet"]:
+def get_pragma_spec_from_str(source_str: str) -> "SpecifierSet | None":
     if not (
         pragma_match := next(
             re.finditer(r"(?:\n|^)\s*pragma\s*solidity\s*([^;\n]*)", source_str), None
@@ -94,11 +94,11 @@ def get_pragma_spec_from_str(source_str: str) -> Optional["SpecifierSet"]:
     return pragma_str_to_specifier_set(pragma_match.groups()[0])
 
 
-def load_dict(data: Union[str, dict]) -> dict:
+def load_dict(data: str | dict) -> dict:
     return data if isinstance(data, dict) else json.loads(data)
 
 
-def add_commit_hash(version: Union[str, Version]) -> Version:
+def add_commit_hash(version: str | Version) -> Version:
     vers = Version(f"{version}") if isinstance(version, str) else version
     has_commit = len(f"{vers}") > len(vers.base_version)
     if has_commit:
@@ -110,15 +110,15 @@ def add_commit_hash(version: Union[str, Version]) -> Version:
 
 
 def get_versions_can_use(pragma_spec: "SpecifierSet", options: Iterable[Version]) -> list[Version]:
-    return sorted(list(pragma_spec.filter(options)), reverse=True)
+    return sorted(pragma_spec.filter(options), reverse=True)
 
 
-def select_version(pragma_spec: "SpecifierSet", options: Iterable[Version]) -> Optional[Version]:
+def select_version(pragma_spec: "SpecifierSet", options: Iterable[Version]) -> Version | None:
     choices = get_versions_can_use(pragma_spec, options)
     return choices[0] if choices else None
 
 
-def strip_commit_hash(version: Union[str, Version]) -> Version:
+def strip_commit_hash(version: str | Version) -> Version:
     """
     Version('0.8.21+commit.d9974bed') => Version('0.8.21')> the simple way.
     """

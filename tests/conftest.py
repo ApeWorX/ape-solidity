@@ -1,4 +1,5 @@
 import shutil
+import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import mkdtemp
@@ -68,9 +69,20 @@ def project(config):
             if cache.is_dir():
                 shutil.rmtree(cache)
 
-    root_project = ape.Project(root)
-    with root_project.isolate_in_tempdir() as tmp_project:
-        yield tmp_project
+    with create_tempdir() as temp_root:
+        shutil.copytree(root, temp_root, dirs_exist_ok=True)
+
+        package_json = temp_root / "package.json"
+        if package_json.is_file():
+            subprocess.run(
+                ["npm", "install", "--ignore-scripts"],
+                cwd=temp_root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+        yield ape.Project(temp_root)
 
 
 @pytest.fixture(scope="session", autouse=True)
