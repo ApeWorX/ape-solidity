@@ -302,7 +302,10 @@ class SolidityCompiler(CompilerAPI):
         return remapping
 
     def get_compiler_settings(
-        self, contract_filepaths: Iterable[Path], project: Optional[ProjectManager] = None, **kwargs
+        self,
+        contract_filepaths: Iterable[Path],
+        project: Optional[ProjectManager] = None,
+        **kwargs,
     ) -> dict[Version, dict]:
         pm = project or self.local_project
         paths = _validate_can_compile(contract_filepaths)
@@ -342,9 +345,15 @@ class SolidityCompiler(CompilerAPI):
         settings: dict = {}
         for solc_version, sources in version_map.items():
             version_settings: dict[str, Union[Any, list[Any]]] = {
-                "optimizer": {"enabled": config.optimize, "runs": config.optimization_runs},
+                "optimizer": {
+                    "enabled": config.optimize,
+                    "runs": config.optimization_runs,
+                },
                 "outputSelection": {
-                    str(get_relative_path(p, pm.path)): {"*": OUTPUT_SELECTION, "": ["ast"]}
+                    str(get_relative_path(p, pm.path)): {
+                        "*": OUTPUT_SELECTION,
+                        "": ["ast"],
+                    }
                     for p in sorted(sources)
                 },
                 **kwargs,
@@ -493,7 +502,10 @@ class SolidityCompiler(CompilerAPI):
             logger.info(log_str)
             cleaned_version = Version(solc_version.base_version)
             solc_binary = get_executable(version=cleaned_version)
-            arguments: dict = {"solc_binary": solc_binary, "solc_version": cleaned_version}
+            arguments: dict = {
+                "solc_binary": solc_binary,
+                "solc_version": cleaned_version,
+            }
 
             if solc_version >= Version("0.6.9"):
                 arguments["base_path"] = pm.path

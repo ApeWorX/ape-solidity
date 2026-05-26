@@ -213,7 +213,10 @@ def test_get_version_map_importing_more_constrained_version(project, compiler):
 
     actual = compiler.get_version_map((path,), project=project)
     expected_version = Version("0.8.12+commit.f00d7308")
-    expected_sources = ("ImportSourceWithEqualSignVersion", "SpecificVersionWithEqualSign")
+    expected_sources = (
+        "ImportSourceWithEqualSignVersion",
+        "SpecificVersionWithEqualSign",
+    )
     assert expected_version in actual
 
     actual_ids = [x.stem for x in actual[expected_version]]

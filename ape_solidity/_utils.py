@@ -65,7 +65,9 @@ def get_single_import_lines(source_path: Path) -> list[str]:
     return list(import_set)
 
 
-def get_pragma_spec_from_path(source_file_path: Union[Path, str]) -> Optional["SpecifierSet"]:
+def get_pragma_spec_from_path(
+    source_file_path: Union[Path, str],
+) -> Optional["SpecifierSet"]:
     """
     Extracts pragma information from Solidity source code.
 
