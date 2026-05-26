@@ -7,7 +7,6 @@ from typing import Optional, Union
 
 from ape.exceptions import CompilerError
 from packaging.version import Version
-from semantic_version import NpmSpec  # type: ignore[import-untyped]
 from semantic_version import Version as SemVerVersion  # type: ignore[import-untyped]
 from solcx.install import get_executable
 from solcx.wrapper import get_solc_version as get_solc_version_from_binary
@@ -31,7 +30,7 @@ class SolidityVersionSpecifier:
     def __init__(self, expression: str):
         self.pragma_str = expression
         self.expression = _normalize_pragma_expression(expression)
-        self._npm_spec = NpmSpec(self.expression)
+        self._ranges = _parse_solidity_version_expression(self.expression)
 
     def __contains__(self, version: Union[str, Version, SemVerVersion]) -> bool:
         return self.contains(version)
@@ -40,33 +39,36 @@ class SolidityVersionSpecifier:
         return self.expression
 
     def match(self, version: Version) -> bool:
-        semver = _as_npm_version(version)
-        return self._npm_spec.match(semver) or self._matches_solc_prerelease(semver)
+        return self.contains(_as_npm_version(version))
 
     def contains(self, version: Union[str, Version, SemVerVersion]) -> bool:
         if isinstance(version, Version):
             return self.match(version)
 
         semver = _coerce_semver_version(version)
-        return self._npm_spec.match(semver) or self._matches_solc_prerelease(semver)
+        return any(
+            all(_match_solidity_component(component, semver) for component in conjunction)
+            for conjunction in self._ranges
+        )
 
     def filter(self, versions: Iterable[Version]) -> Iterable[Version]:
         return (version for version in versions if self.match(version))
 
-    def _matches_solc_prerelease(self, version: SemVerVersion) -> bool:
-        if not version.prerelease:
-            return False
-
-        if self.expression in ("*", ">=*"):
-            return True
-
-        return any(
-            _matches_partial_greater_than(block, version) for block in self.expression.split()
-        )
-
 
 def _as_npm_version(version: Version) -> SemVerVersion:
-    return SemVerVersion(version.base_version)
+    release = ".".join(str(part) for part in (*version.release[:3], 0, 0)[:3])
+    prerelease = ""
+    if version.pre:
+        prerelease_name, prerelease_number = version.pre
+        prerelease_name = {
+            "a": "alpha",
+            "b": "beta",
+        }.get(prerelease_name, prerelease_name)
+        prerelease = f"-{prerelease_name}.{prerelease_number}"
+    elif version.dev is not None:
+        prerelease = f"-dev.{version.dev}"
+
+    return SemVerVersion(f"{release}{prerelease}")
 
 
 def _coerce_semver_version(version: Union[str, Version, SemVerVersion]) -> SemVerVersion:
@@ -86,21 +88,92 @@ def _normalize_pragma_expression(expression: str) -> str:
     return re.sub(r"\s+", " ", expression)
 
 
-def _matches_partial_greater_than(block: str, version: SemVerVersion) -> bool:
-    match = re.fullmatch(r">(\d+)(?:\.(\d+))?", block)
-    if not match:
-        return False
+VersionComponent = tuple[str, tuple[int, int, int], int]
+WILDCARD_VERSION_PART = -1
 
-    major = int(match.group(1))
-    minor = int(match.group(2) or 0)
-    if match.group(2) is None:
-        lower_bound = SemVerVersion(f"{major + 1}.0.0-0")
-        upper_bound = SemVerVersion(f"{major + 1}.0.0")
-    else:
-        lower_bound = SemVerVersion(f"{major}.{minor + 1}.0-0")
-        upper_bound = SemVerVersion(f"{major}.{minor + 1}.0")
 
-    return lower_bound <= version < upper_bound
+def _parse_solidity_version_expression(expression: str) -> list[list[VersionComponent]]:
+    ranges: list[list[VersionComponent]] = []
+    for range_expression in expression.split("||"):
+        blocks = range_expression.split()
+        if not blocks:
+            raise ValueError("Empty version pragma.")
+
+        if len(blocks) == 3 and blocks[1] == "-":
+            ranges.append(
+                [
+                    _parse_version_component(blocks[0], prefix=">="),
+                    _parse_version_component(blocks[2], prefix="<="),
+                ]
+            )
+        else:
+            ranges.append([_parse_version_component(block) for block in blocks])
+
+    return ranges
+
+
+def _parse_version_component(component: str, prefix: str | None = None) -> VersionComponent:
+    if prefix is None:
+        prefix = "="
+        for operator in (">=", "<=", "^", "~", ">", "<", "="):
+            if component.startswith(operator):
+                prefix = operator
+                component = component[len(operator) :]
+                break
+
+    version_parts = component.split(".")
+    if len(version_parts) > 3:
+        raise ValueError("Too many version levels.")
+
+    numbers = [0, 0, 0]
+    for index, part in enumerate(version_parts):
+        if part in ("*", "x", "X"):
+            numbers[index] = WILDCARD_VERSION_PART
+        elif part.isdecimal():
+            numbers[index] = int(part)
+        else:
+            raise ValueError(f"Expected version number, wildcard, or operator but got '{part}'.")
+
+    return prefix, (numbers[0], numbers[1], numbers[2]), len(version_parts)
+
+
+def _match_solidity_component(component: VersionComponent, version: SemVerVersion) -> bool:
+    prefix, numbers, levels_present = component
+    if prefix == "~":
+        upper_levels = 2 if levels_present >= 2 else 1
+        return _match_solidity_component((">=", numbers, levels_present), version) and (
+            _match_solidity_component(("<=", numbers, upper_levels), version)
+        )
+
+    elif prefix == "^":
+        upper_levels = 2 if numbers[0] == 0 and levels_present != 1 else 1
+        return _match_solidity_component((">=", numbers, levels_present), version) and (
+            _match_solidity_component(("<=", numbers, upper_levels), version)
+        )
+
+    cmp = 0
+    did_compare = False
+    version_parts = (version.major, version.minor, version.patch)
+    for index in range(levels_present):
+        if cmp == 0 and numbers[index] != WILDCARD_VERSION_PART:
+            did_compare = True
+            cmp = version_parts[index] - numbers[index]
+
+    if cmp == 0 and version.prerelease and did_compare:
+        cmp = -1
+
+    if prefix == "=":
+        return cmp == 0
+    elif prefix == "<":
+        return cmp < 0
+    elif prefix == "<=":
+        return cmp <= 0
+    elif prefix == ">":
+        return cmp > 0
+    elif prefix == ">=":
+        return cmp >= 0
+
+    raise ValueError(f"Unexpected version operator: '{prefix}'.")
 
 
 def get_import_lines(source_paths: Iterable[Path]) -> dict[Path, list[str]]:

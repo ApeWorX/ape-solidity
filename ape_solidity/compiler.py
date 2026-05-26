@@ -35,7 +35,6 @@ from ape_solidity._utils import (
     add_commit_hash,
     get_pragma_spec_from_path,
     get_pragma_spec_from_str,
-    get_versions_can_use,
     load_dict,
     select_version,
     strip_commit_hash,
@@ -607,7 +606,7 @@ class SolidityCompiler(CompilerAPI):
         if settings_version := self._get_configured_version(project=pm):
             version = settings_version
 
-        elif pragma := self._get_pramga_spec_from_str(code):
+        elif pragma := self._get_pragma_spec_from_str(code):
             if selected_version := select_version(pragma, self.installed_versions):
                 version = selected_version
             else:
@@ -785,9 +784,12 @@ class SolidityCompiler(CompilerAPI):
             f"{get_relative_path(path, project.path)} ({pragma_spec})"
             for path, pragma_spec in pragma_map.items()
         )
+        installed_versions = _format_versions(self.installed_versions)
+        available_versions = _format_versions(self.available_versions)
         raise CompilerError(
             "No installed or available Solidity compiler version satisfies "
-            f"the combined pragma constraints: {source_ids}."
+            f"the combined pragma constraints: {source_ids}. "
+            f"Installed versions: {installed_versions}. Available versions: {available_versions}."
         )
 
     def _select_version_for_pragmas(
@@ -797,11 +799,11 @@ class SolidityCompiler(CompilerAPI):
     ) -> Optional[Version]:
         candidates = list(options)
         for pragma_spec in pragma_specs:
-            candidates = get_versions_can_use(pragma_spec, candidates)
+            candidates = list(pragma_spec.filter(candidates))
             if not candidates:
                 return None
 
-        return candidates[0] if candidates else None
+        return sorted(candidates, reverse=True)[0]
 
     def _get_best_version_without_pragma(self) -> Version:
         if latest_installed := self.latest_installed_version:
@@ -816,7 +818,7 @@ class SolidityCompiler(CompilerAPI):
 
         return add_commit_hash(compiler_version)
 
-    def _get_pramga_spec_from_str(self, source_str: str) -> Optional[SolidityVersionSpecifier]:
+    def _get_pragma_spec_from_str(self, source_str: str) -> Optional[SolidityVersionSpecifier]:
         if not (pragma_spec := get_pragma_spec_from_str(source_str)):
             return None
 
@@ -845,45 +847,6 @@ class SolidityCompiler(CompilerAPI):
             raise CompilerError(f"Solidity version specification '{pragma_spec}' could not be met.")
 
         return pragma_spec
-
-    def _get_best_versions(self, path: Path, options, source_by_pragma_spec: dict) -> list[Version]:
-        # NOTE: Doesn't install.
-        if pragma_spec := source_by_pragma_spec.get(path):
-            res = get_versions_can_use(pragma_spec, list(options))
-        elif latest_installed := self.latest_installed_version:
-            res = [latest_installed]
-        elif latest := self.latest_version:
-            res = [latest]
-        else:
-            raise SolcInstallError()
-
-        return [add_commit_hash(v) for v in res]
-
-    def _get_best_version(self, path: Path, source_by_pragma_spec: dict) -> Version:
-        compiler_version: Optional[Version] = None
-        if pragma_spec := source_by_pragma_spec.get(path):
-            if selected := select_version(pragma_spec, self.installed_versions):
-                compiler_version = selected
-
-            elif selected := select_version(pragma_spec, self.available_versions):
-                # Install missing version.
-                # NOTE: Must be installed before adding commit hash.
-                _install_solc(selected)
-                compiler_version = add_commit_hash(selected)
-
-        elif latest_installed := self.latest_installed_version:
-            compiler_version = latest_installed
-
-        elif latest := self.latest_version:
-            # Download latest version.
-            _install_solc(latest)
-            compiler_version = latest
-
-        else:
-            raise SolcInstallError()
-
-        assert compiler_version  # For mypy
-        return add_commit_hash(compiler_version)
 
     def enrich_error(self, err: ContractLogicError) -> ContractLogicError:
         if not is_0x_prefixed(err.revert_message):
@@ -1219,6 +1182,11 @@ def _get_sol_panic(revert_message: str) -> Optional[type[RuntimeErrorUnion]]:
 
 def _try_max(ls: list[Any]):
     return max(ls) if ls else None
+
+
+def _format_versions(versions: Iterable[Version]) -> str:
+    sorted_versions = sorted(versions, reverse=True)
+    return ", ".join(str(version) for version in sorted_versions) or "none"
 
 
 def _validate_can_compile(paths: Iterable[Path]) -> Sequence[Path]:

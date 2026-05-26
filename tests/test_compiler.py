@@ -368,6 +368,34 @@ def test_get_pragma_spec_matches_solc_semver_negative_examples(pragma, non_match
     assert non_matching_version not in spec
 
 
+@pytest.mark.parametrize(
+    ("pragma", "matching_version"),
+    (
+        ("<=1.2.3", "1.2.3b0"),
+        ("<1.2.3", "1.2.3b0"),
+        (">1.2", "1.3.0b0"),
+    ),
+)
+def test_get_pragma_spec_matches_packaging_version_prereleases(pragma, matching_version):
+    spec = get_pragma_spec_from_str(f"pragma solidity {pragma};")
+    assert spec is not None
+    assert Version(matching_version) in spec
+
+
+@pytest.mark.parametrize(
+    ("pragma", "non_matching_version"),
+    (
+        ("=1.2.3", "1.2.3b0"),
+        ("^1.2.3", "1.2.3b0"),
+        ("^0.6", "0.6.2a0"),
+    ),
+)
+def test_get_pragma_spec_rejects_packaging_version_prereleases(pragma, non_matching_version):
+    spec = get_pragma_spec_from_str(f"pragma solidity {pragma};")
+    assert spec is not None
+    assert Version(non_matching_version) not in spec
+
+
 def create_solidity_project(tmp_path, sources):
     project_path = tmp_path / "SolidityProject"
     contracts_path = project_path / "contracts"
@@ -483,6 +511,8 @@ contract IncompatibleImportDependency {}
     assert "combined pragma constraints" in message
     assert "contracts/IncompatibleImport.sol" in message
     assert "contracts/IncompatibleImportDependency.sol" in message
+    assert "Installed versions: 0.8.28, 0.7.6" in message
+    assert "Available versions: 0.8.28, 0.7.6" in message
 
 
 def test_get_version_map_no_pragma_importer_uses_import_constraints(tmp_path, compiler):
