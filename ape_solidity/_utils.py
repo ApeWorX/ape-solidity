@@ -118,7 +118,7 @@ def _parse_version_component(component: str, prefix: str | None = None) -> Versi
         for operator in (">=", "<=", "^", "~", ">", "<", "="):
             if component.startswith(operator):
                 prefix = operator
-                component = component[len(operator) :]
+                component = component.removeprefix(operator)
                 break
 
     version_parts = component.split(".")
