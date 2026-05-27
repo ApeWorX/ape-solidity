@@ -75,7 +75,6 @@ setup(
         "eth-pydantic-types",  # Use the version ape requires
         "packaging",  # Use the version ape requires
         "requests",
-        "semantic-version>=2.10,<3",
     ],
     python_requires=">=3.10,<4",
     extras_require=extras_require,

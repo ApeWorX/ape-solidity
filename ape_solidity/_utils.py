@@ -1,13 +1,13 @@
 import json
 import re
 from collections.abc import Iterable
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Union
 
 from ape.exceptions import CompilerError
 from packaging.version import Version
-from semantic_version import Version as SemVerVersion  # type: ignore[import-untyped]
 from solcx.install import get_executable
 from solcx.wrapper import get_solc_version as get_solc_version_from_binary
 
@@ -26,22 +26,52 @@ class Extension(Enum):
     SOL = ".sol"
 
 
+@dataclass(frozen=True)
+class SoliditySemVer:
+    major: int
+    minor: int
+    patch: int
+    prerelease: str = ""
+    build: str = ""
+
+    @classmethod
+    def parse(cls, version: str) -> "SoliditySemVer":
+        match = re.fullmatch(
+            r"(?P<major>0|[1-9]\d*)\."
+            r"(?P<minor>0|[1-9]\d*)\."
+            r"(?P<patch>0|[1-9]\d*)"
+            r"(?:-(?P<prerelease>[0-9A-Za-z.-]+))?"
+            r"(?:\+(?P<build>[0-9A-Za-z.-]+))?",
+            version,
+        )
+        if not match:
+            raise ValueError(f"Invalid Solidity version: '{version}'.")
+
+        return cls(
+            major=int(match.group("major")),
+            minor=int(match.group("minor")),
+            patch=int(match.group("patch")),
+            prerelease=match.group("prerelease") or "",
+            build=match.group("build") or "",
+        )
+
+
 class SolidityVersionSpecifier:
     def __init__(self, expression: str):
         self.pragma_str = expression
         self.expression = _normalize_pragma_expression(expression)
         self._ranges = _parse_solidity_version_expression(self.expression)
 
-    def __contains__(self, version: Union[str, Version, SemVerVersion]) -> bool:
+    def __contains__(self, version: Union[str, Version, SoliditySemVer]) -> bool:
         return self.contains(version)
 
     def __str__(self) -> str:
         return self.expression
 
     def match(self, version: Version) -> bool:
-        return self.contains(_as_npm_version(version))
+        return self.contains(_as_solidity_semver(version))
 
-    def contains(self, version: Union[str, Version, SemVerVersion]) -> bool:
+    def contains(self, version: Union[str, Version, SoliditySemVer]) -> bool:
         if isinstance(version, Version):
             return self.match(version)
 
@@ -55,7 +85,7 @@ class SolidityVersionSpecifier:
         return (version for version in versions if self.match(version))
 
 
-def _as_npm_version(version: Version) -> SemVerVersion:
+def _as_solidity_semver(version: Version) -> SoliditySemVer:
     release = ".".join(str(part) for part in (*version.release[:3], 0, 0)[:3])
     prerelease = ""
     if version.pre:
@@ -68,17 +98,17 @@ def _as_npm_version(version: Version) -> SemVerVersion:
     elif version.dev is not None:
         prerelease = f"-dev.{version.dev}"
 
-    return SemVerVersion(f"{release}{prerelease}")
+    return SoliditySemVer.parse(f"{release}{prerelease}")
 
 
-def _coerce_semver_version(version: Union[str, Version, SemVerVersion]) -> SemVerVersion:
-    if isinstance(version, SemVerVersion):
+def _coerce_semver_version(version: Union[str, Version, SoliditySemVer]) -> SoliditySemVer:
+    if isinstance(version, SoliditySemVer):
         return version
 
     if isinstance(version, Version):
-        return _as_npm_version(version)
+        return _as_solidity_semver(version)
 
-    return SemVerVersion(str(version))
+    return SoliditySemVer.parse(str(version))
 
 
 def _normalize_pragma_expression(expression: str) -> str:
@@ -137,7 +167,7 @@ def _parse_version_component(component: str, prefix: str | None = None) -> Versi
     return prefix, (numbers[0], numbers[1], numbers[2]), len(version_parts)
 
 
-def _match_solidity_component(component: VersionComponent, version: SemVerVersion) -> bool:
+def _match_solidity_component(component: VersionComponent, version: SoliditySemVer) -> bool:
     prefix, numbers, levels_present = component
     if prefix == "~":
         upper_levels = 2 if levels_present >= 2 else 1
