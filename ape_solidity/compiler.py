@@ -145,6 +145,20 @@ class SolidityConfig(PluginConfig):
     the compiler (same as ``False``).
     """
 
+    optimization_yul: Optional[bool] = None
+    """
+    Set to ``True`` to turn on Yul optimization.
+    Defaults to ``None`` which does not pass the flag to
+    the compiler (same as ``False``).
+    """
+
+    optimization_steps: Optional[str] = None
+    """
+    Set to a string of optimizer steps to use.
+    Defaults to ``None`` which does not pass the flag to
+    the compiler (same as ``False``).
+    """
+
 
 def _get_flattened_source(path: Path, name: Optional[str] = None) -> str:
     name = name or path.name
@@ -368,6 +382,19 @@ class SolidityCompiler(CompilerAPI):
 
             if solc_version >= Version("0.7.5") and config.via_ir is not None:
                 version_settings["viaIR"] = config.via_ir
+
+            if config.optimization_yul is not None:
+                if solc_version >= Version("0.8.22"):
+                    version_settings["optimizer"]["yul"] = config.optimization_yul
+                    if (
+                        config.optimization_steps is not None
+                    ):  # needs yul so is inside the yul check
+                        version_settings["optimizer"]["steps"] = config.optimization_steps
+                else:
+                    logger.warning(
+                        """Yul optimization and steps are not supported for this version of solc
+                     (Need >= 0.8.22)."""
+                    )
 
             settings[solc_version] = version_settings
 

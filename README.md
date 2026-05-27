@@ -146,6 +146,22 @@ solidity:
   via_ir: True
 ```
 
+#### Yul Optimization
+
+You can enable `solc`'s `--yul` flag by adding the following values to your `ape-config.yaml`
+
+```yaml
+solidity:
+  optimization_yul: True
+```
+
+You can also set the optimizer steps by adding the following values to your `ape-config.yaml`. You can find the list of optimizer steps [here](https://docs.soliditylang.org/en/v0.8.22/using-the-compiler.html#optimizer-steps). This requires the yul optimizer to be enabled.
+
+```yaml
+solidity:
+  optimization_steps: "dhfoDgvulfnTUtnIf"
+```
+
 ### Contract Flattening
 
 `ape-solidity` has contract-flattening capabilities.

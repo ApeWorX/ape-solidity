@@ -11,6 +11,9 @@ cd ape-solidity
 python3 -m venv venv
 source venv/bin/activate
 
+#install setuptools
+pip install setuptools
+
 # install ape-solidity into the virtual environment
 python setup.py install
 
