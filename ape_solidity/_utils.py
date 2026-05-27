@@ -58,7 +58,6 @@ class SoliditySemVer:
 
 class SolidityVersionSpecifier:
     def __init__(self, expression: str):
-        self.pragma_str = expression
         self.expression = _normalize_pragma_expression(expression)
         self._ranges = _parse_solidity_version_expression(self.expression)
 
@@ -292,16 +291,10 @@ def add_commit_hash(version: Union[str, Version]) -> Version:
     return get_solc_version_from_binary(solc, with_commit_hash=True)
 
 
-def get_versions_can_use(
-    pragma_spec: SolidityVersionSpecifier, options: Iterable[Version]
-) -> list[Version]:
-    return sorted(list(pragma_spec.filter(options)), reverse=True)
-
-
 def select_version(
     pragma_spec: SolidityVersionSpecifier, options: Iterable[Version]
 ) -> Optional[Version]:
-    choices = get_versions_can_use(pragma_spec, options)
+    choices = sorted(pragma_spec.filter(options), reverse=True)
     return choices[0] if choices else None
 
 
