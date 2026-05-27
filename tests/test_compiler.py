@@ -432,7 +432,10 @@ def test_get_version_map_importing_more_constrained_version(project, compiler):
 
     actual = compiler.get_version_map((path,), project=project)
     expected_version = Version("0.8.12+commit.f00d7308")
-    expected_sources = ("ImportSourceWithEqualSignVersion", "SpecificVersionWithEqualSign")
+    expected_sources = (
+        "ImportSourceWithEqualSignVersion",
+        "SpecificVersionWithEqualSign",
+    )
     assert expected_version in actual
 
     actual_ids = [x.stem for x in actual[expected_version]]
@@ -1070,3 +1073,19 @@ contract Contract {
     assert actual.ast is not None
     assert len(actual.runtime_bytecode.bytecode) > 0
     assert len(actual.deployment_bytecode.bytecode) > 0
+
+
+def test_compile_relative_path_from_other_cwd(project, compiler, tmp_path, monkeypatch):
+    # Regression: a relative source path must be resolved against the
+    # project root, not the current working directory.
+    monkeypatch.chdir(tmp_path)
+    actual = [c for c in compiler.compile(("contracts/CompilesOnce.sol",), project=project)]
+    assert len(actual) == 1
+    assert actual[0].name == "CompilesOnce"
+    assert actual[0].source_id == "contracts/CompilesOnce.sol"
+
+
+def test_compile_missing_source_raises_clear_error(project, compiler, monkeypatch):
+    monkeypatch.chdir(project.path)
+    with pytest.raises(CompilerError, match=r"not found in .*project path:"):
+        list(compiler.compile(("contracts/DoesNotExist.sol",), project=project))

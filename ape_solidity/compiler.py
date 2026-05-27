@@ -301,7 +301,10 @@ class SolidityCompiler(CompilerAPI):
         return remapping
 
     def get_compiler_settings(
-        self, contract_filepaths: Iterable[Path], project: Optional[ProjectManager] = None, **kwargs
+        self,
+        contract_filepaths: Iterable[Path],
+        project: Optional[ProjectManager] = None,
+        **kwargs,
     ) -> dict[Version, dict]:
         pm = project or self.local_project
         paths = _validate_can_compile(contract_filepaths)
@@ -341,9 +344,15 @@ class SolidityCompiler(CompilerAPI):
         settings: dict = {}
         for solc_version, sources in version_map.items():
             version_settings: dict[str, Union[Any, list[Any]]] = {
-                "optimizer": {"enabled": config.optimize, "runs": config.optimization_runs},
+                "optimizer": {
+                    "enabled": config.optimize,
+                    "runs": config.optimization_runs,
+                },
                 "outputSelection": {
-                    str(get_relative_path(p, pm.path)): {"*": OUTPUT_SELECTION, "": ["ast"]}
+                    str(get_relative_path(p, pm.path)): {
+                        "*": OUTPUT_SELECTION,
+                        "": ["ast"],
+                    }
                     for p in sorted(sources)
                 },
                 **kwargs,
@@ -415,18 +424,10 @@ class SolidityCompiler(CompilerAPI):
             if solc_version >= Version("0.6.9"):
                 arguments["base_path"] = pm.path
 
-            vers_settings["outputSelection"] = {
-                k: v for k, v in vers_settings["outputSelection"].items() if (pm.path / k).is_file()
-            }
-
             if missing_sources := [
                 x for x in vers_settings["outputSelection"] if not (pm.path / x).is_file()
             ]:
-                # See if the missing sources are from dependencies (they likely are)
-                # and cater the error message accordingly.
                 if dependencies_needed := [x for x in missing_sources if str(x).startswith("@")]:
-                    # Missing dependencies. Should only get here if dependencies are found
-                    # in import-strs but are not installed (not in project or globally).
                     missing_str = ", ".join(dependencies_needed)
                     raise CompilerError(
                         f"Missing required dependencies '{missing_str}'. "
@@ -434,11 +435,11 @@ class SolidityCompiler(CompilerAPI):
                         "in an ape-config.yaml or using the `ape pm install` command."
                     )
 
-                # Otherwise, we are missing project-level source files for some reason.
-                # This would only happen if the user passes in unexpected files outside
-                # of core.
                 missing_src_str = ", ".join(missing_sources)
-                raise CompilerError(f"Sources '{missing_src_str}' not found in '{pm.name}'.")
+                raise CompilerError(
+                    f"Sources '{missing_src_str}' not found in '{pm.name}' "
+                    f"(project path: {pm.path})."
+                )
 
             sources = {
                 x: {"content": (pm.path / x).read_text(encoding="utf8")}
@@ -461,8 +462,8 @@ class SolidityCompiler(CompilerAPI):
     ) -> Iterator[ContractType]:
         pm = project or self.local_project
         settings = settings or {}
-        paths = [p for p in contract_filepaths]  # Handles generator.
-        source_ids = [f"{get_relative_path(p.absolute(), pm.path)}" for p in paths]
+        paths = [(p if Path(p).is_absolute() else pm.path / p) for p in contract_filepaths]
+        source_ids = [f"{get_relative_path(Path(p).absolute(), pm.path)}" for p in paths]
         _validate_can_compile(paths)
 
         # Compile in an isolated env so the .cache folder does not interfere with anything.
@@ -500,7 +501,10 @@ class SolidityCompiler(CompilerAPI):
             logger.info(log_str)
             cleaned_version = Version(solc_version.base_version)
             solc_binary = get_executable(version=cleaned_version)
-            arguments: dict = {"solc_binary": solc_binary, "solc_version": cleaned_version}
+            arguments: dict = {
+                "solc_binary": solc_binary,
+                "solc_version": cleaned_version,
+            }
 
             if solc_version >= Version("0.6.9"):
                 arguments["base_path"] = pm.path
