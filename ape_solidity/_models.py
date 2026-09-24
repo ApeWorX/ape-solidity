@@ -72,7 +72,7 @@ def _create_import_remapping(project: "ProjectManager") -> dict[str, str]:
             remapping[key] = value
             continue
 
-        elif len(parts) == 2:
+        if len(parts) == 2:
             _version = parts[1]
 
         if _version is None:
@@ -128,17 +128,17 @@ class ImportStatementMetadata(ApeSolidityModel):
     raw_value: str
 
     # Only set when remappings are involved.
-    import_remap_key: Optional[str] = None
-    import_remap_value: Optional[str] = None
+    import_remap_key: str | None = None
+    import_remap_value: str | None = None
 
     # Only set when import-remapping resolves to a dependency.
-    dependency_name: Optional[str] = None
-    dependency_version: Optional[str] = None
+    dependency_name: str | None = None
+    dependency_version: str | None = None
 
     # Set once a source-file is located. This happens _after_
     # dependency related properties.
-    source_id: Optional[str] = None
-    path: Optional[Path] = None
+    source_id: str | None = None
+    path: Path | None = None
 
     @property
     def value(self) -> str:
@@ -345,7 +345,7 @@ class SourceTree(ApeSolidityModel):
         cls,
         source_files: Iterable[Path],
         project: "ProjectManager",
-        statements: Optional[dict[tuple[Path, str], set[ImportStatementMetadata]]] = None,
+        statements: dict[tuple[Path, str], set[ImportStatementMetadata]] | None = None,
         dependency: Optional["ProjectManager"] = None,
     ) -> "SourceTree":
         statements = statements or {}

@@ -2,7 +2,7 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from ape.api import CompilerAPI, PluginConfig
 from ape.exceptions import CompilerError, ConfigError, ContractLogicError
@@ -126,19 +126,19 @@ class SolidityConfig(PluginConfig):
     values will optimize more for high-frequency usage.
     """
 
-    version: Optional[str] = None
+    version: str | None = None
     """
     Hardcode a Solidity version to use. When not set,
     ape-solidity attempts to use the best version(s)
     available.
     """
 
-    evm_version: Optional[str] = None
+    evm_version: str | None = None
     """
     Compile targeting this EVM version.
     """
 
-    via_ir: Optional[bool] = None
+    via_ir: bool | None = None
     """
     Set to ``True`` to turn on compilation mode via the IR.
     Defaults to ``None`` which does not pass the flag to
@@ -146,7 +146,7 @@ class SolidityConfig(PluginConfig):
     """
 
 
-def _get_flattened_source(path: Path, name: Optional[str] = None) -> str:
+def _get_flattened_source(path: Path, name: str | None = None) -> str:
     name = name or path.name
     result = f"// File: {name}\n"
     result += f"{path.read_text(encoding='utf8').rstrip()}\n"
@@ -190,7 +190,7 @@ class SolidityCompiler(CompilerAPI):
         return get_installed_solc_versions()
 
     @property
-    def latest_version(self) -> Optional[Version]:
+    def latest_version(self) -> Version | None:
         """
         Returns the latest version available of ``solc``.
         When unable to retrieve available ``solc`` versions, such as
@@ -199,7 +199,7 @@ class SolidityCompiler(CompilerAPI):
         return _try_max(self.available_versions)
 
     @property
-    def latest_installed_version(self) -> Optional[Version]:
+    def latest_installed_version(self) -> Version | None:
         """
         Returns the highest version of all the installed versions.
         If ``solc`` is not installed at all, returns ``None``.
@@ -210,9 +210,7 @@ class SolidityCompiler(CompilerAPI):
     def _import_remapping_cache(self) -> ImportRemappingCache:
         return ImportRemappingCache()
 
-    def _get_configured_version(
-        self, project: Optional[ProjectManager] = None
-    ) -> Optional[Version]:
+    def _get_configured_version(self, project: ProjectManager | None = None) -> Version | None:
         """
         A helper property that gets, verifies, and installs (if needed)
         the version specified in the config.
@@ -241,7 +239,7 @@ class SolidityCompiler(CompilerAPI):
     def _ape_version(self) -> Version:
         return Version(version.split(".dev")[0].strip())
 
-    def add_library(self, *contracts: "ContractInstance", project: Optional[ProjectManager] = None):
+    def add_library(self, *contracts: "ContractInstance", project: ProjectManager | None = None):
         """
         Set a library contract type address. This is useful when deploying a library
         in a local network and then adding the address afterward. Now, when
@@ -255,7 +253,7 @@ class SolidityCompiler(CompilerAPI):
         for contract in contracts:
             if not (source_id := contract.contract_type.source_id):
                 raise CompilerError("Missing source ID.")
-            elif not (name := contract.contract_type.name):
+            if not (name := contract.contract_type.name):
                 raise CompilerError("Missing contract type name.")
 
             self._libraries[source_id] = {name: contract.address}
@@ -283,7 +281,7 @@ class SolidityCompiler(CompilerAPI):
 
         return versions
 
-    def get_import_remapping(self, project: Optional[ProjectManager] = None) -> dict[str, str]:
+    def get_import_remapping(self, project: ProjectManager | None = None) -> dict[str, str]:
         """
         Config remappings like ``'@import_name=path/to/dependency'`` parsed here
         as ``{'@import_name': 'path/to/dependency'}``.
@@ -303,7 +301,7 @@ class SolidityCompiler(CompilerAPI):
     def get_compiler_settings(
         self,
         contract_filepaths: Iterable[Path],
-        project: Optional[ProjectManager] = None,
+        project: ProjectManager | None = None,
         **kwargs,
     ) -> dict[Version, dict]:
         pm = project or self.local_project
@@ -315,7 +313,7 @@ class SolidityCompiler(CompilerAPI):
         self,
         contract_filepaths: Iterable[Path],
         import_tree: SourceTree,
-        project: Optional[ProjectManager] = None,
+        project: ProjectManager | None = None,
         **kwargs,
     ):
         pm = project or self.local_project
@@ -333,7 +331,7 @@ class SolidityCompiler(CompilerAPI):
         self,
         version_map: dict[Version, set[Path]],
         import_tree: SourceTree,
-        project: Optional[ProjectManager] = None,
+        project: ProjectManager | None = None,
         **kwargs,
     ) -> dict[Version, dict]:
         pm = project or self.local_project
@@ -343,7 +341,7 @@ class SolidityCompiler(CompilerAPI):
         config = self.get_config(project=pm)
         settings: dict = {}
         for solc_version, sources in version_map.items():
-            version_settings: dict[str, Union[Any, list[Any]]] = {
+            version_settings: dict[str, Any | list[Any]] = {
                 "optimizer": {
                     "enabled": config.optimize,
                     "runs": config.optimization_runs,
@@ -380,7 +378,7 @@ class SolidityCompiler(CompilerAPI):
     def get_standard_input_json(
         self,
         contract_filepaths: Iterable[Path],
-        project: Optional[ProjectManager] = None,
+        project: ProjectManager | None = None,
         **overrides,
     ) -> dict[Version, dict]:
         pm = project or self.local_project
@@ -395,7 +393,7 @@ class SolidityCompiler(CompilerAPI):
         self,
         version_map: dict[Version, set[Path]],
         import_tree: SourceTree,
-        project: Optional[ProjectManager] = None,
+        project: ProjectManager | None = None,
         **overrides,
     ):
         pm = project or self.local_project
@@ -408,7 +406,7 @@ class SolidityCompiler(CompilerAPI):
         self,
         settings: dict[Version, dict],
         version_map: dict[Version, set[Path]],
-        project: Optional[ProjectManager] = None,
+        project: ProjectManager | None = None,
     ):
         pm = project or self.local_project
         input_jsons: dict[Version, dict] = {}
@@ -457,8 +455,8 @@ class SolidityCompiler(CompilerAPI):
     def compile(
         self,
         contract_filepaths: Iterable[Path],
-        project: Optional[ProjectManager] = None,
-        settings: Optional[dict] = None,
+        project: ProjectManager | None = None,
+        settings: dict | None = None,
     ) -> Iterator[ContractType]:
         pm = project or self.local_project
         settings = settings or {}
@@ -477,8 +475,8 @@ class SolidityCompiler(CompilerAPI):
     def _compile(
         self,
         contract_filepaths: Iterable[Path],
-        project: Optional[ProjectManager] = None,
-        settings: Optional[dict] = None,
+        project: ProjectManager | None = None,
+        settings: dict | None = None,
     ):
         pm = project or self.local_project
         paths = list(contract_filepaths)  # Handle if given generator=
@@ -603,7 +601,7 @@ class SolidityCompiler(CompilerAPI):
     def compile_code(
         self,
         code: str,
-        project: Optional[ProjectManager] = None,
+        project: ProjectManager | None = None,
         **kwargs,
     ) -> ContractType:
         pm = project or self.local_project
@@ -662,7 +660,7 @@ class SolidityCompiler(CompilerAPI):
     def get_imports(
         self,
         contract_filepaths: Iterable[Path],
-        project: Optional[ProjectManager] = None,
+        project: ProjectManager | None = None,
     ) -> dict[str, list[str]]:
         pm = project or self.local_project
         paths = _validate_can_compile(contract_filepaths)
@@ -671,8 +669,8 @@ class SolidityCompiler(CompilerAPI):
 
     def get_version_map(
         self,
-        contract_filepaths: Union[Path, Iterable[Path]],
-        project: Optional[ProjectManager] = None,
+        contract_filepaths: Path | Iterable[Path],
+        project: ProjectManager | None = None,
     ) -> dict[Version, set[Path]]:
         pm = project or self.local_project
         paths = (
@@ -686,9 +684,9 @@ class SolidityCompiler(CompilerAPI):
 
     def get_version_map_from_imports(
         self,
-        contract_filepaths: Union[Path, Iterable[Path]],
+        contract_filepaths: Path | Iterable[Path],
         import_tree: SourceTree,
-        project: Optional[ProjectManager] = None,
+        project: ProjectManager | None = None,
     ) -> dict[Version, set[Path]]:
         pm = project or self.local_project
         paths = (
@@ -762,7 +760,7 @@ class SolidityCompiler(CompilerAPI):
     def _get_best_version_for_source_set(
         self,
         source_paths: set[Path],
-        source_by_pragma_spec: dict[Path, Optional[SolidityVersionSpecifier]],
+        source_by_pragma_spec: dict[Path, SolidityVersionSpecifier | None],
         project: ProjectManager,
     ) -> Version:
         pragma_map = {
@@ -800,7 +798,7 @@ class SolidityCompiler(CompilerAPI):
         self,
         pragma_specs: Iterable[SolidityVersionSpecifier],
         options: Iterable[Version],
-    ) -> Optional[Version]:
+    ) -> Version | None:
         candidates = list(options)
         for pragma_spec in pragma_specs:
             candidates = list(pragma_spec.filter(candidates))
@@ -822,7 +820,7 @@ class SolidityCompiler(CompilerAPI):
 
         return add_commit_hash(compiler_version)
 
-    def _get_pragma_spec_from_str(self, source_str: str) -> Optional[SolidityVersionSpecifier]:
+    def _get_pragma_spec_from_str(self, source_str: str) -> SolidityVersionSpecifier | None:
         if not (pragma_spec := get_pragma_spec_from_str(source_str)):
             return None
 
@@ -830,7 +828,7 @@ class SolidityCompiler(CompilerAPI):
         if select_version(pragma_spec, self.installed_versions):
             return pragma_spec
 
-        elif compiler_version := select_version(pragma_spec, self.available_versions):
+        if compiler_version := select_version(pragma_spec, self.available_versions):
             _install_solc(compiler_version)
 
         else:
@@ -857,7 +855,7 @@ class SolidityCompiler(CompilerAPI):
             # Nothing to do.
             return err
 
-        elif panic_cls := _get_sol_panic(err.revert_message):
+        if panic_cls := _get_sol_panic(err.revert_message):
             return panic_cls(
                 base_err=err.base_err,
                 contract_address=err.contract_address,
@@ -900,11 +898,11 @@ class SolidityCompiler(CompilerAPI):
 
     def _flatten_source(
         self,
-        path: Union[Path, str],
+        path: Path | str,
         import_tree: SourceTree,
-        project: Optional[ProjectManager] = None,
-        raw_import_name: Optional[str] = None,
-        handled: Optional[set[str]] = None,
+        project: ProjectManager | None = None,
+        raw_import_name: str | None = None,
+        handled: set[str] | None = None,
     ) -> str:
         pm = project or self.local_project
         handled = handled or set()
@@ -915,9 +913,7 @@ class SolidityCompiler(CompilerAPI):
 
         final_source = ""
         for import_metadata in relevant_imports:
-            if import_metadata.source_id in handled:
-                continue
-            elif not (sub_path := import_metadata.path):
+            if import_metadata.source_id in handled or not (sub_path := import_metadata.path):
                 continue
 
             sub_source = self._flatten_source(
@@ -938,7 +934,7 @@ class SolidityCompiler(CompilerAPI):
         return final_source
 
     def flatten_contract(
-        self, path: Path, project: Optional[ProjectManager] = None, **kwargs
+        self, path: Path, project: ProjectManager | None = None, **kwargs
     ) -> Content:
         pm = project or self.local_project
         tree = SourceTree.from_source_files((path,), pm)
@@ -961,7 +957,7 @@ class SolidityCompiler(CompilerAPI):
         self,
         _import_str: str,
         source_path: Path,
-        project: Optional[ProjectManager] = None,
+        project: ProjectManager | None = None,
     ) -> str:
         pm = project or self.local_project
         quote = '"' if '"' in _import_str else "'"
@@ -1053,7 +1049,7 @@ class SolidityCompiler(CompilerAPI):
 
             return adjusted_src_id
 
-        elif base_path is None:
+        if base_path is None:
             # No base_path, return as-is.
             return import_str_value
 
@@ -1072,7 +1068,7 @@ def remove_imports(source_code: str) -> str:
 
             continue
 
-        elif in_multiline_import:
+        if in_multiline_import:
             if line.rstrip().endswith(";"):
                 in_multiline_import = False
 
@@ -1168,7 +1164,7 @@ def process_licenses(contract: str) -> str:
     return contract_with_single_license
 
 
-def _get_sol_panic(revert_message: str) -> Optional[type[RuntimeErrorUnion]]:
+def _get_sol_panic(revert_message: str) -> type[RuntimeErrorUnion] | None:
     if revert_message.startswith(RUNTIME_ERROR_CODE_PREFIX):
         # ape-geth (style) plugins show the hex with the Panic ABI prefix.
         error_type_val = int(
