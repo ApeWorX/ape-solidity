@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ape-solidity"
-description = "ape-solidity: Ape plugin"
+description = "Plugin for Ape Ethereum Framework for compiling Solidity contracts"
 readme = "README.md"
 authors = [
     {name = "ApeWorX Ltd.", email = "admin@apeworx.io"}
