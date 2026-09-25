@@ -97,8 +97,8 @@ Use the `add_library()` method from the `ape-solidity` compiler class to add the
 A typical flow is:
 
 1. Deploy the library.
-1. Call `add_library()` using the Solidity compiler plugin, which will also re-compile contracts that need the library.
-1. Deploy and use contracts that require the library.
+2. Call `add_library()` using the Solidity compiler plugin, which will also re-compile contracts that need the library.
+3. Deploy and use contracts that require the library.
 
 For example:
 
