@@ -74,7 +74,7 @@ class ImportRemapping(PluginConfig):
     """
 
     @model_validator(mode="before")
-    def validate_str(cls, value):
+    def validate_str(self, value):
         if isinstance(value, str):
             parts = value.split("=")
             return {"key": parts[0], "value": parts[1]}
@@ -491,10 +491,7 @@ class SolidityCompiler(CompilerAPI):
         contract_versions: dict[str, Version] = {}
         contract_types: list[ContractType] = []
         for solc_version, input_json in input_jsons.items():
-            keys = (
-                "\n\t".join(sorted([x for x in input_json.get("sources", {}).keys()]))
-                or "No input."
-            )
+            keys = "\n\t".join(sorted([x for x in input_json.get("sources", {})])) or "No input."
             log_str = f"Compiling using Solidity compiler '{solc_version}'.\nInput:\n\t{keys}"
             logger.info(log_str)
             cleaned_version = Version(solc_version.base_version)
@@ -909,7 +906,7 @@ class SolidityCompiler(CompilerAPI):
         path = Path(path)
         source_id = f"{get_relative_path(path, pm.path)}" if path.is_absolute() else f"{path}"
         handled.add(source_id)
-        relevant_imports = sorted(list(import_tree[path]), key=lambda x: x.raw_value)
+        relevant_imports = sorted(import_tree[path], key=lambda x: x.raw_value)
 
         final_source = ""
         for import_metadata in relevant_imports:

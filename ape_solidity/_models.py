@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 
 class ApeSolidityMixin(ManagerAccessMixin):
     @classproperty
-    def solidity(cls) -> "SolidityCompiler":
-        return cls.compiler_manager.solidity
+    def solidity(self) -> "SolidityCompiler":
+        return self.compiler_manager.solidity
 
 
 class ApeSolidityModel(BaseModel, ApeSolidityMixin):
@@ -149,9 +149,8 @@ class ImportStatementMetadata(ApeSolidityModel):
 
     @property
     def dependency(self) -> Optional["ProjectManager"]:
-        if name := self.dependency_name:
-            if version := self.dependency_version:
-                return self.local_project.dependencies[name][version]
+        if (name := self.dependency_name) and (version := self.dependency_version):
+            return self.local_project.dependencies[name][version]
 
         return None
 
@@ -336,8 +335,7 @@ class SourceTree(ApeSolidityModel):
         imports_by_source_id = {k[1]: v for k, v in statements.items()}
         keys = sorted(imports_by_source_id.keys())
         return {
-            k: sorted(list({i.source_id for i in imports_by_source_id[k] if i.source_id}))
-            for k in keys
+            k: sorted({i.source_id for i in imports_by_source_id[k] if i.source_id}) for k in keys
         }
 
     @classmethod

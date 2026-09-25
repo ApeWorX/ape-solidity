@@ -603,7 +603,7 @@ def test_get_version_map_dependencies(project, compiler):
     elif actual_len < expected_len:
         pytest.fail(fail_msg)
 
-    versions = sorted(list(actual.keys()))
+    versions = sorted(actual.keys())
     older = versions[0]  # Via ImportOlderDependency
     latest = versions[1]  # via UseYearn
 
@@ -670,7 +670,7 @@ def test_get_version_map_raises_on_non_solidity_sources(project, compiler):
 def test_get_version_map_full_project(project, compiler):
     paths = [x for x in project.sources.paths if x.suffix == ".sol"]
     actual = compiler.get_version_map(paths, project=project)
-    latest = sorted(list(actual.keys()), reverse=True)[0]
+    latest = sorted(actual.keys(), reverse=True)[0]
     v0812 = Version("0.8.12+commit.f00d7308")
     vold = Version("0.4.26+commit.4563c3fc")
     assert v0812 in actual
@@ -728,7 +728,7 @@ def test_get_compiler_settings(project, compiler):
     assert settings["evmVersion"] == "constantinople"
 
     # Should be all files (imports of imports etc.)
-    actual_files = sorted(list(settings["outputSelection"].keys()))
+    actual_files = sorted(settings["outputSelection"].keys())
     expected_files = [
         "contracts/.cache/browniedependency/local/contracts/BrownieContract.sol",
         "contracts/.cache/dependency/local/contracts/Dependency.sol",
@@ -769,7 +769,7 @@ def test_get_standard_input_json(project, compiler):
     v0812 = Version("0.8.12+commit.f00d7308")
     v056 = Version("0.5.16+commit.9c3226ce")
     v0426 = Version("0.4.26+commit.4563c3fc")
-    latest = sorted(list(actual.keys()), reverse=True)[0]
+    latest = sorted(actual.keys(), reverse=True)[0]
 
     fail_msg = f"Versions: {', '.join([str(v) for v in actual])}"
     assert v0812 in actual, fail_msg

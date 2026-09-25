@@ -47,6 +47,9 @@ test = [
     "pytest-xdist",
     "pytest-cov",
     "hypothesis>=6.2.0,<7",
+    "pytest-mock",
+    "pytest-benchmark",
+
 ]
 lint = [
     "mypy>=1.15.0,<2",
@@ -113,9 +116,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"ape_solidity/**/*.py" = ["RET504", "RET505", "E501", "B904", "SIM105", "C416"]
 "version.py" = ["ALL"]
 "__init__.py" = ["F401"]
-"tests/**/*.py" = ["ARG001", "ARG002"]  # Pytest fixtures may appear unused
+"tests/**/*.py" = ["ARG001", "ARG002", "PT007", "PT011", "C416", "RET504", "RET505", "E501", "B904", "SIM105"]  # Pytest fixtures may appear unused
 
 [tool.ruff.lint.isort]
 force-wrap-aliases = true
