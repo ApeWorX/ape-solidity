@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 
 class ApeSolidityMixin(ManagerAccessMixin):
     @classproperty
-    def solidity(cls) -> "SolidityCompiler":
-        return cls.compiler_manager.solidity
+    def solidity(self) -> "SolidityCompiler":
+        return self.compiler_manager.solidity
 
 
 class ApeSolidityModel(BaseModel, ApeSolidityMixin):
@@ -72,7 +72,7 @@ def _create_import_remapping(project: "ProjectManager") -> dict[str, str]:
             remapping[key] = value
             continue
 
-        elif len(parts) == 2:
+        if len(parts) == 2:
             _version = parts[1]
 
         if _version is None:
@@ -128,17 +128,17 @@ class ImportStatementMetadata(ApeSolidityModel):
     raw_value: str
 
     # Only set when remappings are involved.
-    import_remap_key: Optional[str] = None
-    import_remap_value: Optional[str] = None
+    import_remap_key: str | None = None
+    import_remap_value: str | None = None
 
     # Only set when import-remapping resolves to a dependency.
-    dependency_name: Optional[str] = None
-    dependency_version: Optional[str] = None
+    dependency_name: str | None = None
+    dependency_version: str | None = None
 
     # Set once a source-file is located. This happens _after_
     # dependency related properties.
-    source_id: Optional[str] = None
-    path: Optional[Path] = None
+    source_id: str | None = None
+    path: Path | None = None
 
     @property
     def value(self) -> str:
@@ -149,9 +149,8 @@ class ImportStatementMetadata(ApeSolidityModel):
 
     @property
     def dependency(self) -> Optional["ProjectManager"]:
-        if name := self.dependency_name:
-            if version := self.dependency_version:
-                return self.local_project.dependencies[name][version]
+        if (name := self.dependency_name) and (version := self.dependency_version):
+            return self.local_project.dependencies[name][version]
 
         return None
 
@@ -336,8 +335,7 @@ class SourceTree(ApeSolidityModel):
         imports_by_source_id = {k[1]: v for k, v in statements.items()}
         keys = sorted(imports_by_source_id.keys())
         return {
-            k: sorted(list({i.source_id for i in imports_by_source_id[k] if i.source_id}))
-            for k in keys
+            k: sorted({i.source_id for i in imports_by_source_id[k] if i.source_id}) for k in keys
         }
 
     @classmethod
@@ -345,7 +343,7 @@ class SourceTree(ApeSolidityModel):
         cls,
         source_files: Iterable[Path],
         project: "ProjectManager",
-        statements: Optional[dict[tuple[Path, str], set[ImportStatementMetadata]]] = None,
+        statements: dict[tuple[Path, str], set[ImportStatementMetadata]] | None = None,
         dependency: Optional["ProjectManager"] = None,
     ) -> "SourceTree":
         statements = statements or {}

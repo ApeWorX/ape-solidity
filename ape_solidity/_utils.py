@@ -4,7 +4,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union
 
 from ape.exceptions import CompilerError
 from packaging.version import Version
@@ -61,7 +60,7 @@ class SolidityVersionSpecifier:
         self.expression = _normalize_pragma_expression(expression)
         self._ranges = _parse_solidity_version_expression(self.expression)
 
-    def __contains__(self, version: Union[str, Version, SoliditySemVer]) -> bool:
+    def __contains__(self, version: str | Version | SoliditySemVer) -> bool:
         return self.contains(version)
 
     def __str__(self) -> str:
@@ -70,7 +69,7 @@ class SolidityVersionSpecifier:
     def match(self, version: Version) -> bool:
         return self.contains(_as_solidity_semver(version))
 
-    def contains(self, version: Union[str, Version, SoliditySemVer]) -> bool:
+    def contains(self, version: str | Version | SoliditySemVer) -> bool:
         if isinstance(version, Version):
             return self.match(version)
 
@@ -100,7 +99,7 @@ def _as_solidity_semver(version: Version) -> SoliditySemVer:
     return SoliditySemVer.parse(f"{release}{prerelease}")
 
 
-def _coerce_semver_version(version: Union[str, Version, SoliditySemVer]) -> SoliditySemVer:
+def _coerce_semver_version(version: str | Version | SoliditySemVer) -> SoliditySemVer:
     if isinstance(version, SoliditySemVer):
         return version
 
@@ -174,7 +173,7 @@ def _match_solidity_component(component: VersionComponent, version: SoliditySemV
             _match_solidity_component(("<=", numbers, upper_levels), version)
         )
 
-    elif prefix == "^":
+    if prefix == "^":
         upper_levels = 2 if numbers[0] == 0 and levels_present != 1 else 1
         return _match_solidity_component((">=", numbers, levels_present), version) and (
             _match_solidity_component(("<=", numbers, upper_levels), version)
@@ -193,13 +192,13 @@ def _match_solidity_component(component: VersionComponent, version: SoliditySemV
 
     if prefix == "=":
         return cmp == 0
-    elif prefix == "<":
+    if prefix == "<":
         return cmp < 0
-    elif prefix == "<=":
+    if prefix == "<=":
         return cmp <= 0
-    elif prefix == ">":
+    if prefix == ">":
         return cmp > 0
-    elif prefix == ">=":
+    if prefix == ">=":
         return cmp >= 0
 
     raise ValueError(f"Unexpected version operator: '{prefix}'.")
@@ -241,8 +240,8 @@ def get_single_import_lines(source_path: Path) -> list[str]:
 
 
 def get_pragma_spec_from_path(
-    source_file_path: Union[Path, str],
-) -> Optional[SolidityVersionSpecifier]:
+    source_file_path: Path | str,
+) -> SolidityVersionSpecifier | None:
     """
     Extracts pragma information from Solidity source code.
 
@@ -262,7 +261,7 @@ def get_pragma_spec_from_path(
 
 def get_pragma_spec_from_str(
     source_str: str,
-) -> Optional[SolidityVersionSpecifier]:
+) -> SolidityVersionSpecifier | None:
     if not (
         pragma_match := next(
             re.finditer(r"(?:\n|^)\s*pragma\s*solidity\s*([^;\n]*)", source_str), None
@@ -276,11 +275,11 @@ def get_pragma_spec_from_str(
         return None
 
 
-def load_dict(data: Union[str, dict]) -> dict:
+def load_dict(data: str | dict) -> dict:
     return data if isinstance(data, dict) else json.loads(data)
 
 
-def add_commit_hash(version: Union[str, Version]) -> Version:
+def add_commit_hash(version: str | Version) -> Version:
     vers = Version(f"{version}") if isinstance(version, str) else version
     has_commit = len(f"{vers}") > len(vers.base_version)
     if has_commit:
@@ -293,12 +292,12 @@ def add_commit_hash(version: Union[str, Version]) -> Version:
 
 def select_version(
     pragma_spec: SolidityVersionSpecifier, options: Iterable[Version]
-) -> Optional[Version]:
+) -> Version | None:
     choices = sorted(pragma_spec.filter(options), reverse=True)
     return choices[0] if choices else None
 
 
-def strip_commit_hash(version: Union[str, Version]) -> Version:
+def strip_commit_hash(version: str | Version) -> Version:
     """
     Version('0.8.21+commit.d9974bed') => Version('0.8.21')> the simple way.
     """
