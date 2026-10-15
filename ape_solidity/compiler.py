@@ -74,7 +74,8 @@ class ImportRemapping(PluginConfig):
     """
 
     @model_validator(mode="before")
-    def validate_str(self, value):
+    @classmethod
+    def validate_str(cls, value):
         if isinstance(value, str):
             parts = value.split("=")
             return {"key": parts[0], "value": parts[1]}
