@@ -71,6 +71,12 @@ jobs:
         - name: Install Dependencies
           run: uv sync --group test
 
+        - name: Install test npm packages
+          run: |
+            pushd tests
+            npm install
+            popd
+
         - name: Run Tests
           run: uv run pytest -m "not fuzzing" -s --cov=ape_solidity -n auto
 
