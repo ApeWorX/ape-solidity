@@ -35,9 +35,8 @@ class SolcCompileError(CompilerError):
             # Show everything when in DEBUG mode.
             return str(self.solc_error)
 
-        else:
-            # Only show the error and line-number(s) where it occurred.
-            return self.solc_error.message
+        # Only show the error and line-number(s) where it occurred.
+        return self.solc_error.message
 
 
 class IncorrectMappingFormatError(ConfigError, ValueError):
