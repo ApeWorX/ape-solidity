@@ -246,10 +246,10 @@ def get_pragma_spec_from_path(
     Extracts pragma information from Solidity source code.
 
     Args:
-        source_file_path (Union[Path, str]): Solidity source file path.
+        source_file_path (Path | str): Solidity source file path.
 
     Returns:
-        ``Optional[SolidityVersionSpecifier]``
+        ``SolidityVersionSpecifier | None``
     """
     path = Path(source_file_path)
     if not path.is_file():

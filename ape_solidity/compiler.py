@@ -248,7 +248,7 @@ class SolidityCompiler(CompilerAPI):
 
         Args:
             *contracts (``ContractInstance``): The deployed library contract(s).
-            project (Optional[ProjectManager]): The project using the library.
+            project (ProjectManager | None): The project using the library.
         """
         pm = project or self.local_project
         for contract in contracts:

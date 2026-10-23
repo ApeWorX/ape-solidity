@@ -2,7 +2,7 @@ import os
 from collections.abc import Iterable
 from functools import singledispatchmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from ape.exceptions import CompilerError, ProjectError
 from ape.utils.basemodel import BaseModel, ManagerAccessMixin, classproperty
@@ -148,7 +148,7 @@ class ImportStatementMetadata(ApeSolidityModel):
         return self.raw_value
 
     @property
-    def dependency(self) -> Optional["ProjectManager"]:
+    def dependency(self) -> "ProjectManager | None":
         if (name := self.dependency_name) and (version := self.dependency_version):
             return self.local_project.dependencies[name][version]
 
@@ -160,7 +160,7 @@ class ImportStatementMetadata(ApeSolidityModel):
         value: str,
         reference: Path,
         project: "ProjectManager",
-        dependency: Optional["ProjectManager"] = None,
+        dependency: "ProjectManager | None" = None,
     ) -> "ImportStatementMetadata":
         quote = '"' if '"' in value else "'"
         sep = "\\" if "\\" in value else "/"
@@ -189,7 +189,7 @@ class ImportStatementMetadata(ApeSolidityModel):
         self,
         reference: Path,
         project: "ProjectManager",
-        dependency: Optional["ProjectManager"] = None,
+        dependency: "ProjectManager | None" = None,
     ):
         if not self._resolve_dependency(project, dependency=dependency):
             # Handle non-dependencies.
@@ -239,7 +239,7 @@ class ImportStatementMetadata(ApeSolidityModel):
             self.source_id = f"{get_relative_path(self.path, project.path)}"
 
     def _resolve_dependency(
-        self, project: "ProjectManager", dependency: Optional["ProjectManager"] = None
+        self, project: "ProjectManager", dependency: "ProjectManager | None" = None
     ) -> bool:
         config_project = dependency or project
         # NOTE: Dependency is set if we are getting dependencies of dependencies.
@@ -344,7 +344,7 @@ class SourceTree(ApeSolidityModel):
         source_files: Iterable[Path],
         project: "ProjectManager",
         statements: dict[tuple[Path, str], set[ImportStatementMetadata]] | None = None,
-        dependency: Optional["ProjectManager"] = None,
+        dependency: "ProjectManager | None" = None,
     ) -> "SourceTree":
         statements = statements or {}
         for path in source_files:
