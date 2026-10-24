@@ -1,5 +1,5 @@
 from enum import IntEnum
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from ape.exceptions import CompilerError, ConfigError, ContractLogicError
 from ape.logging import LogLevel, logger
@@ -35,9 +35,8 @@ class SolcCompileError(CompilerError):
             # Show everything when in DEBUG mode.
             return str(self.solc_error)
 
-        else:
-            # Only show the error and line-number(s) where it occurred.
-            return self.solc_error.message
+        # Only show the error and line-number(s) where it occurred.
+        return self.solc_error.message
 
 
 class IncorrectMappingFormatError(ConfigError, ValueError):
@@ -160,17 +159,17 @@ class ZeroInitializedVariableError(SolidityRuntimeError):
 
 
 RUNTIME_ERROR_CODE_PREFIX = "0x4e487b71"
-RuntimeErrorUnion = Union[
-    SolidityArithmeticError,
-    SolidityAssertionError,
-    DivisionByZeroError,
-    EnumConversionError,
-    EncodeStorageError,
-    IndexOutOfBoundsError,
-    MemoryOverflowError,
-    PopOnEmptyArrayError,
-    ZeroInitializedVariableError,
-]
+RuntimeErrorUnion = (
+    SolidityArithmeticError
+    | SolidityAssertionError
+    | DivisionByZeroError
+    | EnumConversionError
+    | EncodeStorageError
+    | IndexOutOfBoundsError
+    | MemoryOverflowError
+    | PopOnEmptyArrayError
+    | ZeroInitializedVariableError
+)
 RUNTIME_ERROR_MAP: dict[RuntimeErrorType, type[RuntimeErrorUnion]] = {
     RuntimeErrorType.ASSERTION_ERROR: SolidityAssertionError,
     RuntimeErrorType.ARITHMETIC_UNDER_OR_OVERFLOW: SolidityArithmeticError,
